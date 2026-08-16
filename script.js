@@ -88,11 +88,13 @@ async function loadProperties() {
         address: property.title || property.address_line1,
         city: [property.city, property.state_region].filter(Boolean).join(", "),
         price: Number(property.price),
+        searchPrice: property.price_pkr ? Number(property.price_pkr) : Number(property.price),
         priceLabel: property.listing_type === "rent" ? `$${Number(property.price).toLocaleString()}/mo` : undefined,
         beds: property.bedrooms,
         baths: property.bathrooms,
         area: property.area_sqft ? `${Number(property.area_sqft).toLocaleString()} sqft` : "—",
         image: property.image_url || "https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=900&q=85",
+        images: Array.isArray(property.images) ? property.images : [property.image_url].filter(Boolean),
         photoCount: Number(property.image_count || 1),
         videoUrl: property.video_url,
         externalUrl: property.external_url
@@ -110,7 +112,8 @@ async function loadProperties() {
 }
 
 let savedIds = JSON.parse(localStorage.getItem("havenlySaved") || "[]");
-let listingMode = "all";
+const requestedListingMode = new URLSearchParams(window.location.search).get("listing");
+let listingMode = ["sale", "rent"].includes(requestedListingMode) ? requestedListingMode : "all";
 
 async function apiRequest(action, data = null) {
   const options = { method: data ? "POST" : "GET", headers: { Accept: "application/json" } };
@@ -130,26 +133,6 @@ const safeUrl = (value) => {
   if (url.startsWith("uploads/")) return url;
   try { return ["http:", "https:"].includes(new URL(url).protocol) ? url : ""; } catch { return ""; }
 };
-
-const fallbackProjects = [
-  "Harbor Point Residences", "Aster Heights", "Parkside Villas", "Cedar Square", "Bayview Residences", "The Arc at Central", "Orchard House"
-].map((title, index) => ({ project_id: index + 1, title }));
-
-function renderProjectMenu(projects) {
-  const menu = document.querySelector("#projectsMenu");
-  menu.innerHTML = projects.slice(0, 7).map((project) => `<a href="project.html?id=${Number(project.project_id)}">${escapeHtml(project.title)}</a>`).join("");
-}
-
-async function loadProjects() {
-  try {
-    const response = await fetch("api.php?action=projects", { headers: { Accept: "application/json" } });
-    if (!response.ok) throw new Error("Could not load projects");
-    const projects = await response.json();
-    renderProjectMenu(Array.isArray(projects) && projects.length ? projects : fallbackProjects);
-  } catch (error) {
-    renderProjectMenu(fallbackProjects);
-  }
-}
 
 let homeGalleryItems = [];
 let homeGalleryIndex = 0;
@@ -492,19 +475,33 @@ function closeLoginPopup() {
   }, 220);
 }
 
-const formatPrice = (property) => property.priceLabel || new Intl.NumberFormat("en-US", {
-  style: "currency", currency: "USD", maximumFractionDigits: 0
-}).format(property.price);
+const formatPrice = (property) => {
+  if (property.pricePkr) return `PKR ${new Intl.NumberFormat("en-PK", { maximumFractionDigits: 0 }).format(property.pricePkr)}`;
+  return property.priceLabel || new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD", maximumFractionDigits: 0
+  }).format(property.price);
+};
 
 function renderProperties(list = properties) {
   if (!list.length) {
-    elements.grid.innerHTML = `<div class="no-results"><h3>No homes found</h3><p>Try changing your search filters to see more properties.</p></div>`;
-    elements.resultsMessage.textContent = "No matching homes";
+    elements.grid.innerHTML = `<div class="no-results"><h3>No properties found</h3><p>Try changing your search filters to see more available listings.</p></div>`;
+    elements.resultsMessage.textContent = "No matching properties";
     return;
   }
-  elements.resultsMessage.textContent = list.length === properties.length ? "" : `${list.length} matching home${list.length === 1 ? "" : "s"}`;
+  elements.resultsMessage.textContent = list.length === properties.length ? "" : `${list.length} matching ${list.length === 1 ? "property" : "properties"}`;
   elements.grid.innerHTML = list.map((property) => {
     const image = safeUrl(property.image) || "https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=900&q=85";
+    const images = (Array.isArray(property.images) ? property.images : [image]).map(safeUrl).filter(Boolean);
+    if (!images.length) images.push(image);
+    const carouselSlides = images.map((imageUrl, index) => `
+      <a class="property-listing-slide" href="property.html?id=${property.id}" aria-label="View ${escapeHtml(property.address)}, photo ${index + 1}">
+        <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(property.type)} at ${escapeHtml(property.address)}${images.length > 1 ? `, photo ${index + 1}` : ""}" loading="lazy" />
+      </a>`).join("");
+    const carouselControls = images.length > 1 ? `
+      <button class="property-slide-control property-slide-previous" type="button" data-direction="-1" aria-label="Previous property photo">‹</button>
+      <button class="property-slide-control property-slide-next" type="button" data-direction="1" aria-label="Next property photo">›</button>
+      <div class="property-slide-dots" aria-hidden="true">${images.map((_, index) => `<span class="property-slide-dot${index === 0 ? " active" : ""}"></span>`).join("")}</div>
+      <span class="property-slide-count" aria-live="polite">1 / ${images.length}</span>` : "";
     const videoUrl = safeUrl(property.videoUrl);
     const externalUrl = safeUrl(property.externalUrl);
     const mediaLinks = [
@@ -512,10 +509,18 @@ function renderProperties(list = properties) {
       videoUrl ? `<a href="${videoUrl}" target="_blank" rel="noopener">▶ Video tour</a>` : "",
       externalUrl ? `<a href="${externalUrl}" target="_blank" rel="noopener">↗ View details</a>` : ""
     ].filter(Boolean).join("");
+    const specificationItems = [
+      property.type !== "Land" && property.beds !== null && property.beds !== undefined ? `▣ ${escapeHtml(property.beds)} beds` : "",
+      property.type !== "Land" && property.baths !== null && property.baths !== undefined ? `◒ ${escapeHtml(property.baths)} baths` : "",
+      property.sizeLabel ? `⌗ ${escapeHtml(property.sizeLabel)}` : "",
+      property.area && property.area !== "—" ? `⌑ ${escapeHtml(property.area)}` : "",
+      property.propertyFacing ? `◈ ${escapeHtml(property.propertyFacing)}` : ""
+    ].filter(Boolean);
     return `
       <article class="property-card" data-id="${property.id}">
         <div class="property-image">
-          <a href="property.html?id=${property.id}"><img src="${image}" alt="${escapeHtml(property.type)} at ${escapeHtml(property.address)}" loading="lazy" /></a>
+          <div class="property-listing-track">${carouselSlides}</div>
+          ${carouselControls}
           <span class="tag">${escapeHtml(property.status)}</span>
           <button class="favorite ${savedIds.includes(property.id) ? "active" : ""}" data-id="${property.id}" aria-label="Save ${escapeHtml(property.address)}" aria-pressed="${savedIds.includes(property.id)}">${savedIds.includes(property.id) ? "♥" : "♡"}</button>
         </div>
@@ -525,7 +530,7 @@ function renderProperties(list = properties) {
           <p class="property-city">${escapeHtml(property.city)}</p>
           ${mediaLinks ? `<div class="property-media-links">${mediaLinks}</div>` : ""}
           <a class="property-detail-button" href="property.html?id=${property.id}">View details</a>
-          <div class="property-specs"><span>▣ ${property.beds} beds</span><span>◒ ${property.baths} baths</span><span>⌑ ${property.area}</span></div>
+          ${specificationItems.length ? `<div class="property-specs">${specificationItems.map((item) => `<span>${item}</span>`).join("")}</div>` : ""}
         </div>
       </article>`;
   }).join("");
@@ -565,8 +570,21 @@ function applyFilters() {
     (listingMode === "all" || property.listingType === listingMode || (listingMode === "rent" && property.status === "For rent") || (listingMode === "sale" && property.status === "For sale")) &&
     (type === "all" || property.type === type) &&
     (!location || `${property.address} ${property.city}`.toLowerCase().includes(location)) &&
-    property.price <= maxPrice
+    Number(property.searchPrice ?? property.price) <= maxPrice
   ));
+}
+
+function movePropertySlide(card, direction) {
+  const track = card?.querySelector(".property-listing-track");
+  const slides = card?.querySelectorAll(".property-listing-slide") || [];
+  if (!track || slides.length < 2) return;
+  const currentIndex = Number(track.dataset.index || 0);
+  const nextIndex = (currentIndex + direction + slides.length) % slides.length;
+  track.dataset.index = String(nextIndex);
+  track.style.transform = `translateX(-${nextIndex * 100}%)`;
+  card.querySelectorAll(".property-slide-dot").forEach((dot, index) => dot.classList.toggle("active", index === nextIndex));
+  const count = card.querySelector(".property-slide-count");
+  if (count) count.textContent = `${nextIndex + 1} / ${slides.length}`;
 }
 
 function setDrawer(open) {
@@ -597,6 +615,12 @@ if (clearFiltersButton) {
 
 if (elements.grid) {
   elements.grid.addEventListener("click", (event) => {
+    const slideControl = event.target.closest(".property-slide-control");
+    if (slideControl) {
+      const card = slideControl.closest(".property-card");
+      movePropertySlide(card, Number(slideControl.dataset.direction));
+      return;
+    }
     const favoriteButton = event.target.closest(".favorite");
     if (favoriteButton) {
       toggleSaved(Number(favoriteButton.dataset.id));
@@ -609,6 +633,21 @@ if (elements.grid) {
       window.location.href = `property.html?id=${card.dataset.id}`;
     }
   });
+
+  let swipeStartX = null;
+  let swipeCard = null;
+  elements.grid.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 1) return;
+    swipeStartX = event.touches[0].clientX;
+    swipeCard = event.target.closest(".property-card");
+  }, { passive: true });
+  elements.grid.addEventListener("touchend", (event) => {
+    if (swipeStartX === null || !swipeCard || !event.changedTouches.length) return;
+    const distance = event.changedTouches[0].clientX - swipeStartX;
+    if (Math.abs(distance) > 45) movePropertySlide(swipeCard, distance < 0 ? 1 : -1);
+    swipeStartX = null;
+    swipeCard = null;
+  }, { passive: true });
 }
 if (elements.savedList) {
   elements.savedList.addEventListener("click", (event) => {
@@ -664,24 +703,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-document.querySelector(".menu-toggle").addEventListener("click", (event) => {
-  const nav = document.querySelector(".main-nav");
-  const open = nav.classList.toggle("open");
-  event.currentTarget.setAttribute("aria-expanded", open);
-});
-document.querySelectorAll(".main-nav a").forEach((link) => link.addEventListener("click", () => document.querySelector(".main-nav").classList.remove("open")));
-const projectsToggle = document.querySelector(".projects-toggle");
-const projectsMenu = document.querySelector("#projectsMenu");
-projectsToggle.addEventListener("click", () => {
-  const open = projectsMenu.classList.toggle("open");
-  projectsToggle.setAttribute("aria-expanded", open);
-});
-document.addEventListener("click", (event) => {
-  if (!event.target.closest(".projects-nav")) {
-    projectsMenu.classList.remove("open");
-    projectsToggle.setAttribute("aria-expanded", "false");
-  }
-});
 document.querySelectorAll("[data-listing]").forEach((link) => link.addEventListener("click", () => {
   listingMode = link.dataset.listing;
   applyFilters();
@@ -699,9 +720,6 @@ document.querySelector("#year").textContent = new Date().getFullYear();
 persistSaved();
 if (document.querySelector("#propertyGrid") || document.querySelector("#searchForm")) {
   loadProperties();
-}
-if (document.querySelector("#projectsMenu")) {
-  loadProjects();
 }
 if (document.querySelector("#homeGallery")) {
   loadHomeGallery();

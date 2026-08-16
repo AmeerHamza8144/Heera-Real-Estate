@@ -1,143 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Property Details - Heera Real Estate</title>
-    
-    <!-- Link your existing project stylesheets -->
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="project.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="View property details from Heera Estate." />
+  <title>Heera Estate | Property Details</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="property.css" />
 </head>
-<body>
+<body class="property-detail-page">
+  <div class="topbar">
+    <div class="topbar-links">
+      <a href="https://www.facebook.com/" target="_blank" rel="noopener">Facebook</a>
+      <a href="https://www.instagram.com/" target="_blank" rel="noopener">Instagram</a>
+      <a href="https://wa.me/923000660446" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+  </div>
 
-    <!-- Main Container matching standard real estate layouts -->
-    <main class="container my-5" id="property-details-wrapper">
-        <div id="loading" class="text-center py-5">
-            <p>Loading property details...</p>
+  <header class="property-header">
+    <a class="brand" href="index.html" aria-label="Heera Estate home">
+      <span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span>
+      <span>Heera Estate</span>
+    </a>
+    <a class="property-back-link" href="index.html#listings">← Back to properties</a>
+  </header>
+
+  <main>
+    <section class="property-state" id="propertyLoading" aria-live="polite">
+      <span class="property-loader" aria-hidden="true"></span>
+      <p>Loading property details…</p>
+    </section>
+
+    <section class="property-state property-error" id="propertyError" hidden>
+      <p class="eyebrow">Property unavailable</p>
+      <h1 id="propertyErrorTitle">We couldn’t load this property.</h1>
+      <p id="propertyErrorMessage">Please return to the listings and choose another property.</p>
+      <a class="button button-primary" href="index.html#listings">View all properties <span>→</span></a>
+    </section>
+
+    <article id="propertyContent" hidden>
+      <section class="property-intro">
+        <div class="property-intro-copy">
+          <div class="property-badges">
+            <span class="property-badge property-badge-primary" id="propertyListingType"></span>
+            <span class="property-badge" id="propertyType"></span>
+            <span class="property-badge" id="propertyStatus"></span>
+          </div>
+          <h1 id="propertyTitle"></h1>
+          <p class="property-location" id="propertyLocation"></p>
+        </div>
+        <div class="property-price-panel">
+          <span>Property price</span>
+          <strong id="propertyPrice"></strong>
+          <small id="propertySecondaryPrice" hidden></small>
+        </div>
+      </section>
+
+      <section class="property-gallery-section" aria-label="Property media">
+        <div class="property-main-media" id="propertyMainMedia"></div>
+        <button class="property-gallery-arrow property-gallery-previous" id="previousMedia" type="button" aria-label="Previous image" hidden>‹</button>
+        <button class="property-gallery-arrow property-gallery-next" id="nextMedia" type="button" aria-label="Next image" hidden>›</button>
+        <span class="property-gallery-count" id="mediaCount" hidden></span>
+      </section>
+      <div class="property-thumbnails" id="propertyThumbnails" aria-label="Choose property image"></div>
+
+      <section class="property-information">
+        <div class="property-main-column">
+          <section class="property-block">
+            <p class="eyebrow">Overview</p>
+            <h2>Property details</h2>
+            <div class="property-facts" id="propertyFacts"></div>
+          </section>
+
+          <section class="property-block" id="descriptionSection">
+            <p class="eyebrow">About this property</p>
+            <h2>Description</h2>
+            <p class="property-description-text" id="propertyDescription"></p>
+          </section>
+
+          <section class="property-block" id="videoSection" hidden>
+            <p class="eyebrow">Take a closer look</p>
+            <h2>Property videos</h2>
+            <div class="property-video-grid" id="propertyVideos"></div>
+          </section>
+
+          <section class="property-block" id="linksSection" hidden>
+            <p class="eyebrow">More information</p>
+            <h2>Property links</h2>
+            <div class="property-external-links" id="propertyLinks"></div>
+          </section>
         </div>
 
-        <!-- Hidden initially, populated by JavaScript -->
-        <div id="property-details-content" style="display: none;">
-            <div class="row">
-                <!-- Property Media / Gallery Section -->
-                <div class="col-lg-7 mb-4">
-                    <div class="property-main-image mb-3">
-                        <img id="main-property-img" src="" alt="Property Image" class="img-fluid rounded w-100" style="max-height: 450px; object-fit: cover;">
-                    </div>
-                    <!-- Thumbnails if multiple images exist -->
-                    <div class="row g-2" id="property-thumbnails">
-                        <!-- Dynamic thumbnails injected here -->
-                    </div>
-                </div>
+        <aside class="property-contact-card">
+          <p class="eyebrow">Interested?</p>
+          <h2>Ask about this property</h2>
+          <p>Contact Heera Estate and mention property <strong id="propertyReference"></strong>.</p>
+          <a class="button button-primary property-contact-button" id="whatsAppEnquiry" href="https://wa.me/923000660446" target="_blank" rel="noopener">Enquire on WhatsApp <span>→</span></a>
+          <a class="property-contact-secondary" href="index.html#contact">Send an enquiry form</a>
+        </aside>
+      </section>
+    </article>
+  </main>
 
-                <!-- Property Information Section based on your DB columns -->
-                <div class="col-lg-5">
-                    <span class="badge bg-primary mb-2" id="prop-listing-type">Listing Type</span>
-                    <span class="badge bg-secondary mb-2" id="prop-type">Property Type</span>
-                    
-                    <h1 id="prop-title" class="mb-3">Title</h1>
-                    <h3 class="text-success mb-3" id="prop-price">$0.00</h3>
-                    
-                    <p class="text-muted mb-4">
-                        <strong id="prop-address">Address</strong>, <span id="prop-city">City</span>, <span id="prop-state">State</span> <span id="prop-postal">Postal</span>
-                    </p>
+  <footer class="site-footer">
+    <a class="brand footer-brand" href="index.html">
+      <span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span>
+      <span>Heera Estate</span>
+    </a>
+    <p>Homes that feel like home.</p>
+    <span>© <span id="year"></span> Heera Estate</span>
+  </footer>
 
-                    <div class="property-specs mb-4">
-                        <ul class="list-unstyled d-flex gap-4">
-                            <li><strong>Bedrooms:</strong> <span id="prop-beds">-</span></li>
-                            <li><strong>Bathrooms:</strong> <span id="prop-baths">-</span></li>
-                        </ul>
-                    </div>
-
-                    <div class="property-status mb-4">
-                        <strong>Status:</strong> <span id="prop-status" class="text-capitalize">-</span>
-                    </div>
-
-                    <div class="d-grid">
-                        <a href="#contact" class="btn btn-dark btn-lg">Enquire Now</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Link your project scripts -->
-    <script src="script.js"></script>
-    <script src="project.js"></script>
-    <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const propertyId = urlParams.get('property_id') || urlParams.get('id');
-
-        if (propertyId) {
-            fetchPropertyDetails(propertyId);
-        } else {
-            document.getElementById('loading').innerHTML = '<div class="alert alert-danger">No property specified. Please go back and select a property.</div>';
-        }
-    });
-
-    function fetchPropertyDetails(id) {
-        fetch(`api.php?action=property&id=${id}`)
-            .then(async response => {
-                const text = await response.text();
-                try {
-                    return JSON.parse(text);
-                } catch (e) {
-                    throw new Error("Invalid JSON response from server: " + text);
-                }
-            })
-            .then(prop => {
-                // Since the property() function in your API returns the row directly, 'prop' is the property object
-                if (prop && (prop.property_id || prop.id)) {
-                    document.getElementById('prop-title').innerText = prop.title || 'Property Details';
-                    document.getElementById('prop-price').innerText = prop.price ? `$${parseFloat(prop.price).toLocaleString()}` : (prop.price_pkr ? `PKR ${parseFloat(prop.price_pkr).toLocaleString()}` : 'Price on Request');
-                    
-                    if(document.getElementById('prop-listing-type')) document.getElementById('prop-listing-type').innerText = prop.listing_type || '';
-                    if(document.getElementById('prop-type')) document.getElementById('prop-type').innerText = prop.property_type || '';
-                    if(document.getElementById('prop-address')) document.getElementById('prop-address').innerText = prop.address_line1 || '';
-                    if(document.getElementById('prop-city')) document.getElementById('prop-city').innerText = prop.city || '';
-                    if(document.getElementById('prop-state')) document.getElementById('prop-state').innerText = prop.state_region || '';
-                    if(document.getElementById('prop-postal')) document.getElementById('prop-postal').innerText = prop.postal_code || '';
-                    if(document.getElementById('prop-beds')) document.getElementById('prop-beds').innerText = prop.bedrooms || 'N/A';
-                    if(document.getElementById('prop-baths')) document.getElementById('prop-baths').innerText = prop.bathrooms || 'N/A';
-                    if(document.getElementById('prop-status')) document.getElementById('prop-status').innerText = prop.status || '-';
-
-                    // Handle Media / Images array returned by the API's property() function
-                    const mediaItems = prop.media || [];
-                    const images = mediaItems.filter(m => m.media_type === 'image');
-
-                    if (images.length > 0) {
-                        document.getElementById('main-property-img').src = images[0].file_path;
-                        
-                        let thumbnailsHTML = '';
-                        images.forEach(img => {
-                            thumbnailsHTML += `
-                                <div class="col-3">
-                                    <img src="${img.file_path}" class="img-thumbnail cursor-pointer" onclick="document.getElementById('main-property-img').src='${img.file_path}'" style="height: 80px; object-fit: cover; width: 100%; cursor: pointer;">
-                                </div>
-                            `;
-                        });
-                        document.getElementById('property-thumbnails').innerHTML = thumbnailsHTML;
-                    } else {
-                        document.getElementById('main-property-img').src = 'placeholder.jpg';
-                    }
-
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('property-details-content').style.display = 'block';
-                } else {
-                    document.getElementById('loading').innerHTML = '<div class="alert alert-warning">Property not found in the database.</div>';
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching property:', error);
-                document.getElementById('loading').innerHTML = `<div class="alert alert-danger">Error loading property details: ${error.message}</div>`;
-            });
-    }
-</script>
-    
-        
-    
-</script>
+  <script src="property.js"></script>
 </body>
 </html>

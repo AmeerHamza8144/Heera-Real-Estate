@@ -12,14 +12,35 @@
   <link rel="stylesheet" href="project.css" />
 </head>
 <body class="project-body">
-  <header class="project-header">
-    <div class="project-header-inner">
-      <a class="brand" href="#top" aria-label="Havenly home">
-        <span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span>
-        <span>Heera Estate</span>
-      </a>
-      <a class="project-back-link" href="index.html">← Back to projects</a>
+  <div class="topbar">
+    <div class="topbar-links">
+      <a href="https://www.facebook.com/" target="_blank" rel="noopener">Facebook</a>
+      <a href="https://www.instagram.com/" target="_blank" rel="noopener">Instagram</a>
+      <a href="https://wa.me/923000660446" target="_blank" rel="noopener">WhatsApp</a>
     </div>
+  </div>
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Heera Estate home">
+      <span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span>
+      <span>Heera Estate</span>
+    </a>
+    <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="main-nav" aria-label="Main navigation">
+      <a href="index.html" data-page="home">Home</a>
+      <a href="index.html?listing=sale#listings">Buy</a>
+      <a href="index.html?listing=rent#listings">Rent</a>
+      <a href="index.html#agents">Agents</a>
+      <div class="projects-nav">
+        <button class="projects-toggle is-active" type="button" aria-expanded="false">Projects <span>⌄</span></button>
+        <div class="projects-menu" id="projectsMenu"><span class="projects-loading">Loading projects…</span></div>
+      </div>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+    <a class="admin-login-icon" href="admin.html" aria-label="Admin login">
+      <img src="images/home-logo.jpg" alt="" />
+    </a>
   </header>
   <main id="projectContent">
     <section class="project-hero" id="projectHero">
@@ -40,6 +61,7 @@
   </main>
   <section class="project-not-found section" id="projectNotFound" hidden><p class="eyebrow">Project not found</p><h2>We couldn’t find that project.</h2><a class="button button-dark" href="index.html">Return home <span>→</span></a></section>
   <footer class="site-footer"><a class="brand footer-brand" href="index.html"><span class="brand-mark">H</span><span>Heera Estates</span></a><p>Homes that feel like home.</p><span>© <span id="year"></span> Heera Real Estate</span></footer>
+  <script src="site-nav.js"></script>
   <script src="project.js"></script>
 </body>
 </html>
