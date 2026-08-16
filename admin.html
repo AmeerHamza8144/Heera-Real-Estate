@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Heera Estate | Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body class="admin-body">
+  <header class="admin-header">
+    <a class="brand" href="index.html"><span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span><span></span></a>
+    <a class="back-home" href="index.html">← Back to website</a>
+  </header>
+
+  <main>
+    <!-- Login is provided on the main site page; admin.html only shows admin UI when authenticated -->
+
+    <section class="dashboard" id="dashboard" hidden>
+      <div class="dashboard-topbar">
+        <div><p class="eyebrow">Admin dashboard</p><h1>Your listings</h1></div>
+        <div class="dashboard-actions"><span id="adminName"></span><button class="button button-dark" id="logoutButton">Log out</button></div>
+      </div>
+      <div class="admin-tabs" role="tablist" aria-label="Content manager">
+        <button class="admin-tab active" type="button" data-workspace="propertiesWorkspace" role="tab" aria-selected="true">Properties</button>
+        <button class="admin-tab" type="button" data-workspace="projectsWorkspace" role="tab" aria-selected="false">Projects</button>
+<button class="admin-tab" type="button" data-workspace="galleryWorkspace" role="tab" aria-selected="false">Home gallery</button>
+        <button class="admin-tab" type="button" data-workspace="popupsWorkspace" role="tab" aria-selected="false">Popups</button>
+        <button class="admin-tab" type="button" data-workspace="agentsWorkspace" role="tab" aria-selected="false">Agents</button>
+      </div>
+      <div id="propertiesWorkspace" class="admin-workspace">
+      <div class="dashboard-layout">
+        <section class="listing-manager">
+          <div class="manager-heading"><h2>Published properties</h2><span id="listingCount">0 listings</span></div>
+          <div class="admin-property-list" id="adminPropertyList"></div>
+        </section>
+        <section class="editor-panel">
+          <div class="editor-heading"><div><p class="eyebrow" id="editorEyebrow">New listing</p><h2 id="editorTitle">Add a property</h2></div><button class="cancel-edit" id="cancelEdit" type="button" hidden>Cancel</button></div>
+          <form id="propertyForm" class="property-form">
+            <input type="hidden" name="property_id" />
+            <div class="two-column">
+              <label>Listing title<input name="title" required placeholder="e.g. Sunlit modern villa" /></label>
+              <label>Price (USD)<input name="price" type="number" placeholder="850000" /><span class="field-hint">Optional — leave empty if using PKR</span></label>
+            </div>
+            <div class="three-column">
+              <label>Listing type<select name="listing_type"><option value="sale">For sale</option><option value="rent">For rent</option></select></label>
+              <label>Property type<select name="property_type" id="propertyTypeSelect"><option>House</option><option>Apartment</option><option>Villa</option><option>Condo</option><option>Land</option></select></label>
+              <label>Status<select name="status"><option value="available">Available</option><option value="pending">Pending</option><option value="sold">Sold</option><option value="rented">Rented</option></select></label>
+            </div>
+            <label>Street address<input name="address_line1" required placeholder="4236 Mornington Road" /></label>
+            <div class="three-column">
+              <label>City<input name="city" required placeholder="Austin" /></label>
+              <label>State / region<input name="state_region" placeholder="TX" /></label>
+              <label>Postal code<input name="postal_code" placeholder="78704" /></label>
+            </div>
+            <div class="three-column" id="bedsBathsAreaRow">
+              <label class="beds-field">Bedrooms<input name="bedrooms" min="0" step="0.5" type="number" placeholder="3" /></label>
+              <label class="baths-field">Bathrooms<input name="bathrooms" min="0" step="0.5" type="number" placeholder="2" /></label>
+              <label>Area (sqft)<input name="area_sqft" min="0" type="number" placeholder="1900" /></label>
+            </div>
+            <div class="three-column">
+              <label>Property size<input name="size_label" placeholder="3 Marla / 5 Marla / 10 Marla" /></label>
+              <label>Facing / Type<select name="property_facing"><option value="">-- select --</option><option>Corner</option><option>Facing Park</option><option>Corner & Facing Park</option><option>Main Road</option></select></label>
+              <label>Total price (PKR)<input name="price_pkr" min="0" type="number" placeholder="3300000" /></label>
+            </div>
+            <div class="two-column">
+              <label>Per Marla price (PKR)<input name="price_per_marla" min="0" type="number" placeholder="1250000" /></label>
+            </div>
+            <label>Description<textarea name="description" rows="3" placeholder="A short, appealing description of this property."></textarea></label>
+
+            <!-- Payment plans removed -->
+
+            <fieldset>
+              <legend>Media & links</legend>
+              <p class="field-help">Use one URL per line. The first image is used as the listing cover.</p>
+              <label>Image URLs<textarea name="images" rows="3" placeholder="https://.../living-room.jpg"></textarea></label>
+              <label>Video URLs<textarea name="videos" rows="2" placeholder="https://.../home-tour.mp4 or YouTube link"></textarea></label>
+              <label>External links<textarea name="links" rows="2" placeholder="https://.../virtual-tour"></textarea></label>
+              <label class="upload-label">Upload photos or videos<input id="mediaUpload" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" multiple /></label>
+              <p class="upload-status" id="uploadStatus" role="status"></p>
+            </fieldset>
+            <div class="form-actions"><button class="button button-primary" type="submit" id="saveButton">Publish listing <span>→</span></button><p id="propertyMessage" class="property-message" role="status"></p></div>
+          </form>
+        </section>
+      </div>
+      </div>
+      <div id="projectsWorkspace" class="admin-workspace" hidden>
+        <div class="dashboard-layout">
+          <section class="listing-manager">
+            <div class="manager-heading"><h2>Your projects</h2><span id="projectCount">0 projects</span></div>
+            <div class="admin-property-list" id="adminProjectList"></div>
+          </section>
+          <section class="editor-panel">
+            <div class="editor-heading"><div><p class="eyebrow" id="projectEditorEyebrow">New project</p><h2 id="projectEditorTitle">Add a project</h2></div><button class="cancel-edit" id="cancelProjectEdit" type="button" hidden>Cancel</button></div>
+            <form id="projectForm" class="property-form">
+              <input type="hidden" name="project_id" />
+              <div class="two-column"><label>Project name<input name="title" required placeholder="e.g. Harbor Point Residences" /></label><label>Project category<input name="category" required placeholder="Residential" /></label></div>
+              <div class="two-column"><label>Location<input name="location" required placeholder="City or neighborhood" /></label><label>Status<select name="status"><option value="published">Published</option><option value="draft">Draft</option></select></label></div>
+              <label>Hero image URL<input name="hero_image_url" placeholder="https://.../project-hero.jpg" /></label>
+              <label>Headline<input name="headline" placeholder="A short project introduction" /></label>
+              <label>Project description<textarea name="description" rows="5" placeholder="Project details shown on its separate page."></textarea></label>
+              <fieldset>
+                <legend>Project gallery & plans</legend>
+                <p class="field-help">Use one image URL per line. Gallery images and plan images are displayed separately on the project page.</p>
+                <label>Gallery image URLs<textarea name="gallery_images" rows="3" placeholder="https://.../project-image.jpg"></textarea></label>
+                <label>Plan image URLs<textarea name="plans" rows="3" placeholder="https://.../floor-plan.png"></textarea></label>
+                <label class="checkbox-label"><input type="checkbox" id="enableProjectPaymentPlans" /> Enable structured payment plans (optional)</label>
+                <fieldset id="projectPaymentPlansFieldset" class="payment-plans-fieldset" hidden>
+                  <legend>📋 Payment Plans</legend>
+                  <p class="field-help">Add payment plan options for different unit sizes (optional).</p>
+                  <div id="projectPaymentPlansContainer"></div>
+                  <button type="button" class="button button-outline add-plan-btn" id="addProjectPlanRow">+ Add payment plan</button>
+                </fieldset>
+                <label>Upload destination<select id="projectUploadTarget"><option value="gallery_images">Project gallery</option><option value="plans">Plans</option></select></label>
+                <label class="upload-label">Upload project photos or plans<input id="projectMediaUpload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple /></label>
+                <p class="upload-status" id="projectUploadStatus" role="status"></p>
+              </fieldset>
+              <div class="form-actions"><button class="button button-primary" type="submit" id="saveProjectButton">Publish project <span>→</span></button><p id="projectMessage" class="property-message" role="status"></p></div>
+            </form>
+          </section>
+        </div>
+      </div>
+      <div id="galleryWorkspace" class="admin-workspace" hidden>
+        <div class="gallery-manager-panel">
+          <div class="editor-heading"><div><p class="eyebrow">Main website gallery</p><h2>Manage gallery images</h2></div></div>
+          <form id="homeGalleryForm" class="home-gallery-form">
+            <label>Image URL<input name="image_url" required placeholder="https://.../your-image.jpg" /></label>
+            <label>Caption<input name="caption" placeholder="Optional image caption" /></label>
+            <button class="button button-primary" type="submit">Add to gallery <span>→</span></button>
+            <label class="upload-label gallery-upload-label">Upload an image<input id="homeGalleryUpload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple /></label>
+          </form>
+<p class="upload-status" id="homeGalleryStatus" role="status"></p>
+          <div class="admin-home-gallery" id="adminHomeGallery"></div>
+        </div>
+      </div>
+      <div id="popupsWorkspace" class="admin-workspace" hidden>
+        <div class="gallery-manager-panel">
+          <div class="editor-heading"><div><p class="eyebrow">Front-page popups</p><h2>Manage popup ads</h2></div></div>
+          <p class="field-help" style="margin-top:14px;">Add one or many popup ads. All published popups auto-show on the home page as a rotating carousel on every refresh. Each popup has a close button on the right side.</p>
+          <form id="homePopupForm" class="home-popup-form">
+            <input type="hidden" name="popup_id" />
+<label>Image URL<input name="image_url" placeholder="https://.../popup.jpg" /></label>
+            <label class="upload-label">Upload popup image<input id="popupImageUpload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+            <label>Link URL<input name="link_url" placeholder="https://.../destination" /></label>
+            <label>Headline<input name="headline" placeholder="Optional headline" /></label>
+            <label>HTML content<textarea name="html_content" rows="3" placeholder="Optional HTML content (buttons, small markup)"></textarea></label>
+            <label class="checkbox-label"><input type="checkbox" name="is_published" /> Publish popup (visible on site)</label>
+            <div class="form-actions"><button class="button button-primary" type="submit" id="saveHomePopupButton">Save popup <span>→</span></button><p id="homePopupMessage" class="property-message" role="status"></p></div>
+          </form>
+          <div id="adminPopupList"></div>
+        </div>
+      </div>
+      <div id="agentsWorkspace" class="admin-workspace" hidden>
+        <div class="dashboard-layout">
+          <section class="listing-manager">
+            <div class="manager-heading"><h2>Your agents</h2><span id="agentCount">0 agents</span></div>
+            <div class="admin-property-list" id="adminAgentList"></div>
+          </section>
+          <section class="editor-panel">
+            <div class="editor-heading"><div><p class="eyebrow">Agent directory</p><h2 id="agentEditorTitle">Add an agent</h2></div><button class="cancel-edit" id="cancelAgentEdit" type="button" hidden>Cancel</button></div>
+            <form id="agentForm" class="property-form">
+              <input type="hidden" name="agent_id" />
+              <label>Name<input name="name" required placeholder="Full name" /></label>
+              <label>Title<input name="title" placeholder="e.g. Senior Agent" /></label>
+              <label>Email<input name="email" type="email" placeholder="agent@example.com" /></label>
+              <label>Phone<input name="phone" placeholder="(555) 555-5555" /></label>
+              <label>Photo URL<input name="photo_url" placeholder="https://.../agent.jpg" /></label>
+              <label class="upload-label">Upload photo<input id="agentPhotoUpload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+              <label>Bio<textarea name="bio" rows="4" placeholder="Short bio for the agent"></textarea></label>
+              <div class="form-actions"><button class="button button-primary" type="submit" id="saveAgentButton">Save agent <span>→</span></button><p id="agentMessage" class="property-message" role="status"></p></div>
+            </form>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="admin.js"></script>
+  <!-- Debug overlay: shows session response and JS errors (temporary) -->
+  <div id="debugOverlay" style="position:fixed;right:12px;bottom:12px;z-index:9999;max-width:420px;background:rgba(0,0,0,0.85);color:#fff;padding:10px;border-radius:6px;font-family:system-ui,Arial,sans-serif;font-size:12px;line-height:1.2;box-shadow:0 6px 24px rgba(0,0,0,0.4)">
+    <strong style="display:block;margin-bottom:6px">Admin debug</strong>
+    <div id="debugContent">Loading session...</div>
+    <button id="debugClose" style="margin-top:8px;background:#222;color:#fff;border:0;padding:6px 8px;border-radius:4px;cursor:pointer">Close</button>
+  </div>
+  <script>
+    (function(){
+      const out = document.getElementById('debugContent');
+      const close = document.getElementById('debugClose');
+      close.addEventListener('click', () => document.getElementById('debugOverlay').style.display = 'none');
+      function write(...parts){ if (!out) return; out.innerHTML = parts.map(p => typeof p === 'string' ? p : JSON.stringify(p, null, 2)).join('<br><hr style="opacity:.12;margin:6px 0">'); }
+      window.addEventListener('error', (e) => { write('JS error: ' + (e && e.message) , e.filename + ':' + e.lineno + ':' + e.colno); });
+      window.addEventListener('unhandledrejection', (e) => { write('Unhandled rejection:', e && e.reason); });
+      fetch('api.php?action=session', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(r => r.json())
+        .then(j => write('session:', j))
+        .catch(err => write('session fetch failed:', String(err)));
+      // also capture console errors
+      const origErr = console.error.bind(console);
+      console.error = function(){ write('console.error:', Array.from(arguments)); origErr.apply(console, arguments); };
+    })();
+  </script>
+</body>
+</html>

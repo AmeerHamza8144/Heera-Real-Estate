@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Heera Estate helps you discover homes you will love." />
+  <title>Heera Estate | Find your Dream</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-links">
+      <a href="https://www.facebook.com/" target="_blank" rel="noopener" aria-label="Facebook">Facebook</a>
+      <a href="https://www.instagram.com/" target="_blank" rel="noopener" aria-label="Instagram">Instagram</a>
+      <a href="https://wa.me/923000660446" target="_blank" rel="noopener" aria-label="WhatsApp">WhatsApp</a>
+    </div>
+  </div>
+  <header class="site-header" id="top">
+    <a class="brand" href="#top" aria-label="Havenly home">
+      <span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span>
+      <span>Heera Estate</span>
+    </a>
+    <button class="menu-toggle" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="main-nav" aria-label="Main navigation">
+      <a href="#listings" data-listing="sale">Buy</a>
+      <a href="#listings" data-listing="rent">Rent</a>
+      <a href="#agents">Agents</a>
+      <div class="projects-nav">
+        <button class="projects-toggle" type="button" aria-expanded="false">Projects <span>⌄</span></button>
+        <div class="projects-menu" id="projectsMenu"><span class="projects-loading">Loading projects…</span></div>
+      </div>
+      <a href="#contact">Contact</a>
+    </nav>
+    <button class="admin-login-icon" id="openIndexLogin" type="button" aria-label="Admin login">
+      <span class="admin-icon"><img src="images/home-logo.jpg" alt="Admin" /></span>
+    </button>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-content">
+        <p class="eyebrow light">A place to call your own</p>
+        <h1>Find a home that<br />feels like <em>you.</em></h1>
+        <p class="hero-copy">Thoughtfully selected homes in the places you want to be.</p>
+        <form class="search-panel" id="searchForm">
+          <label>
+            <span>Looking for</span>
+            <select id="typeFilter">
+              <option value="all">Any property type</option>
+              <option value="House">House</option>
+              <option value="Apartment">Apartment</option>
+              <option value="Villa">Villa</option>
+            </select>
+          </label>
+          <label>
+            <span>Location</span>
+            <input id="locationFilter" type="search" placeholder="City or neighborhood" />
+          </label>
+          <label>
+            <span>Budget</span>
+            <select id="priceFilter">
+              <option value="all">Any price</option>
+              <option value="500000">Up to $500k</option>
+              <option value="1000000">Up to $1m</option>
+              <option value="2000000">Up to $2m</option>
+            </select>
+          </label>
+          <button type="submit" class="button button-primary">Search homes <span>→</span></button>
+        </form>
+      </div>
+      <div class="hero-credit">Featured in <strong>ARCHITECTURAL DIGEST</strong></div>
+    </section>
+
+    <section class="featured section" id="listings">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Curated for you</p>
+          <h2>Homes worth seeing</h2>
+        </div>
+        <button class="text-link" id="clearFilters">View all homes <span>→</span></button>
+      </div>
+      <p id="resultsMessage" class="results-message" aria-live="polite"></p>
+      <div class="property-grid" id="propertyGrid"></div>
+    </section>
+
+     <!--<section class="neighborhoods section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Explore by area</p>
+          <h2>Find your neighborhood</h2>
+        </div>
+        <p class="section-note">Every neighborhood tells a different story. Find the one that fits yours.</p>
+     </div>
+     <div class="neighborhood-grid">
+        <a href="#listings" class="neighborhood neighborhood-large"><img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85" alt="Coastline at sunset" /><span>Pacific Heights <small>18 homes</small></span></a>
+        <a href="#listings" class="neighborhood"><img src="https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=800&q=85" alt="City street" /><span>Brooklyn <small>24 homes</small></span></a>
+        <a href="#listings" class="neighborhood"><img src="https://images.unsplash.com/photo-1444723121867-7a241cacace9?auto=format&fit=crop&w=800&q=85" alt="Neighborhood houses" /><span>Austin <small>31 homes</small></span></a>
+      </div>
+    </section> --> 
+
+    <section class="home-gallery section" id="gallery">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">A closer look</p>
+          <h2>Spaces with a point of view</h2>
+        </div>
+        <p class="section-note">A selection of the homes, finishes, and places that inspire us.</p>
+      </div>
+      <div id="homeGallery" aria-live="polite"></div>
+    </section>
+
+    <section class="agents section" id="agents">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Meet the team</p>
+          <h2>Our agents</h2>
+        </div>
+        <button class="text-link" id="viewAllAgents">View all agents <span>→</span></button>
+      </div>
+      <div class="agent-grid" id="agentsGrid">
+        <!-- Agent profiles will be injected here -->
+      </div>
+    </section>
+
+    <section class="contact section" id="contact">
+      <div>
+        <p class="eyebrow">Let’s talk</p>
+        <h2>Ready when you are.</h2>
+        <p>Tell us what you are looking for. An agent will be in touch within one business day.</p>
+      </div>
+      <form class="contact-form" id="contactForm">
+        <div class="form-row">
+          <label>Full name<input name="name" required placeholder="Your name" /></label>
+          <label>Email address<input name="email" required type="email" placeholder="you@example.com" /></label>
+        </div>
+        <label>I'm interested in<select name="interest"><option>Buying a home</option><option>Selling a home</option><option>Renting a home</option><option>Speaking to an agent</option></select></label>
+        <label>Message<textarea name="message" rows="3" placeholder="Tell us a little about your plans"></textarea></label>
+        <button class="button button-primary" type="submit">Send enquiry <span>→</span></button>
+        <p class="form-success" id="formSuccess" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <div class="auth-popup" id="loginPopup" hidden>
+    <div class="auth-popup-backdrop" id="loginPopupBackdrop"></div>
+    <div class="auth-popup-panel">
+      <button class="modal-close auth-close" id="closeLoginPopup" type="button" aria-label="Close login">×</button>
+      <form class="auth-card" id="indexLoginForm">
+        <p class="eyebrow">Agent access</p>
+        <h2>Welcome back</h2>
+        <label>Email address<input name="email" type="email" autocomplete="username" placeholder="admin@havenly.local" required /></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" placeholder="Your password" required /></label>
+        <button class="button button-primary" type="submit">Log in <span>→</span></button>
+        <p class="login-error" id="indexLoginError" role="alert"></p>
+        <p class="credentials-note">Demo login: <strong>admin@havenly.local</strong><br />Password: <strong>Havenly2026!</strong></p>
+      </form>
+    </div>
+  </div>
+
+<div class="front-popup" id="frontPopup" hidden>
+    <div class="front-popup-backdrop"></div>
+    <div class="front-popup-panel">
+      <button class="modal-close front-close" id="closeFrontPopup" type="button" aria-label="Close popup">×</button>
+      
+      <div class="popup-content">
+        <img class="popup-image" src="" alt="" />
+        <span class="popup-counter" id="popupCounter"></span>
+        <h3 class="popup-headline"></h3>
+        <div class="popup-body"></div>
+        <a class="button popup-action" href="#" target="_blank" rel="noopener"></a>
+      </div>
+
+      <button class="popup-nav popup-prev" type="button" aria-label="Previous ad">‹</button>
+      <button class="popup-nav popup-next" type="button" aria-label="Next ad">›</button>
+      <div class="popup-dots" id="popupDots"></div>
+    </div>
+</div>
+
+  <aside class="saved-drawer" id="savedDrawer" aria-hidden="true">
+    <div class="drawer-header"><h3>Saved homes</h3><button id="closeDrawer" aria-label="Close saved homes">×</button></div>
+    <div id="savedList" class="saved-list"></div>
+  </aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <footer class="site-footer">
+    <a class="brand footer-brand" href="#top" aria-label="Heera Estate home">
+      <span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span>
+      <span>Heera Estate</span>
+    </a>
+    <p>Homes that feel like home.</p>
+    <span>© <span id="year"></span> Heera Estate</span>
+  </footer>
+  <script src="script.js"></script>
+</body>
+</html>

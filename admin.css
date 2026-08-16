@@ -1,0 +1,125 @@
+.admin-body { background: #f3f8ff; min-height: 100vh; }
+.admin-header { align-items: center; background: var(--cream); border-bottom: 1px solid var(--line); display: flex; height: 76px; justify-content: space-between; padding: 0 clamp(22px,5vw,78px); }
+.back-home { font-size: 13px; font-weight: 700; }
+.back-home:hover { color: var(--orange); }
+.login-screen { background: var(--ink); display: grid; grid-template-columns: 1.1fr .9fr; min-height: calc(100vh - 76px); }
+.login-intro { align-self: center; color: white; max-width: 600px; padding: 70px clamp(35px,10vw,150px); }
+.login-intro h1 { font-size: clamp(44px,5.5vw,74px); }
+.login-intro h1 em { color: #7ec5ff; }
+.login-intro > p:last-child { color: #c3cec6; font-size: 16px; line-height: 1.7; max-width: 420px; }
+.login-card { align-self: center; background: var(--cream); margin: 0; max-width: 470px; padding: 45px; position: relative; z-index: 4; }
+.login-card h2 { font-size: 39px; margin-bottom: 35px; }
+.login-card label, .property-form label { color: var(--muted); display: flex; flex-direction: column; font-size: 10px; font-weight: 700; gap: 8px; letter-spacing: .8px; text-transform: uppercase; }
+.login-card input, .property-form input, .property-form select, .property-form textarea { border: 1px solid #d9d8d0; border-radius: 3px; background: white; font-size: 14px; padding: 12px; }
+.login-card label + label { margin-top: 19px; }
+.login-card .button { margin-top: 28px; width: 100%; }
+.login-error { color: #c53d32; font-size: 13px; margin: 14px 0 0; min-height: 18px; }
+.credentials-note { border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.6; margin: 24px 0 0; padding-top: 18px; }
+
+.welcome-screen { align-items: center; background: linear-gradient(135deg, #f3f8ff 0%, #e3f0ff 45%, #d2e8ff 100%); display: grid; min-height: calc(100vh - 76px); padding: 0 clamp(24px,8vw,130px); }
+.welcome-card { background: rgba(255,255,255,.96); border: 1px solid rgba(112, 101, 84, 0.16); border-radius: 22px; box-shadow: 0 24px 60px rgba(15, 24, 21, 0.12); max-width: 640px; padding: 56px 44px; text-align: left; }
+.welcome-card .eyebrow { margin-bottom: 18px; }
+.welcome-card h1 { font-size: clamp(42px,5vw,64px); margin: 0 0 18px; line-height: 1.05; }
+.welcome-card p { color: #546157; font-size: 15px; line-height: 1.8; margin: 0 0 28px; }
+
+.login-modal { align-items: center; display: grid; inset: 0; justify-items: center; min-height: calc(100vh - 76px); overflow: hidden; padding: 30px; position: fixed; z-index: 30; }
+.login-modal[hidden] { display: none; }
+.login-modal-backdrop { background: rgba(13, 22, 19, 0.7); inset: 0; position: absolute; }
+.login-modal-panel { background: transparent; border-radius: 16px; max-width: 520px; position: relative; width: 100%; }
+.login-modal.open .login-modal-panel { transform: translateY(0); opacity: 1; }
+.login-modal-panel { animation: fadeIn 0.2s ease-out both; background: transparent; transform: translateY(-16px); opacity: 0; }
+.modal-close { background: transparent; border: 0; color: white; font-size: 28px; font-weight: 700; position: absolute; right: 18px; top: 18px; z-index: 5; }
+
+@keyframes fadeIn { from { transform: translateY(-16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+@media (max-width: 720px) {
+  .welcome-screen { min-height: calc(100vh - 67px); padding: 0 20px; }
+  .login-card { padding: 30px; }
+}
+
+.dashboard { padding: 55px clamp(22px,5vw,78px) 80px; }
+.dashboard-topbar { align-items: end; display: flex; justify-content: space-between; margin-bottom: 43px; }
+.dashboard-topbar h1 { font-size: 46px; margin: 0; }
+.dashboard-actions { align-items: center; display: flex; gap: 18px; }
+.dashboard-actions > span { color: var(--muted); font-size: 13px; }
+.dashboard-actions .button { padding: 12px 16px; }
+.admin-tabs { border-bottom: 1px solid #d7dbd2; display: flex; gap: 22px; margin-bottom: 28px; }
+.admin-tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); font-size: 13px; font-weight: 700; margin-bottom: -1px; padding: 10px 2px 14px; }
+.admin-tab.active { border-color: #2f8dff; color: var(--ink); }
+.admin-workspace[hidden] { display: none; }
+.dashboard-layout { align-items: start; display: grid; gap: 26px; grid-template-columns: minmax(340px,.82fr) minmax(480px,1.18fr); }
+.listing-manager, .editor-panel { background: var(--cream); padding: 27px; }
+.manager-heading, .editor-heading { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding-bottom: 20px; }
+.manager-heading h2, .editor-heading h2 { font-size: 27px; }
+.manager-heading span { color: var(--muted); font-size: 12px; }
+.admin-property-list { display: grid; gap: 14px; margin-top: 20px; max-height: 670px; overflow: auto; padding-right: 4px; }
+.admin-property { align-items: center; background: white; display: grid; gap: 13px; grid-template-columns: 76px minmax(0, 1fr) auto; padding: 10px; }
+.admin-property img { background: var(--sand); height: 65px; object-fit: cover; width: 76px; }
+.admin-property h3 { font-family: var(--sans); font-size: 13px; margin: 0 0 5px; }
+.admin-property p { color: var(--muted); font-size: 11px; margin: 0 0 5px; }
+.admin-property strong { font-family: var(--serif); font-size: 17px; }
+.admin-row-actions { display: flex; flex-direction: column; gap: 6px; }
+.admin-row-actions button, .cancel-edit { background: transparent; border: 0; color: var(--ink); font-size: 11px; font-weight: 700; padding: 5px; }
+.admin-row-actions button:hover, .cancel-edit:hover { color: var(--orange); }
+.admin-row-actions .delete-listing { color: #b3453d; }
+.empty-list { color: var(--muted); font-size: 13px; }
+.editor-heading { align-items: start; }
+.editor-heading .eyebrow { margin-bottom: 8px; }
+.property-form { display: grid; gap: 17px; margin-top: 23px; }
+.two-column,.three-column { display: grid; gap: 14px; }
+.two-column { grid-template-columns: 1.4fr 1fr; }
+.three-column { grid-template-columns: repeat(3, 1fr); }
+.property-form textarea { line-height: 1.45; resize: vertical; }
+.property-form fieldset { border: 1px solid var(--line); display: grid; gap: 14px; margin: 2px 0 0; padding: 18px; }
+.property-form legend { color: var(--ink); font-size: 12px; font-weight: 700; padding: 0 6px; }
+.field-help { color: var(--muted); font-size: 11px; line-height: 1.5; margin: -4px 0 0; }
+.upload-label { background: #f0ede5; border: 1px dashed #b4b8af; cursor: pointer; padding: 12px; }
+.upload-label:hover { border-color: #2f8dff; }
+.upload-label input { display: none; }
+.upload-status { color: var(--muted); font-size: 11px; line-height: 1.5; margin: -5px 0 0; }
+.field-hint { color: var(--muted); font-size: 10px; font-style: italic; margin-top: 3px; }
+
+/* Payment plans removed */
+/* Minimal styles for project payment plans */
+.payment-plans-fieldset { border: 1px solid var(--line); display: grid; gap: 14px; margin: 2px 0 0; padding: 18px; }
+.payment-plans-fieldset legend { color: var(--ink); font-size: 12px; font-weight: 700; padding: 0 6px; }
+.plan-row { background: #f8f6ef; border: 1px solid #e2dfd5; border-radius: 6px; display: grid; gap: 10px; padding: 14px; position: relative; }
+.plan-row-header { align-items: center; display: flex; justify-content: space-between; margin-bottom: 4px; }
+.plan-row-header strong { font-family: var(--sans); font-size: 12px; color: var(--ink); }
+.remove-plan-btn { background: transparent; border: 0; color: #b3453d; cursor: pointer; font-size: 18px; font-weight: 700; line-height: 1; padding: 2px 6px; }
+.remove-plan-btn:hover { color: #8a2e27; }
+.plan-fields { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
+.plan-fields label { color: var(--muted); display: flex; flex-direction: column; font-size: 9px; font-weight: 700; gap: 4px; letter-spacing: .6px; text-transform: uppercase; }
+.plan-fields input { background: white; border: 1px solid #d9d8d0; border-radius: 3px; font-size: 13px; padding: 8px; }
+.add-plan-btn { background: transparent; border: 1px dashed #b4b8af; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 600; padding: 10px; text-align: center; }
+.add-plan-btn:hover { border-color: #2f8dff; color: #2f8dff; }
+.checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+
+/* Hide beds/baths for Land */
+.beds-field.hidden, .baths-field.hidden { display: none; }
+
+.form-actions { align-items: center; display: flex; gap: 15px; }
+.property-message { color: #357543; font-size: 12px; margin: 0; }
+.property-message.error { color: #bf443b; }
+.gallery-manager-panel { background: var(--cream); padding: 28px; }
+.home-gallery-form { align-items: end; display: grid; gap: 15px; grid-template-columns: 1.25fr 1fr auto auto; margin-top: 24px; }
+.home-gallery-form > label:not(.upload-label) { color: var(--muted); display: flex; flex-direction: column; font-size: 10px; font-weight: 700; gap: 8px; letter-spacing: .8px; text-transform: uppercase; }
+.home-gallery-form input { background: white; border: 1px solid #d9d8d0; border-radius: 3px; font-size: 14px; padding: 12px; }
+.home-gallery-form .button { min-height: 42px; }
+.gallery-upload-label { align-items: center; justify-content: center; min-height: 42px; }
+.home-popup-form { display: grid; gap: 16px; margin-top: 24px; max-width: 720px; }
+.home-popup-form label { color: var(--muted); display: flex; flex-direction: column; font-size: 10px; font-weight: 700; gap: 8px; letter-spacing: .8px; text-transform: uppercase; }
+.home-popup-form input, .home-popup-form textarea { background: white; border: 1px solid #d9d8d0; border-radius: 3px; font-size: 14px; padding: 12px; }
+.home-popup-form textarea { resize: vertical; }
+.home-popup-form .checkbox-label { flex-direction: row; align-items: center; gap: 8px; font-size: 12px; text-transform: none; letter-spacing: 0; }
+.home-popup-form .checkbox-label input { width: auto; }
+#adminPopupList { margin-top: 28px; display: grid; gap: 14px; }
+.admin-home-gallery { display: grid; gap: 16px; grid-template-columns: repeat(4,1fr); margin-top: 28px; }
+.admin-gallery-item { background: white; min-width: 0; position: relative; }
+.admin-gallery-item img { aspect-ratio: 1.15; object-fit: cover; width: 100%; }
+.admin-gallery-item p { color: var(--muted); font-size: 11px; margin: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-gallery-item button { background: var(--ink); border: 0; color: white; font-size: 11px; font-weight: 700; padding: 7px 9px; position: absolute; right: 7px; top: 7px; }
+
+@media (max-width: 1000px) { .dashboard-layout { grid-template-columns: 1fr; } .admin-property-list { max-height: 400px; } .home-gallery-form { grid-template-columns: 1fr 1fr; } .admin-home-gallery { grid-template-columns: repeat(3,1fr); } }
+@media (max-width: 720px) { .login-screen { grid-template-columns: 1fr; } .login-intro { padding: 70px 25px 45px; } .login-card { margin: 0 20px 50px; max-width: none; padding: 30px; } .dashboard { padding: 38px 18px 60px; } .dashboard-topbar { align-items: start; gap: 20px; } .dashboard-topbar h1 { font-size: 38px; } .dashboard-actions { align-items: end; flex-direction: column; gap: 8px; } .listing-manager,.editor-panel,.gallery-manager-panel { padding: 20px; } .admin-home-gallery { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 500px) { .admin-header { height: 67px; padding: 0 20px; } .login-screen { min-height: calc(100vh - 67px); } .two-column,.three-column { grid-template-columns: 1fr; } .form-actions { align-items: start; flex-direction: column; } .form-actions .button { width: 100%; } }
