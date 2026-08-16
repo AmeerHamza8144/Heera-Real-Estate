@@ -30,3 +30,7 @@ The API defaults to the normal local XAMPP MySQL setup (`root` with no password 
 
  - New fields added to properties: `size_label`, `property_facing`, `price_pkr`, `price_per_marla`.
 - Make the `uploads/` directory writable by the web-server account for photo/video uploads.
+
+## Multilingual property assistant
+
+The public pages include a free built-in chatbot (`chatbot.js` and `chatbot.css`). It supports English, Urdu, and Roman Urdu, searches the live property catalogue, displays published dealer/agent information, and saves callback requests in the existing `enquiries` table through `api.php?action=chat_lead`. No external AI service or API key is required.

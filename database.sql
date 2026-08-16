@@ -63,6 +63,9 @@ CREATE TABLE enquiries (
   INDEX idx_enquiry_status (status, created_at)
 );
 
+-- Chatbot enquiries use chatbot@heera-estate.local as their source email and
+-- include the visitor's selected language in the message field.
+
 CREATE TABLE saved_properties (
   saved_property_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   visitor_token CHAR(36) NOT NULL,

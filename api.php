@@ -483,6 +483,39 @@ function agents(bool $onlyPublished): array {
     return $pdo->query($sql)->fetchAll();
 }
 
+function saveChatLead(array $data): void {
+    // Honeypot for simple bots. Real visitors never see or fill this field.
+    if (trim((string)($data['website'] ?? '')) !== '') respond(['saved' => true]);
+
+    $name = stringValue($data, 'name', 160);
+    $phone = stringValue($data, 'phone', 30);
+    $language = optionalStringValue($data, 'language', 20);
+    $message = optionalStringValue($data, 'message', 1500);
+    $propertyId = (int)($data['property_id'] ?? 0);
+
+    if ($name === '' || mb_strlen($name) < 2) errorResponse('Please enter your name.');
+    $phoneDigits = preg_replace('/\D+/', '', $phone);
+    if (strlen($phoneDigits) < 10 || strlen($phoneDigits) > 15) errorResponse('Please enter a valid phone number.');
+
+    // Limit one lead submission per session every 30 seconds.
+    $now = time();
+    if (!empty($_SESSION['last_chat_lead']) && $now - (int)$_SESSION['last_chat_lead'] < 30) {
+        errorResponse('Your request was already received. Please wait a moment.', 429);
+    }
+
+    if ($propertyId > 0) {
+        $check = db()->prepare('SELECT property_id FROM properties WHERE property_id = ?');
+        $check->execute([$propertyId]);
+        if (!$check->fetchColumn()) $propertyId = 0;
+    }
+
+    $details = trim("Chatbot lead" . ($language !== '' ? " ({$language})" : '') . ($message !== '' ? "\n{$message}" : ''));
+    $statement = db()->prepare("INSERT INTO enquiries (property_id, name, email, phone, interest, message) VALUES (?, ?, ?, ?, 'buying', ?)");
+    $statement->execute([$propertyId ?: null, $name, 'chatbot@heera-estate.local', $phone, $details]);
+    $_SESSION['last_chat_lead'] = $now;
+    respond(['saved' => true, 'enquiry_id' => (int)db()->lastInsertId()]);
+}
+
 function saveAgent(array $data): void {
     requireAdmin();
     $pdo = db();
@@ -673,6 +706,7 @@ try {
             respond($project);
         case 'home_gallery': respond(homeGallery(false));
         case 'agents': respond(agents(true));
+        case 'chat_lead': saveChatLead(requestData());
         case 'session':
             $user = currentAdmin();
             respond(['authenticated' => $user !== null, 'user' => $user ? userPayload($user) : null]);
@@ -731,4 +765,3 @@ try {
     $message = $exception->getMessage() ?: 'An unexpected server error occurred.';
     errorResponse($message, 500);
 }
-
