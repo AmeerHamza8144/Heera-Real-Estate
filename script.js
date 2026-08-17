@@ -340,7 +340,7 @@ async function loadHomePopupFront() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadHomePopupFront();
+  if (window.location.hash !== '#admin-login') loadHomePopupFront();
   // Index login popup handlers (admin login on main page)
   const openLoginBtn = document.querySelector('#openIndexLogin');
   const loginPopup = document.querySelector('#loginPopup');
@@ -353,6 +353,10 @@ document.addEventListener('DOMContentLoaded', () => {
       loginPopup.hidden = false;
       requestAnimationFrame(() => loginPopup.classList.add('open'));
     });
+    if (window.location.hash === '#admin-login') {
+      openLoginBtn.click();
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   }
   if (closeLoginPopup && loginPopup) {
     closeLoginPopup.addEventListener('click', () => {

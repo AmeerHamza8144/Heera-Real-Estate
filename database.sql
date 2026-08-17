@@ -49,6 +49,35 @@ CREATE TABLE property_media (
   INDEX idx_media_property (property_id, media_type, is_cover, sort_order)
 );
 
+CREATE TABLE property_submissions (
+  submission_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  seller_name VARCHAR(160) NOT NULL,
+  seller_phone VARCHAR(30) NOT NULL,
+  seller_email VARCHAR(255),
+  seller_cnic VARCHAR(30),
+  listing_type ENUM('sale','rent') NOT NULL DEFAULT 'sale',
+  property_type ENUM('House','Apartment','Villa','Condo','Land') NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  address_line1 VARCHAR(255) NOT NULL,
+  city VARCHAR(100) NOT NULL,
+  state_region VARCHAR(100),
+  size_label VARCHAR(60),
+  property_facing VARCHAR(60),
+  price_pkr DECIMAL(15,2),
+  bedrooms DECIMAL(3,1),
+  bathrooms DECIMAL(3,1),
+  area_sqft INT UNSIGNED,
+  description TEXT,
+  media_json TEXT,
+  status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  approved_property_id INT UNSIGNED,
+  admin_notes TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_submission_status (status, created_at),
+  CONSTRAINT fk_submission_property FOREIGN KEY (approved_property_id) REFERENCES properties(property_id) ON DELETE SET NULL
+);
+
 CREATE TABLE enquiries (
   enquiry_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   property_id INT UNSIGNED NULL,

@@ -516,6 +516,136 @@ function saveChatLead(array $data): void {
     respond(['saved' => true, 'enquiry_id' => (int)db()->lastInsertId()]);
 }
 
+function ensurePropertySubmissionsTable(PDO $pdo): void {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS property_submissions (
+        submission_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        seller_name VARCHAR(160) NOT NULL,
+        seller_phone VARCHAR(30) NOT NULL,
+        seller_email VARCHAR(255) DEFAULT NULL,
+        seller_cnic VARCHAR(30) DEFAULT NULL,
+        listing_type ENUM('sale','rent') NOT NULL DEFAULT 'sale',
+        property_type ENUM('House','Apartment','Villa','Condo','Land') NOT NULL,
+        title VARCHAR(180) NOT NULL,
+        address_line1 VARCHAR(255) NOT NULL,
+        city VARCHAR(100) NOT NULL,
+        state_region VARCHAR(100) DEFAULT NULL,
+        size_label VARCHAR(60) DEFAULT NULL,
+        property_facing VARCHAR(60) DEFAULT NULL,
+        price_pkr DECIMAL(15,2) DEFAULT NULL,
+        bedrooms DECIMAL(3,1) DEFAULT NULL,
+        bathrooms DECIMAL(3,1) DEFAULT NULL,
+        area_sqft INT UNSIGNED DEFAULT NULL,
+        description TEXT,
+        media_json TEXT,
+        status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+        approved_property_id INT UNSIGNED DEFAULT NULL,
+        admin_notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_submission_status (status, created_at),
+        CONSTRAINT fk_submission_property FOREIGN KEY (approved_property_id) REFERENCES properties(property_id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function submissionPayload(array $row): array {
+    $row['media'] = [];
+    if (!empty($row['media_json'])) {
+        $decoded = json_decode($row['media_json'], true);
+        if (is_array($decoded)) $row['media'] = $decoded;
+    }
+    unset($row['media_json']);
+    return $row;
+}
+
+function submitProperty(): void {
+    $pdo = db();
+    ensurePropertySubmissionsTable($pdo);
+    if (trim((string)($_POST['website'] ?? '')) !== '') respond(['submitted' => true]);
+    $now = time();
+    if (!empty($_SESSION['last_property_submission']) && $now - (int)$_SESSION['last_property_submission'] < 60) errorResponse('Your property was already submitted. Please wait a moment.', 429);
+
+    $name = stringValue($_POST, 'seller_name', 160);
+    $phone = stringValue($_POST, 'seller_phone', 30);
+    $email = optionalStringValue($_POST, 'seller_email', 255);
+    $title = stringValue($_POST, 'title', 180);
+    $address = stringValue($_POST, 'address_line1', 255);
+    $city = stringValue($_POST, 'city', 100);
+    if ($name === '' || $title === '' || $address === '' || $city === '') errorResponse('Seller name, property title, address, and city are required.');
+    if (strlen(preg_replace('/\D+/', '', $phone)) < 10) errorResponse('Enter a valid seller phone number.');
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) errorResponse('Enter a valid email address.');
+    $listingType = allowedValue(stringValue($_POST, 'listing_type'), ['sale','rent'], 'listing type');
+    $propertyType = allowedValue(stringValue($_POST, 'property_type'), ['House','Apartment','Villa','Condo','Land'], 'property type');
+
+    $uploaded = [];
+    if (!empty($_FILES['images']['tmp_name']) && is_array($_FILES['images']['tmp_name'])) {
+        if (count($_FILES['images']['tmp_name']) > 5) errorResponse('Upload at most 5 property images.');
+        $allowed = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $directory = __DIR__ . DIRECTORY_SEPARATOR . 'uploads';
+        if (!is_dir($directory) && !mkdir($directory, 0755, true)) errorResponse('The upload folder could not be created.', 500);
+        foreach ($_FILES['images']['tmp_name'] as $index => $temporaryFile) {
+            if ($_FILES['images']['error'][$index] !== UPLOAD_ERR_OK) errorResponse('One image could not be uploaded.');
+            if ($_FILES['images']['size'][$index] > 8 * 1024 * 1024) errorResponse('Each image must be 8 MB or smaller.');
+            $mime = $finfo->file($temporaryFile);
+            if (!isset($allowed[$mime])) errorResponse('Only JPG, PNG, and WebP images are supported.');
+            $filename = bin2hex(random_bytes(16)) . '.' . $allowed[$mime];
+            if (!move_uploaded_file($temporaryFile, $directory . DIRECTORY_SEPARATOR . $filename)) errorResponse('An image could not be saved.', 500);
+            $uploaded[] = 'uploads/' . $filename;
+        }
+    }
+
+    $statement = $pdo->prepare("INSERT INTO property_submissions (seller_name,seller_phone,seller_email,seller_cnic,listing_type,property_type,title,address_line1,city,state_region,size_label,property_facing,price_pkr,bedrooms,bathrooms,area_sqft,description,media_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+    $statement->execute([$name,$phone,$email ?: null,optionalStringValue($_POST,'seller_cnic',30) ?: null,$listingType,$propertyType,$title,$address,$city,optionalStringValue($_POST,'state_region',100) ?: null,optionalStringValue($_POST,'size_label',60) ?: null,optionalStringValue($_POST,'property_facing',60) ?: null,nullableNumber($_POST,'price_pkr'),nullableNumber($_POST,'bedrooms'),nullableNumber($_POST,'bathrooms'),nullableNumber($_POST,'area_sqft'),optionalStringValue($_POST,'description',5000) ?: null,json_encode($uploaded)]);
+    $_SESSION['last_property_submission'] = $now;
+    respond(['submitted'=>true,'reference'=>'HEERA-' . str_pad((string)$pdo->lastInsertId(), 5, '0', STR_PAD_LEFT)]);
+}
+
+function adminSubmissions(): array {
+    requireAdmin();
+    $pdo = db();
+    ensurePropertySubmissionsTable($pdo);
+    return array_map('submissionPayload', $pdo->query('SELECT * FROM property_submissions ORDER BY status = \'pending\' DESC, created_at DESC')->fetchAll());
+}
+
+function saveSubmission(array $data): void {
+    requireAdmin();
+    $pdo = db();
+    ensurePropertySubmissionsTable($pdo);
+    $id = (int)($data['submission_id'] ?? 0);
+    if ($id < 1) errorResponse('A valid submission is required.');
+    $status = allowedValue(stringValue($data,'status'), ['pending','rejected'], 'submission status');
+    $statement = $pdo->prepare('UPDATE property_submissions SET seller_name=?,seller_phone=?,seller_email=?,seller_cnic=?,listing_type=?,property_type=?,title=?,address_line1=?,city=?,state_region=?,size_label=?,property_facing=?,price_pkr=?,bedrooms=?,bathrooms=?,area_sqft=?,description=?,admin_notes=?,status=? WHERE submission_id=? AND approved_property_id IS NULL');
+    $statement->execute([stringValue($data,'seller_name',160),stringValue($data,'seller_phone',30),optionalStringValue($data,'seller_email',255) ?: null,optionalStringValue($data,'seller_cnic',30) ?: null,allowedValue(stringValue($data,'listing_type'),['sale','rent'],'listing type'),allowedValue(stringValue($data,'property_type'),['House','Apartment','Villa','Condo','Land'],'property type'),stringValue($data,'title',180),stringValue($data,'address_line1',255),stringValue($data,'city',100),optionalStringValue($data,'state_region',100) ?: null,optionalStringValue($data,'size_label',60) ?: null,optionalStringValue($data,'property_facing',60) ?: null,nullableNumber($data,'price_pkr'),nullableNumber($data,'bedrooms'),nullableNumber($data,'bathrooms'),nullableNumber($data,'area_sqft'),optionalStringValue($data,'description',5000) ?: null,optionalStringValue($data,'admin_notes',2000) ?: null,$status,$id]);
+    respond(['saved'=>true]);
+}
+
+function approveSubmission(array $data): void {
+    requireAdmin();
+    $pdo = db();
+    ensurePropertySubmissionsTable($pdo);
+    $id = (int)($data['submission_id'] ?? 0);
+    $pdo->beginTransaction();
+    try {
+        $select = $pdo->prepare("SELECT * FROM property_submissions WHERE submission_id=? AND status='pending' FOR UPDATE");
+        $select->execute([$id]);
+        $item = $select->fetch();
+        if (!$item) { $pdo->rollBack(); errorResponse('Only pending submissions can be approved.', 400); }
+        $insert = $pdo->prepare("INSERT INTO properties (listing_type,property_type,status,title,address_line1,city,state_region,price,bedrooms,bathrooms,area_sqft,size_label,property_facing,price_pkr,description) VALUES (?,?, 'available',?,?,?,?,NULL,?,?,?,?,?,?,?)");
+        $insert->execute([$item['listing_type'],$item['property_type'],$item['title'],$item['address_line1'],$item['city'],$item['state_region'],$item['bedrooms'],$item['bathrooms'],$item['area_sqft'],$item['size_label'],$item['property_facing'],$item['price_pkr'],$item['description']]);
+        $propertyId = (int)$pdo->lastInsertId();
+        $images = json_decode($item['media_json'] ?: '[]', true);
+        $mediaInsert = $pdo->prepare("INSERT INTO property_media (property_id,media_type,file_path,is_cover,sort_order) VALUES (?,'image',?,?,?)");
+        foreach ((array)$images as $order => $path) $mediaInsert->execute([$propertyId,$path,$order === 0 ? 1 : 0,$order]);
+        $update = $pdo->prepare("UPDATE property_submissions SET status='approved',approved_property_id=? WHERE submission_id=?");
+        $update->execute([$propertyId,$id]);
+        $pdo->commit();
+        respond(['approved'=>true,'property_id'=>$propertyId]);
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        errorResponse('The submission could not be approved.', 500);
+    }
+}
+
 function saveAgent(array $data): void {
     requireAdmin();
     $pdo = db();
@@ -707,6 +837,7 @@ try {
         case 'home_gallery': respond(homeGallery(false));
         case 'agents': respond(agents(true));
         case 'chat_lead': saveChatLead(requestData());
+        case 'submit_property': submitProperty();
         case 'session':
             $user = currentAdmin();
             respond(['authenticated' => $user !== null, 'user' => $user ? userPayload($user) : null]);
@@ -750,6 +881,9 @@ try {
         case 'admin_agents':
             requireAdmin();
             respond(agents(false));
+        case 'admin_submissions': respond(adminSubmissions());
+        case 'save_submission': saveSubmission(requestData());
+        case 'approve_submission': approveSubmission(requestData());
         case 'save_property': saveProperty(requestData());
         case 'delete_property': deleteProperty(requestData());
         case 'save_project': saveProject(requestData());

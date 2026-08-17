@@ -1,4 +1,4 @@
-const adminState = { properties: [], projects: [], homeGallery: [] };
+const adminState = { properties: [], projects: [], homeGallery: [], submissions: [] };
 const welcomeScreen = document.querySelector("#welcomeScreen");
 const loginModal = document.querySelector("#loginModal");
 const dashboard = document.querySelector("#dashboard");
@@ -71,7 +71,81 @@ function showDashboard(user) {
   loadHomeGallery();
   loadAdminPopups();
   loadAgents();
+  loadSubmissions();
 }
+
+async function loadSubmissions() {
+  try {
+    adminState.submissions = await api('admin_submissions');
+    renderSubmissions();
+  } catch (error) {
+    const message = document.querySelector('#submissionMessage');
+    if (message) message.textContent = error.message;
+  }
+}
+
+function renderSubmissions() {
+  const list = document.querySelector('#adminSubmissionList');
+  const pending = adminState.submissions.filter(item => item.status === 'pending').length;
+  document.querySelector('#submissionCount').textContent = `${adminState.submissions.length} submission${adminState.submissions.length === 1 ? '' : 's'}`;
+  document.querySelector('#pendingSubmissionBadge').textContent = pending || '';
+  if (!adminState.submissions.length) { list.innerHTML = '<p class="empty-list">No client properties have been submitted yet.</p>'; return; }
+  list.innerHTML = adminState.submissions.map(item => `<article class="admin-property">
+    <img src="${escapeHtml(item.media?.[0] || 'images/home-logo.jpg')}" alt="">
+    <div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.seller_name)} · ${escapeHtml(item.seller_phone)}</p><strong>${escapeHtml(item.city)} · ${escapeHtml(item.size_label || item.property_type)}</strong><br><span class="submission-status ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></div>
+    <div class="admin-row-actions"><button type="button" class="review-submission" data-id="${item.submission_id}">${item.status === 'pending' ? 'Review' : 'View'}</button></div>
+  </article>`).join('');
+}
+
+function openSubmission(item) {
+  const form = document.querySelector('#submissionForm');
+  const fields = form.elements;
+  ['submission_id','seller_name','seller_phone','seller_email','seller_cnic','listing_type','property_type','title','address_line1','city','state_region','size_label','property_facing','price_pkr','bedrooms','bathrooms','area_sqft','description','admin_notes','status'].forEach(name => { fields[name].value = item[name] ?? ''; });
+  document.querySelector('#submissionEditorTitle').textContent = item.title;
+  document.querySelector('#submissionEmptyEditor').hidden = true;
+  form.hidden = false;
+  document.querySelector('#submissionImages').innerHTML = (item.media || []).map(path => `<a href="${escapeHtml(path)}" target="_blank" rel="noopener"><img src="${escapeHtml(path)}" alt="Client property"></a>`).join('');
+  const locked = item.status === 'approved';
+  [...form.elements].forEach(field => { if (!['submission_id'].includes(field.name)) field.disabled = locked; });
+  document.querySelector('#approveSubmission').disabled = item.status !== 'pending';
+  document.querySelector('#rejectSubmission').disabled = item.status !== 'pending';
+  document.querySelector('#submissionMessage').textContent = locked ? `Published as property #${item.approved_property_id}. Edit it from the Properties tab.` : '';
+  form.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function submissionBody(statusOverride = null) {
+  const fields = document.querySelector('#submissionForm').elements;
+  const body = {};
+  ['submission_id','seller_name','seller_phone','seller_email','seller_cnic','listing_type','property_type','title','address_line1','city','state_region','size_label','property_facing','price_pkr','bedrooms','bathrooms','area_sqft','description','admin_notes','status'].forEach(name => { body[name] = fields[name]?.value?.trim?.() ?? fields[name]?.value ?? ''; });
+  if (statusOverride) body.status = statusOverride;
+  return body;
+}
+
+document.querySelector('#adminSubmissionList').addEventListener('click', event => {
+  if (!event.target.classList.contains('review-submission')) return;
+  const item = adminState.submissions.find(entry => Number(entry.submission_id) === Number(event.target.dataset.id));
+  if (item) openSubmission(item);
+});
+
+document.querySelector('#submissionForm').addEventListener('submit', async event => {
+  event.preventDefault(); const message = document.querySelector('#submissionMessage'); message.textContent = 'Saving edits…';
+  try { await api('save_submission', submissionBody()); message.textContent = 'Submission edits saved.'; await loadSubmissions(); }
+  catch (error) { message.textContent = error.message; }
+});
+
+document.querySelector('#rejectSubmission').addEventListener('click', async () => {
+  if (!confirm('Reject this client property? It will remain private.')) return;
+  const message = document.querySelector('#submissionMessage');
+  try { await api('save_submission', submissionBody('rejected')); message.textContent = 'Submission rejected.'; await loadSubmissions(); const item=adminState.submissions.find(entry=>Number(entry.submission_id)===Number(document.querySelector('#submissionForm').elements.submission_id.value)); if(item) openSubmission(item); }
+  catch (error) { message.textContent = error.message; }
+});
+
+document.querySelector('#approveSubmission').addEventListener('click', async () => {
+  if (!confirm('Approve and publish this property on the main website?')) return;
+  const message = document.querySelector('#submissionMessage'); const body = submissionBody('pending'); message.textContent = 'Publishing property…';
+  try { await api('save_submission', body); const result = await api('approve_submission', {submission_id: body.submission_id}); message.textContent = `Approved and published as property #${result.property_id}.`; await Promise.all([loadSubmissions(),loadProperties()]); const item=adminState.submissions.find(entry=>Number(entry.submission_id)===Number(body.submission_id)); if(item) openSubmission(item); }
+  catch (error) { message.textContent = error.message; }
+});
 
 async function api(action, data = null, isUpload = false) {
   const options = { method: data ? "POST" : "GET", headers: { Accept: "application/json" }, credentials: 'same-origin' };

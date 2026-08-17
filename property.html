@@ -11,22 +11,24 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="property.css" />
   <link rel="stylesheet" href="chatbot.css" />
+  <link rel="stylesheet" href="client-button.css" />
+  <link rel="stylesheet" href="liquid-glass.css" />
+  <link rel="stylesheet" href="navigation-fixes.css" />
+  <link rel="stylesheet" href="footer-compact.css" />
 </head>
 <body class="property-detail-page">
-  <div class="topbar">
-    <div class="topbar-links">
-      <a href="https://www.facebook.com/" target="_blank" rel="noopener">Facebook</a>
-      <a href="https://www.instagram.com/" target="_blank" rel="noopener">Instagram</a>
-      <a href="https://wa.me/923000660446" target="_blank" rel="noopener">WhatsApp</a>
-    </div>
-  </div>
-
-  <header class="property-header">
+  <a class="client-form-button" href="client-form.html">Client Form <span>＋</span></a>
+  <header class="site-header property-header">
     <a class="brand" href="index.html" aria-label="Heera Estate home">
       <span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span>
       <span>Heera Estate</span>
     </a>
-    <a class="property-back-link" href="index.html#listings">← Back to properties</a>
+    <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <nav class="main-nav" aria-label="Main navigation">
+      <a href="index.html">Home</a><a href="index.html?listing=sale#listings">Buy</a><a href="index.html?listing=rent#listings">Rent</a><a href="index.html#agents">Agents</a>
+      <div class="projects-nav"><button class="projects-toggle" type="button" aria-expanded="false">Projects <span>⌄</span></button><div class="projects-menu" id="projectsMenu"><span class="projects-loading">Loading projects…</span></div></div><a href="index.html#contact">Contact</a>
+    </nav>
+    <a class="admin-login-icon login-button" href="index.html#admin-login">Login</a>
   </header>
 
   <main>
@@ -115,7 +117,9 @@
     <span>© <span id="year"></span> Heera Estate</span>
   </footer>
 
+  <script src="site-nav.js"></script>
   <script src="property.js"></script>
   <script src="chatbot.js" defer></script>
+  <script src="theme.js" defer></script>
 </body>
 </html>
