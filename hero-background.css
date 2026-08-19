@@ -1,31 +1,19 @@
 .hero {
   background-color: #071b2b !important;
   background-image:
-    linear-gradient(
-      90deg,
-      rgba(5, 24, 38, 0.58) 0%,
-      rgba(5, 24, 38, 0.24) 48%,
-      rgba(5, 24, 38, 0.08) 100%
-    ),
+    linear-gradient(90deg, rgba(5, 24, 38, .58), rgba(5, 24, 38, .10)),
     url("images/al-rehman-garden-hero.png") !important;
-
-  background-position: center center !important;
+  background-position: center center, center center !important;
+  background-repeat: no-repeat, no-repeat !important;
   background-size: 100% 100%, contain !important;
-  background-repeat: no-repeat !important;
 }
 
-@media (max-width: 710px) {
+@media (max-width: 700px) {
   .hero {
-    background-position:center !important;
     background-image:
-      linear-gradient(
-        90deg,
-        rgba(5, 24, 38, 0.72),
-        rgba(5, 24, 38, 0.28)
-      ),
-      url("images/arg2.png") !important;
-
+      linear-gradient(90deg, rgba(5, 24, 38, .70), rgba(5, 24, 38, .22)),
+      url("images/al-rehman-garden-hero.png") !important;
+    background-position: center center, center center !important;
     background-size: 100% 100%, contain !important;
-    background-repeat: no-repeat !important;
   }
 }

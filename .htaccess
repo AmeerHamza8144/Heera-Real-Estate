@@ -1,0 +1,20 @@
+<IfModule php_module>
+  php_value upload_max_filesize 110M
+  php_value post_max_size 190M
+  php_value max_execution_time 600
+  php_value max_input_time 600
+  php_value memory_limit 1024M
+</IfModule>
+
+<IfModule mod_php.c>
+  php_value upload_max_filesize 110M
+  php_value post_max_size 190M
+  php_value max_execution_time 600
+  php_value max_input_time 600
+  php_value memory_limit 1024M
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType text/javascript .mjs
+  AddType application/wasm .wasm
+</IfModule>

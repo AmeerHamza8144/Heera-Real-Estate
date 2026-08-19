@@ -10,6 +10,9 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="admin.css" />
   <link rel="stylesheet" href="liquid-glass.css" />
+  <link rel="stylesheet" href="submission-media.css" />
+  <link rel="stylesheet" href="admin-modern.css" />
+  <link rel="stylesheet" href="admin-submenus.css" />
 </head>
 <body class="admin-body">
   <header class="admin-header">
@@ -26,14 +29,20 @@
         <div class="dashboard-actions"><span id="adminName"></span><button class="button button-dark" id="logoutButton">Log out</button></div>
       </div>
       <div class="admin-tabs" role="tablist" aria-label="Content manager">
-        <button class="admin-tab active" type="button" data-workspace="propertiesWorkspace" role="tab" aria-selected="true">Properties</button>
-        <button class="admin-tab" type="button" data-workspace="projectsWorkspace" role="tab" aria-selected="false">Projects</button>
-<button class="admin-tab" type="button" data-workspace="galleryWorkspace" role="tab" aria-selected="false">Home gallery</button>
-        <button class="admin-tab" type="button" data-workspace="popupsWorkspace" role="tab" aria-selected="false">Popups</button>
-        <button class="admin-tab" type="button" data-workspace="agentsWorkspace" role="tab" aria-selected="false">Agents</button>
-        <button class="admin-tab client-review-tab" type="button" data-workspace="submissionsWorkspace" role="tab" aria-selected="false">Client submissions <span id="pendingSubmissionBadge"></span></button>
+        <div class="admin-sidebar-title"><span>HE</span><div><strong>Heera Estate</strong><small>Content management</small></div></div>
+        <div class="admin-menu-group open"><button class="admin-tab active" type="button" data-workspace="propertiesWorkspace" data-default-subview="list" role="tab" aria-selected="true">Properties <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="propertiesWorkspace" data-target="adminPropertyList" data-subview="list">View Properties</button><button type="button" data-workspace="propertiesWorkspace" data-target="propertyForm" data-reset="property" data-subview="form">Add Property</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="projectsWorkspace" data-default-subview="list" role="tab" aria-selected="false">Projects <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="projectsWorkspace" data-target="adminProjectList" data-subview="list">View Projects</button><button type="button" data-workspace="projectsWorkspace" data-target="projectForm" data-reset="project" data-subview="form">Add Project</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="digitalMapsWorkspace" role="tab" aria-selected="false">Digital Maps <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="digitalMapsWorkspace" data-target="adminDigitalMapList">View Maps</button><button type="button" data-workspace="digitalMapsWorkspace" data-target="digitalMapForm" data-reset="map">Add Map</button><button type="button" data-workspace="digitalMapsWorkspace" data-target="digitalMapBlocksPanel">Manage Blocks</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="galleryWorkspace" role="tab" aria-selected="false">Home Gallery <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="galleryWorkspace" data-target="adminHomeGallery">View Gallery</button><button type="button" data-workspace="galleryWorkspace" data-target="homeGalleryForm">Add Image</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="popupsWorkspace" role="tab" aria-selected="false">Popups <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="popupsWorkspace" data-target="adminPopupList">View Popups</button><button type="button" data-workspace="popupsWorkspace" data-target="homePopupForm" data-reset="popup">Add Popup</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="agentsWorkspace" data-default-subview="list" role="tab" aria-selected="false">Agents <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="agentsWorkspace" data-target="adminAgentList" data-subview="list">View Agents</button><button type="button" data-workspace="agentsWorkspace" data-target="agentForm" data-reset="agent" data-subview="form">Add Agent</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="addressesWorkspace" data-default-subview="list" role="tab" aria-selected="false">Office Addresses <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="addressesWorkspace" data-target="adminOfficeAddressList" data-subview="list">View Addresses</button><button type="button" data-workspace="addressesWorkspace" data-target="officeAddressForm" data-reset="address" data-subview="form">Add Address</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="loginUsersWorkspace" data-default-subview="list" role="tab" aria-selected="false">Login Users <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="loginUsersWorkspace" data-target="adminLoginUserList" data-subview="list">View Users</button><button type="button" data-workspace="loginUsersWorkspace" data-target="loginUserForm" data-reset="user" data-subview="form">Add User</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="chatMessagesWorkspace" role="tab" aria-selected="false">Chat Messages <span id="newChatMessageBadge"></span><span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="chatMessagesWorkspace" data-target="adminChatMessageList">View Messages</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab client-review-tab" type="button" data-workspace="submissionsWorkspace" role="tab" aria-selected="false">Client Submissions <span id="pendingSubmissionBadge"></span><span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="submissionsWorkspace" data-target="adminSubmissionList">View Submissions</button><button type="button" data-workspace="submissionsWorkspace" data-target="submissionForm">Review Selected</button></div></div>
       </div>
-      <div id="propertiesWorkspace" class="admin-workspace">
+      <div class="dashboard-overview" aria-label="Dashboard overview"><article><span>Properties</span><strong id="dashPropertyCount">0</strong><small>Managed listings</small></article><article><span>Projects</span><strong id="dashProjectCount">0</strong><small>Development plans</small></article><article><span>Submissions</span><strong id="dashSubmissionCount">0</strong><small>Client requests</small></article><article><span>Users</span><strong id="dashUserCount">0</strong><small>Login accounts</small></article><article><span>Chat Messages</span><strong id="dashChatMessageCount">0</strong><small>Visitor callbacks</small></article></div>
+      <div id="propertiesWorkspace" class="admin-workspace" data-subview="list">
       <div class="dashboard-layout">
         <section class="listing-manager">
           <div class="manager-heading"><h2>Published properties</h2><span id="listingCount">0 listings</span></div>
@@ -58,6 +67,7 @@
               <label>State / region<input name="state_region" placeholder="TX" /></label>
               <label>Postal code<input name="postal_code" placeholder="78704" /></label>
             </div>
+            <label>Block<input name="block_name" maxlength="120" placeholder="Write any block name, e.g. Overseas Block" /></label>
             <div class="three-column" id="bedsBathsAreaRow">
               <label class="beds-field">Bedrooms<input name="bedrooms" min="0" step="0.5" type="number" placeholder="3" /></label>
               <label class="baths-field">Bathrooms<input name="bathrooms" min="0" step="0.5" type="number" placeholder="2" /></label>
@@ -65,12 +75,14 @@
             </div>
             <div class="three-column">
               <label>Property size<input name="size_label" placeholder="3 Marla / 5 Marla / 10 Marla" /></label>
-              <label>Facing / Type<select name="property_facing"><option value="">-- select --</option><option>Corner</option><option>Facing Park</option><option>Corner & Facing Park</option><option>Main Road</option></select></label>
+              <label>Facing / Type<input name="property_facing" maxlength="60" placeholder="Write anything, e.g. Corner, Main Boulevard" /></label>
               <label>Total price (PKR)<input name="price_pkr" min="0" type="number" placeholder="3300000" /></label>
             </div>
             <div class="two-column">
               <label>Per Marla price (PKR)<input name="price_per_marla" min="0" type="number" placeholder="1250000" /></label>
+              <label>Publication start<input name="publish_start_date" type="date" /></label>
             </div>
+            <label>Automatic removal date<input name="publish_end_date" type="date" /></label>
             <label>Description<textarea name="description" rows="3" placeholder="A short, appealing description of this property."></textarea></label>
 
             <!-- Payment plans removed -->
@@ -89,7 +101,7 @@
         </section>
       </div>
       </div>
-      <div id="projectsWorkspace" class="admin-workspace" hidden>
+      <div id="projectsWorkspace" class="admin-workspace" data-subview="list" hidden>
         <div class="dashboard-layout">
           <section class="listing-manager">
             <div class="manager-heading"><h2>Your projects</h2><span id="projectCount">0 projects</span></div>
@@ -99,8 +111,9 @@
             <div class="editor-heading"><div><p class="eyebrow" id="projectEditorEyebrow">New project</p><h2 id="projectEditorTitle">Add a project</h2></div><button class="cancel-edit" id="cancelProjectEdit" type="button" hidden>Cancel</button></div>
             <form id="projectForm" class="property-form">
               <input type="hidden" name="project_id" />
-              <div class="two-column"><label>Project name<input name="title" required placeholder="e.g. Harbor Point Residences" /></label><label>Project category<input name="category" required placeholder="Residential" /></label></div>
-              <div class="two-column"><label>Location<input name="location" required placeholder="City or neighborhood" /></label><label>Status<select name="status"><option value="published">Published</option><option value="draft">Draft</option></select></label></div>
+              <div class="two-column"><label>Project name<input name="title" required placeholder="e.g. Al Rehman Garden" /></label><label>Plan (Sub Project) <span class="field-hint">Optional</span><input name="plan_name" placeholder="e.g. Executive Block" /></label></div>
+              <div class="two-column"><label>Project category<input name="category" required placeholder="Residential" /></label><label>Location<input name="location" required placeholder="City or neighborhood" /></label></div>
+              <label>Status<select name="status"><option value="published">Published</option><option value="draft">Draft</option></select></label>
               <label>Hero image URL<input name="hero_image_url" placeholder="https://.../project-hero.jpg" /></label>
               <label>Headline<input name="headline" placeholder="A short project introduction" /></label>
               <label>Project description<textarea name="description" rows="5" placeholder="Project details shown on its separate page."></textarea></label>
@@ -125,6 +138,35 @@
           </section>
         </div>
       </div>
+      <div id="digitalMapsWorkspace" class="admin-workspace" hidden>
+        <div class="dashboard-layout digital-map-layout">
+          <section class="listing-manager">
+            <div class="manager-heading"><h2>Digital maps</h2><span id="digitalMapCount">0 maps</span></div>
+            <p class="field-help">Choose a map to edit it or manage its manually entered blocks.</p>
+            <div class="admin-property-list" id="adminDigitalMapList"></div>
+          </section>
+          <section class="editor-panel">
+            <div class="editor-heading"><div><p class="eyebrow">Map library</p><h2 id="digitalMapEditorTitle">Add a map</h2></div><button class="cancel-edit" id="cancelDigitalMapEdit" type="button" hidden>Cancel</button></div>
+            <form id="digitalMapForm" class="property-form" enctype="multipart/form-data">
+              <input name="map_id" type="hidden">
+              <label>Map / project name<input name="name" required maxlength="180" placeholder="e.g. Al-Rehman Garden Phase 7"></label>
+              <p class="field-help">Upload a map PDF and bundled PDF.js will automatically convert its first page into a high-resolution JPG. The API saves both files and their real dimensions, then publishes the image in Plot Finder. No Imagick, Poppler or Ghostscript installation is required.</p>
+              <label class="upload-label">High-resolution map image <span class="field-hint">Optional manual replacement</span><input name="map_image" type="file" accept="image/jpeg,image/png,image/webp"><span>JPG, PNG or WebP · up to 60 MB.</span></label>
+              <label class="upload-label">Map PDF<input name="original_pdf" type="file" accept="application/pdf"><span>PDF up to 100 MB · automatically converted to a high-resolution image.</span></label>
+              <label class="upload-label">Automatic plot index JSON (optional)<input name="plot_index" type="file" accept="application/json,.json"><span>Upload normalized plot coordinates. Block names are never detected or created automatically.</span></label>
+              <label class="checkbox-label"><input name="is_active" type="checkbox" checked> Publish this map in Plot Finder</label>
+              <p class="field-help" id="digitalMapCurrentFiles"></p>
+              <div class="form-actions"><button class="button button-primary" type="submit" id="saveDigitalMapButton">Save map <span>→</span></button><p class="property-message" id="digitalMapMessage" role="status"></p></div>
+            </form>
+          </section>
+        </div>
+        <section class="editor-panel digital-map-blocks" id="digitalMapBlocksPanel">
+          <div class="editor-heading"><div><p class="eyebrow">Manual organization</p><h2>Blocks in this map</h2></div></div>
+          <p class="field-help">Blocks are not detected from the image. Select a map and add as many block names as required.</p>
+          <form id="digitalMapBlockForm" class="map-block-form"><label>Selected map<select id="digitalMapBlockMap" name="map_id" required><option value="">Choose a map</option></select></label><label>New block name<input name="name" required maxlength="120" placeholder="e.g. Executive Block"></label><button class="button button-dark" type="submit">Add block</button></form>
+          <p class="property-message" id="digitalMapBlockMessage" role="status"></p><div class="map-block-list" id="digitalMapBlockList"></div>
+        </section>
+      </div>
       <div id="galleryWorkspace" class="admin-workspace" hidden>
         <div class="gallery-manager-panel">
           <div class="editor-heading"><div><p class="eyebrow">Main website gallery</p><h2>Manage gallery images</h2></div></div>
@@ -144,18 +186,27 @@
           <p class="field-help" style="margin-top:14px;">Add one or many popup ads. All published popups auto-show on the home page as a rotating carousel on every refresh. Each popup has a close button on the right side.</p>
           <form id="homePopupForm" class="home-popup-form">
             <input type="hidden" name="popup_id" />
-<label>Image URL<input name="image_url" placeholder="https://.../popup.jpg" /></label>
-            <label class="upload-label">Upload popup image<input id="popupImageUpload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
-            <label>Link URL<input name="link_url" placeholder="https://.../destination" /></label>
-            <label>Headline<input name="headline" placeholder="Optional headline" /></label>
-            <label>HTML content<textarea name="html_content" rows="3" placeholder="Optional HTML content (buttons, small markup)"></textarea></label>
+            <label>Popup type<select name="popup_type" id="popupTypeSelect"><option value="content">Content only</option><option value="image">Image only</option><option value="video">Video only</option></select></label>
+            <div class="popup-type-fields" data-popup-type-fields="image" hidden>
+              <label>Image URL<input name="image_url" placeholder="https://.../popup.jpg" /></label>
+              <label class="upload-label">Upload one popup image<input id="popupImageUpload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /><span>JPG, PNG, GIF or WebP · maximum 15 MB</span></label>
+            </div>
+            <div class="popup-type-fields" data-popup-type-fields="video" hidden>
+              <label>Video URL <span class="field-hint">Optional when uploading</span><input name="video_url" placeholder="uploads/video.mp4 or direct MP4/WebM URL" /></label>
+              <label class="upload-label">Upload one popup video<input id="popupVideoUpload" type="file" accept="video/mp4,video/webm" /><span>MP4 or WebM · maximum 15 MB</span></label>
+            </div>
+            <div class="popup-type-fields" data-popup-type-fields="content">
+              <label>Headline<input name="headline" placeholder="Content popup headline" /></label>
+              <label>HTML content<textarea name="html_content" rows="4" placeholder="Text and simple formatting for this popup"></textarea></label>
+            </div>
+            <label>Link URL <span class="field-hint">Optional</span><input name="link_url" placeholder="https://.../destination" /></label>
             <label class="checkbox-label"><input type="checkbox" name="is_published" /> Publish popup (visible on site)</label>
             <div class="form-actions"><button class="button button-primary" type="submit" id="saveHomePopupButton">Save popup <span>→</span></button><p id="homePopupMessage" class="property-message" role="status"></p></div>
           </form>
           <div id="adminPopupList"></div>
         </div>
       </div>
-      <div id="agentsWorkspace" class="admin-workspace" hidden>
+      <div id="agentsWorkspace" class="admin-workspace" data-subview="list" hidden>
         <div class="dashboard-layout">
           <section class="listing-manager">
             <div class="manager-heading"><h2>Your agents</h2><span id="agentCount">0 agents</span></div>
@@ -177,6 +228,51 @@
           </section>
         </div>
       </div>
+      <div id="addressesWorkspace" class="admin-workspace" data-subview="list" hidden>
+        <div class="dashboard-layout">
+          <section class="listing-manager">
+            <div class="manager-heading"><h2>Office addresses</h2><span id="officeAddressCount">0 addresses</span></div>
+            <div class="admin-property-list" id="adminOfficeAddressList"></div>
+          </section>
+          <section class="editor-panel">
+            <div class="editor-heading"><div><p class="eyebrow">Contact locations</p><h2 id="officeAddressEditorTitle">Add an office address</h2></div><button class="cancel-edit" id="cancelOfficeAddressEdit" type="button" hidden>Cancel</button></div>
+            <form id="officeAddressForm" class="property-form">
+              <input type="hidden" name="office_id" />
+              <label>Office name<input name="office_name" required maxlength="160" placeholder="e.g. Head Office" /></label>
+              <label>Full address<textarea name="address_text" required maxlength="1000" rows="4" placeholder="Office number, commercial area, society and city"></textarea></label>
+              <label>Phone (optional)<input name="phone" maxlength="30" placeholder="0300 0000000" /></label>
+              <label>Google Maps link (optional)<input name="map_url" maxlength="500" placeholder="https://maps.google.com/..." /></label>
+              <label class="checkbox-label"><input type="checkbox" name="is_published" checked /> Show below agents on main page</label>
+              <div class="form-actions"><button class="button button-primary" id="saveOfficeAddressButton" type="submit">Save address <span>→</span></button><p id="officeAddressMessage" class="property-message" role="status"></p></div>
+            </form>
+          </section>
+        </div>
+      </div>
+      <div id="loginUsersWorkspace" class="admin-workspace" data-subview="list" hidden>
+        <div class="dashboard-layout">
+          <section class="listing-manager"><div class="manager-heading"><h2>Login users</h2><span id="loginUserCount">0 users</span></div><div class="admin-property-list" id="adminLoginUserList"></div></section>
+          <section class="editor-panel">
+            <div class="editor-heading"><div><p class="eyebrow">Secure accounts</p><h2 id="loginUserEditorTitle">Add a login user</h2></div><button class="cancel-edit" id="cancelLoginUserEdit" type="button" hidden>Cancel</button></div>
+            <p class="field-help">Passwords are securely hashed. Existing passwords cannot be viewed; enter a new password only when creating or resetting an account.</p>
+            <form id="loginUserForm" class="property-form">
+              <input type="hidden" name="user_id"><label>User type<select name="user_type"><option value="client">Client</option><option value="admin">Admin</option></select></label>
+              <label>Full name<input name="full_name" maxlength="160" required></label>
+              <div class="two-column"><label>Email<input name="email" type="email" maxlength="255"></label><label>Phone<input name="phone" maxlength="30"></label></div>
+              <label class="admin-username-field" hidden>Admin username<input name="username" maxlength="100"></label>
+              <label>New password<input name="new_password" type="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep current password"></label>
+              <label class="checkbox-label"><input name="is_active" type="checkbox" checked> Account active</label>
+              <div class="form-actions"><button class="button button-primary" id="saveLoginUserButton" type="submit">Save user <span>→</span></button><p id="loginUserMessage" class="property-message" role="status"></p></div>
+            </form>
+          </section>
+        </div>
+      </div>
+      <div id="chatMessagesWorkspace" class="admin-workspace" hidden>
+        <section class="listing-manager chat-message-manager">
+          <div class="manager-heading"><div><h2>Chatbot messages</h2><p class="field-help">Visitors appear here after they request a callback and provide their name and phone number.</p></div><span id="chatMessageCount">0 messages</span></div>
+          <div class="chat-message-toolbar"><label>Filter status<select id="chatMessageFilter"><option value="all">All messages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select></label><button class="button button-dark" id="refreshChatMessages" type="button">Refresh</button></div>
+          <div class="admin-property-list" id="adminChatMessageList"></div>
+        </section>
+      </div>
       <div id="submissionsWorkspace" class="admin-workspace" hidden>
         <div class="dashboard-layout">
           <section class="listing-manager"><div class="manager-heading"><h2>Client properties</h2><span id="submissionCount">0 submissions</span></div><div class="admin-property-list" id="adminSubmissionList"></div></section>
@@ -185,7 +281,7 @@
             <form id="submissionForm" class="property-form" hidden>
               <input type="hidden" name="submission_id"><input type="hidden" name="status">
               <fieldset><legend>Seller details</legend><div class="two-column"><label>Seller name<input name="seller_name" required></label><label>Phone / WhatsApp<input name="seller_phone" required></label></div><div class="two-column"><label>Email<input name="seller_email" type="email"></label><label>CNIC<input name="seller_cnic"></label></div></fieldset>
-              <fieldset><legend>Property details</legend><div class="three-column"><label>Listing type<select name="listing_type"><option value="sale">For sale</option><option value="rent">For rent</option></select></label><label>Property type<select name="property_type"><option>Land</option><option>House</option><option>Apartment</option><option>Villa</option><option>Condo</option></select></label><label>Price PKR<input name="price_pkr" type="number" min="0"></label></div><label>Title<input name="title" required></label><label>Address<input name="address_line1" required></label><div class="three-column"><label>City<input name="city" required></label><label>Region<input name="state_region"></label><label>Size<input name="size_label"></label></div><div class="three-column"><label>Facing<input name="property_facing"></label><label>Bedrooms<input name="bedrooms" type="number" step=".5"></label><label>Bathrooms<input name="bathrooms" type="number" step=".5"></label></div><label>Area sqft<input name="area_sqft" type="number"></label><label>Description<textarea name="description" rows="4"></textarea></label><label>Private admin notes<textarea name="admin_notes" rows="2"></textarea></label><div id="submissionImages" class="submission-images"></div></fieldset>
+              <fieldset><legend>Property details</legend><div class="three-column"><label>Listing type<select name="listing_type"><option value="sale">For sale</option><option value="rent">For rent</option></select></label><label>Property type<select name="property_type"><option>Land</option><option>House</option><option>Apartment</option><option>Villa</option><option>Condo</option></select></label><label>Price PKR<input name="price_pkr" type="number" min="0"></label></div><label>Title<input name="title" required></label><label>Address<input name="address_line1" required></label><div class="three-column"><label>City<input name="city" required></label><label>Region<input name="state_region"></label><label>Block<input name="block_name" maxlength="120" placeholder="Write any block name"></label></div><div class="three-column"><label>Size<input name="size_label"></label><label>Facing / Type<input name="property_facing" maxlength="60" placeholder="Write anything"></label><label>Bedrooms<input name="bedrooms" type="number" step=".5"></label></div><label>Bathrooms<input name="bathrooms" type="number" step=".5"></label><div class="two-column"><label>Publication start<input name="publish_start_date" type="date" required></label><label>Automatic removal date<input name="publish_end_date" type="date" required></label></div><label>Area sqft<input name="area_sqft" type="number"></label><label>Description<textarea name="description" rows="4"></textarea></label><label>Private admin notes<textarea name="admin_notes" rows="2"></textarea></label><div id="submissionImages" class="submission-images"></div><div id="submissionVideo" class="submission-video"></div></fieldset>
               <div class="submission-actions"><button class="button button-dark" type="submit">Save edits</button><button class="button submission-reject" id="rejectSubmission" type="button">Reject</button><button class="button button-primary" id="approveSubmission" type="button">Approve & publish <span>→</span></button></div><p id="submissionMessage" class="property-message" role="status"></p>
             </form>
             <p id="submissionEmptyEditor" class="empty-list">Choose a client submission to review and edit.</p>
@@ -194,30 +290,7 @@
       </div>
     </section>
   </main>
-  <script src="admin.js"></script>
+  <script src="admin.js?v=20260818-pdfjs"></script>
   <script src="theme.js" defer></script>
-  <!-- Debug overlay: shows session response and JS errors (temporary) -->
-  <div id="debugOverlay" style="position:fixed;right:12px;bottom:12px;z-index:9999;max-width:420px;background:rgba(0,0,0,0.85);color:#fff;padding:10px;border-radius:6px;font-family:system-ui,Arial,sans-serif;font-size:12px;line-height:1.2;box-shadow:0 6px 24px rgba(0,0,0,0.4)">
-    <strong style="display:block;margin-bottom:6px">Admin debug</strong>
-    <div id="debugContent">Loading session...</div>
-    <button id="debugClose" style="margin-top:8px;background:#222;color:#fff;border:0;padding:6px 8px;border-radius:4px;cursor:pointer">Close</button>
-  </div>
-  <script>
-    (function(){
-      const out = document.getElementById('debugContent');
-      const close = document.getElementById('debugClose');
-      close.addEventListener('click', () => document.getElementById('debugOverlay').style.display = 'none');
-      function write(...parts){ if (!out) return; out.innerHTML = parts.map(p => typeof p === 'string' ? p : JSON.stringify(p, null, 2)).join('<br><hr style="opacity:.12;margin:6px 0">'); }
-      window.addEventListener('error', (e) => { write('JS error: ' + (e && e.message) , e.filename + ':' + e.lineno + ':' + e.colno); });
-      window.addEventListener('unhandledrejection', (e) => { write('Unhandled rejection:', e && e.reason); });
-      fetch('api.php?action=session', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-        .then(r => r.json())
-        .then(j => write('session:', j))
-        .catch(err => write('session fetch failed:', String(err)));
-      // also capture console errors
-      const origErr = console.error.bind(console);
-      console.error = function(){ write('console.error:', Array.from(arguments)); origErr.apply(console, arguments); };
-    })();
-  </script>
 </body>
 </html>

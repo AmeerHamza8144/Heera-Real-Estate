@@ -9,8 +9,23 @@ CREATE TABLE admin_users (
   first_name VARCHAR(80) NOT NULL,
   last_name VARCHAR(80) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
+  username VARCHAR(100) UNIQUE,
+  phone VARCHAR(30),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   password_hash VARCHAR(255) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE client_users (
+  client_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  full_name VARCHAR(160) NOT NULL,
+  email VARCHAR(255) UNIQUE,
+  phone VARCHAR(30) UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_client_active (is_active, full_name)
 );
 
 CREATE TABLE properties (
@@ -22,7 +37,8 @@ CREATE TABLE properties (
   address_line1 VARCHAR(255) NOT NULL,
   city VARCHAR(100) NOT NULL,
   state_region VARCHAR(100),
-postal_code VARCHAR(25),
+  block_name VARCHAR(120),
+  postal_code VARCHAR(25),
   price DECIMAL(12,2) DEFAULT NULL,
   bedrooms DECIMAL(3,1),
   bathrooms DECIMAL(3,1),
@@ -32,6 +48,8 @@ postal_code VARCHAR(25),
   price_pkr DECIMAL(15,2),
   price_per_marla DECIMAL(12,2),
   description TEXT,
+  publish_start_date DATE,
+  publish_end_date DATE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_property_search (status, listing_type, property_type, city, price)
@@ -61,6 +79,7 @@ CREATE TABLE property_submissions (
   address_line1 VARCHAR(255) NOT NULL,
   city VARCHAR(100) NOT NULL,
   state_region VARCHAR(100),
+  block_name VARCHAR(120),
   size_label VARCHAR(60),
   property_facing VARCHAR(60),
   price_pkr DECIMAL(15,2),
@@ -69,6 +88,9 @@ CREATE TABLE property_submissions (
   area_sqft INT UNSIGNED,
   description TEXT,
   media_json TEXT,
+  video_path VARCHAR(500),
+  publish_start_date DATE NOT NULL,
+  publish_end_date DATE NOT NULL,
   status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   approved_property_id INT UNSIGNED,
   admin_notes TEXT,
@@ -77,6 +99,33 @@ CREATE TABLE property_submissions (
   INDEX idx_submission_status (status, created_at),
   CONSTRAINT fk_submission_property FOREIGN KEY (approved_property_id) REFERENCES properties(property_id) ON DELETE SET NULL
 );
+
+CREATE TABLE digital_maps (
+  map_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(180) NOT NULL,
+  map_image VARCHAR(500) NOT NULL,
+  original_pdf VARCHAR(500),
+  plot_index_file VARCHAR(500),
+  original_width INT UNSIGNED NOT NULL,
+  original_height INT UNSIGNED NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_digital_map_name (name)
+);
+
+CREATE TABLE digital_map_blocks (
+  block_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  map_id INT UNSIGNED NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_digital_block_map FOREIGN KEY (map_id) REFERENCES digital_maps(map_id) ON DELETE CASCADE,
+  UNIQUE KEY uq_digital_map_block (map_id, name),
+  INDEX idx_digital_blocks_map (map_id, name)
+);
+
+INSERT INTO digital_maps (name,map_image,original_pdf,plot_index_file,original_width,original_height) VALUES
+('Al-Rehman Garden Phase 2','maps/al-rehman-garden-phase-2-highres.jpg','maps/al-rehman-garden-phase-2-original.pdf','maps/phase2-plot-index.json',12009,9009);
 
 CREATE TABLE enquiries (
   enquiry_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -107,6 +156,7 @@ CREATE TABLE saved_properties (
 CREATE TABLE projects (
   project_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(180) NOT NULL,
+  plan_name VARCHAR(180) DEFAULT NULL,
   category VARCHAR(100) NOT NULL,
   location VARCHAR(180) NOT NULL,
 status ENUM('published', 'draft') NOT NULL DEFAULT 'draft',
@@ -116,7 +166,7 @@ status ENUM('published', 'draft') NOT NULL DEFAULT 'draft',
   payment_plans TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_project_title (title),
+  INDEX idx_project_title_plan (title, plan_name),
   INDEX idx_project_status (status, updated_at)
 );
 
@@ -161,7 +211,9 @@ CREATE TABLE agents (
 
 CREATE TABLE popup_ads (
   popup_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  popup_type ENUM('content','image','video') NOT NULL DEFAULT 'content',
   image_url VARCHAR(500) DEFAULT NULL,
+  video_url VARCHAR(500) DEFAULT NULL,
   link_url VARCHAR(500) DEFAULT NULL,
   headline VARCHAR(255) DEFAULT NULL,
   html_content TEXT DEFAULT NULL,
@@ -172,10 +224,22 @@ CREATE TABLE popup_ads (
   INDEX idx_popup_published (is_published, sort_order, popup_id)
 );
 
+CREATE TABLE office_addresses (
+  office_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  office_name VARCHAR(160) NOT NULL,
+  address_text TEXT NOT NULL,
+  phone VARCHAR(30),
+  map_url VARCHAR(500),
+  is_published BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_office_published (is_published, office_id)
+);
+
 -- Initial agent account. Change this password immediately after setup.
 -- Email: admin@havenly.local  |  Password: Havenly2026!
-INSERT INTO admin_users (first_name, last_name, email, password_hash) VALUES
-('Havenly', 'Admin', 'admin@havenly.local', '$2y$10$dIonOhhHnD5awtXtyMvIHuY1/xDY3eBV1EYqSClhFOFTB0dsdEwga');
+INSERT INTO admin_users (first_name, last_name, email, username, password_hash) VALUES
+('Havenly', 'Admin', 'admin@havenly.local', 'admin', '$2y$10$dIonOhhHnD5awtXtyMvIHuY1/xDY3eBV1EYqSClhFOFTB0dsdEwga');
 
 INSERT INTO properties (listing_type, property_type, status, title, address_line1, city, state_region, postal_code, price, bedrooms, bathrooms, area_sqft, description) VALUES
 ('sale', 'House', 'available', 'Contemporary Pacific Heights Home', '4236 Mornington Road', 'San Francisco', 'CA', '94115', 1850000, 4, 3, 2820, 'Light-filled contemporary home with garden views and generous entertaining spaces.'),

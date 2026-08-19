@@ -209,12 +209,14 @@ function renderProperty(property) {
   addFact(facts, "Property type", labelValue(property.property_type));
   addFact(facts, "Status", status);
   addFact(facts, "Size", property.size_label);
+  addFact(facts, "Block", property.block_name);
   addFact(facts, "Facing", property.property_facing);
   addFact(facts, "Bedrooms", property.bedrooms !== null ? formatNumber(property.bedrooms, 1) : "");
   addFact(facts, "Bathrooms", property.bathrooms !== null ? formatNumber(property.bathrooms, 1) : "");
   addFact(facts, "Area", property.area_sqft ? `${formatNumber(property.area_sqft)} sq ft` : "");
   addFact(facts, "Per Marla", property.price_per_marla ? `PKR ${formatNumber(property.price_per_marla)}` : "");
   addFact(facts, "Address", address);
+  addFact(facts, "Available until", property.publish_end_date ? new Date(`${property.publish_end_date}T00:00:00`).toLocaleDateString("en-PK", {day:"numeric",month:"short",year:"numeric"}) : "");
 
   const description = String(property.description || "").trim();
   if (description) {

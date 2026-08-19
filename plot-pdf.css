@@ -1,0 +1,1 @@
+.public-map[hidden],.public-pdf-map[hidden],.map-controls button[hidden],.map-controls a[hidden],.map-legend[hidden]{display:none!important}.public-pdf-map{background:#525659;border:0;display:block;height:min(72vh,820px);min-height:480px;width:100%}@media(max-width:600px){.public-pdf-map{height:66vh;min-height:440px}}

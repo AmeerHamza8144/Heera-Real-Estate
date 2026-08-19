@@ -17,7 +17,6 @@
   <link rel="stylesheet" href="footer-compact.css" />
 </head>
 <body class="project-body">
-  <a class="client-form-button" href="client-form.html">Client Form <span>＋</span></a>
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Heera Estate home">
       <span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span>
@@ -35,9 +34,13 @@
         <button class="projects-toggle is-active" type="button" aria-expanded="false">Projects <span>⌄</span></button>
         <div class="projects-menu" id="projectsMenu"><span class="projects-loading">Loading projects…</span></div>
       </div>
+      <a href="plot-finder.html">PLOT FINDER</a>
       <a href="index.html#contact">Contact</a>
     </nav>
-    <a class="admin-login-icon login-button" href="index.html#admin-login">Login</a>
+    <div class="header-actions">
+      <a class="client-form-button" href="client-form.html">Client Form <span>＋</span></a>
+      <a class="admin-login-icon login-button" href="index.html#admin-login">Login</a>
+    </div>
   </header>
   <main id="projectContent">
     <section class="project-hero" id="projectHero">
@@ -55,6 +58,7 @@
       <div class="section-heading"><div><p class="eyebrow">Gallery</p><h2>Inside the project</h2></div></div>
       <div class="project-gallery-grid" id="projectGallery"></div>
     </section>
+    <section class="project-map-cta section"><div><p class="eyebrow">Digital location map</p><h2>Find a plot on the master plan</h2><p>Enter a plot number to search the supplied Phase 2 master plan automatically and zoom to each detected match.</p></div><a class="button button-primary" id="projectPlotFinderLink" href="plot-finder.html">Open Plot Finder <span>→</span></a></section>
   </main>
   <section class="project-not-found section" id="projectNotFound" hidden><p class="eyebrow">Project not found</p><h2>We couldn’t find that project.</h2><a class="button button-dark" href="index.html">Return home <span>→</span></a></section>
   <footer class="site-footer"><a class="brand footer-brand" href="index.html"><span class="brand-mark">H</span><span>Heera Estates</span></a><p>Homes that feel like home.</p><span>© <span id="year"></span> Heera Real Estate</span></footer>

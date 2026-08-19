@@ -268,14 +268,27 @@ function showFrontPopupByIndex(index) {
   frontPopupIndex = index;
   const panel = existing.querySelector('.front-popup-panel');
   const img = panel.querySelector('.popup-image');
+  const video = panel.querySelector('.popup-video');
   const headline = panel.querySelector('.popup-headline');
   const body = panel.querySelector('.popup-body');
   const action = panel.querySelector('.popup-action');
-  img.src = safeUrl(popup.image_url) || popup.image_url;
-  headline.textContent = popup.headline || '';
-  body.innerHTML = popup.html_content || '';
+  const type = ['content','image','video'].includes(popup.popup_type) ? popup.popup_type : (popup.image_url ? 'image' : 'content');
+  panel.dataset.popupType = type;
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
+  img.hidden = type !== 'image';
+  video.hidden = type !== 'video';
+  headline.hidden = type !== 'content' || !popup.headline;
+  body.hidden = type !== 'content' || !popup.html_content;
+  if (type === 'image') img.src = safeUrl(popup.image_url) || popup.image_url;
+  else img.removeAttribute('src');
+  if (type === 'video') { video.src = safeUrl(popup.video_url) || popup.video_url; video.load(); }
+  headline.textContent = type === 'content' ? (popup.headline || '') : '';
+  body.innerHTML = type === 'content' ? (popup.html_content || '') : '';
   if (popup.link_url) {
     action.href = popup.link_url;
+    action.textContent = 'View details';
     action.hidden = false;
   } else {
     action.hidden = true;
@@ -285,7 +298,10 @@ function showFrontPopupByIndex(index) {
   dots.forEach((dot, i) => dot.classList.toggle('active', i === frontPopupIndex));
   // update counter
   const counter = existing.querySelector('#popupCounter');
-  if (counter) counter.textContent = `${frontPopupIndex + 1} / ${frontPopups.length}`;
+  if (counter) {
+    counter.hidden = frontPopups.length < 2;
+    counter.textContent = frontPopups.length > 1 ? `${frontPopupIndex + 1} / ${frontPopups.length}` : '';
+  }
   // restart auto-advance
   restartPopupTimer();
 }
@@ -295,12 +311,16 @@ function renderPopupDots() {
   if (!existing) return;
   const dotsWrap = existing.querySelector('.popup-dots');
   if (!dotsWrap) return;
-  dotsWrap.innerHTML = frontPopups.map((_, i) => `<button type="button" class="popup-dot" data-index="${i}" aria-label="Go to ad ${i + 1}"></button>`).join('');
+  const singlePopup = frontPopups.length < 2;
+  dotsWrap.hidden = singlePopup;
+  dotsWrap.innerHTML = singlePopup ? '' : frontPopups.map((_, i) => `<button type="button" class="popup-dot" data-index="${i}" aria-label="Go to ad ${i + 1}"></button>`).join('');
+  existing.querySelectorAll('.popup-nav').forEach((button) => { button.hidden = singlePopup; });
 }
 
 function restartPopupTimer() {
   if (frontPopupTimer) clearInterval(frontPopupTimer);
   if (frontPopups.length < 2) return;
+  if (frontPopups[frontPopupIndex]?.popup_type === 'video') return;
   frontPopupTimer = setInterval(() => {
     const next = (frontPopupIndex + 1) % frontPopups.length;
     showFrontPopupByIndex(next);
@@ -320,6 +340,7 @@ function closeFrontPopup() {
   existing.classList.remove('open');
   setTimeout(() => { if (!existing.classList.contains('open')) existing.hidden = true; }, 220);
   if (frontPopupTimer) { clearInterval(frontPopupTimer); frontPopupTimer = null; }
+  existing.querySelector('.popup-video')?.pause();
 }
 
 async function loadHomePopupFront() {
@@ -328,8 +349,11 @@ async function loadHomePopupFront() {
     if (!response.ok) return;
     const data = await response.json();
     const popups = Array.isArray(data) ? data : (data && data.popups) ? data.popups : [];
-    // only keep popups that have an image so they render nicely
-    const candidates = popups.filter((p) => p && (p.image_url || p.html_content));
+    const candidates = popups.filter((p) => {
+      if (!p) return false;
+      const type = ['content','image','video'].includes(p.popup_type) ? p.popup_type : (p.image_url ? 'image' : 'content');
+      return type === 'image' ? !!p.image_url : type === 'video' ? !!p.video_url : !!(p.headline || p.html_content);
+    });
     if (!candidates.length) return;
     frontPopups = candidates;
     frontPopupIndex = 0;
@@ -353,8 +377,9 @@ document.addEventListener('DOMContentLoaded', () => {
       loginPopup.hidden = false;
       requestAnimationFrame(() => loginPopup.classList.add('open'));
     });
-    if (window.location.hash === '#admin-login') {
+    if (window.location.hash === '#admin-login' || window.location.hash === '#login') {
       openLoginBtn.click();
+      if(window.location.hash==='#admin-login') setTimeout(()=>setAuthView('admin-login'),0);
       history.replaceState(null, '', window.location.pathname + window.location.search);
     }
   }
@@ -436,6 +461,27 @@ async function loadAgents() {
   }
 }
 
+async function loadPublicOfficeAddresses() {
+  const container = document.querySelector("#officeAddresses");
+  if (!container) return;
+  try {
+    const response = await fetch("api.php?action=office_addresses", { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error("Could not load office addresses");
+    const items = await response.json();
+    if (!Array.isArray(items) || !items.length) {
+      container.innerHTML = '<p class="home-gallery-empty">Office addresses will appear here soon.</p>';
+      return;
+    }
+    container.innerHTML = items.map((item) => {
+      const phone = item.phone ? `<a href="tel:${encodeURIComponent(item.phone)}">${escapeHtml(item.phone)}</a>` : "";
+      const mapUrl = safeUrl(item.map_url);
+      return `<article class="office-address-card"><span class="office-address-icon" aria-hidden="true">⌖</span><div><h3>${escapeHtml(item.office_name)}</h3><address>${escapeHtml(item.address_text)}</address><div class="office-address-actions">${phone}${mapUrl ? `<a href="${mapUrl}" target="_blank" rel="noopener">Open in Maps <span>→</span></a>` : ""}</div></div></article>`;
+    }).join("");
+  } catch (error) {
+    container.innerHTML = '<p class="home-gallery-empty">Office addresses are temporarily unavailable.</p>';
+  }
+}
+
 const elements = {
   grid: document.querySelector("#propertyGrid"),
   savedCount: document.querySelector("#savedCount"),
@@ -463,10 +509,10 @@ const popupElements = {
 
 function openLoginPopup() {
   if (!popupElements.modal) return;
-  popupElements.error.textContent = "";
+  if (popupElements.error) popupElements.error.textContent = "";
   popupElements.modal.hidden = false;
   requestAnimationFrame(() => popupElements.modal.classList.add("open"));
-  popupElements.form.elements.email.focus();
+  popupElements.modal.querySelector('input')?.focus();
 }
 
 function closeLoginPopup() {
@@ -486,14 +532,8 @@ const formatPrice = (property) => {
   }).format(property.price);
 };
 
-function renderProperties(list = properties) {
-  if (!list.length) {
-    elements.grid.innerHTML = `<div class="no-results"><h3>No properties found</h3><p>Try changing your search filters to see more available listings.</p></div>`;
-    elements.resultsMessage.textContent = "No matching properties";
-    return;
-  }
-  elements.resultsMessage.textContent = list.length === properties.length ? "" : `${list.length} matching ${list.length === 1 ? "property" : "properties"}`;
-  elements.grid.innerHTML = list.map((property) => {
+function propertyCardsMarkup(list) {
+  return list.map((property) => {
     const image = safeUrl(property.image) || "https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=900&q=85";
     const images = (Array.isArray(property.images) ? property.images : [image]).map(safeUrl).filter(Boolean);
     if (!images.length) images.push(image);
@@ -540,6 +580,63 @@ function renderProperties(list = properties) {
   }).join("");
 }
 
+let propertyPage = 0;
+let propertyListExpanded = false;
+let currentPropertyList = [];
+
+function propertyPageSize() {
+  if (window.matchMedia("(max-width: 570px)").matches) return 1;
+  if (window.matchMedia("(max-width: 820px)").matches) return 2;
+  return 3;
+}
+
+function updatePropertyPage() {
+  const track = elements.grid?.querySelector(".property-page-track");
+  const pages = track?.children.length || 0;
+  if (!track || pages < 1) return;
+  propertyPage = (propertyPage + pages) % pages;
+  track.style.transform = `translateX(-${propertyPage * 100}%)`;
+  const pageStatus = document.querySelector("#propertyPageStatus");
+  if (pageStatus) pageStatus.textContent = pages > 1 ? `Properties ${propertyPage + 1} of ${pages}` : "";
+}
+
+function renderProperties(list = properties) {
+  currentPropertyList = list;
+  const previous = document.querySelector("#propertyPrevious");
+  const next = document.querySelector("#propertyNext");
+  const pageStatus = document.querySelector("#propertyPageStatus");
+  const viewAll = document.querySelector("#clearFilters");
+  if (!list.length) {
+    elements.grid.classList.remove("is-slider");
+    elements.grid.innerHTML = `<div class="no-results"><h3>No properties found</h3><p>Try changing your search filters to see more available listings.</p></div>`;
+    elements.resultsMessage.textContent = "No matching properties";
+    if (previous) previous.hidden = true;
+    if (next) next.hidden = true;
+    if (pageStatus) pageStatus.textContent = "";
+    return;
+  }
+  elements.resultsMessage.textContent = list.length === properties.length ? "" : `${list.length} matching ${list.length === 1 ? "property" : "properties"}`;
+  const pageSize = propertyPageSize();
+  const useSlider = !propertyListExpanded && list.length > pageSize;
+  elements.grid.classList.toggle("is-slider", useSlider);
+  if (useSlider) {
+    const pages = [];
+    for (let index = 0; index < list.length; index += pageSize) pages.push(list.slice(index, index + pageSize));
+    propertyPage = Math.min(propertyPage, pages.length - 1);
+    elements.grid.innerHTML = `<div class="property-page-track">${pages.map((page) => `<div class="property-page">${propertyCardsMarkup(page)}</div>`).join("")}</div>`;
+    if (previous) previous.hidden = false;
+    if (next) next.hidden = false;
+    updatePropertyPage();
+  } else {
+    propertyPage = 0;
+    elements.grid.innerHTML = propertyCardsMarkup(list);
+    if (previous) previous.hidden = true;
+    if (next) next.hidden = true;
+    if (pageStatus) pageStatus.textContent = "";
+  }
+  if (viewAll) viewAll.innerHTML = propertyListExpanded ? 'Show property slider <span>→</span>' : 'View all homes <span>→</span>';
+}
+
 function persistSaved() {
   localStorage.setItem("havenlySaved", JSON.stringify(savedIds));
   if (elements.savedCount) elements.savedCount.textContent = savedIds.length;
@@ -567,6 +664,8 @@ function renderSavedList() {
 }
 
 function applyFilters() {
+  propertyListExpanded = false;
+  propertyPage = 0;
   const type = elements.type.value;
   const location = elements.location.value.trim().toLowerCase();
   const maxPrice = elements.price.value === "all" ? Infinity : Number(elements.price.value);
@@ -613,9 +712,26 @@ if (clearFiltersButton) {
     elements.location.value = "";
     elements.price.value = "all";
     listingMode = "all";
+    propertyListExpanded = !propertyListExpanded;
+    propertyPage = 0;
     renderProperties();
   });
 }
+
+document.querySelector("#propertyPrevious")?.addEventListener("click", () => {
+  propertyPage -= 1;
+  updatePropertyPage();
+});
+document.querySelector("#propertyNext")?.addEventListener("click", () => {
+  propertyPage += 1;
+  updatePropertyPage();
+});
+
+let propertyResizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(propertyResizeTimer);
+  propertyResizeTimer = setTimeout(() => renderProperties(currentPropertyList.length ? currentPropertyList : properties), 160);
+});
 
 if (elements.grid) {
   elements.grid.addEventListener("click", (event) => {
@@ -701,6 +817,15 @@ if (popupElements.form) {
     }
   });
 }
+
+const accountAccess=document.querySelector("#accountAccess"),accountMessage=document.querySelector("#accountMessage");
+function safeAuthReturn(){const destination=new URLSearchParams(location.search).get('return');return destination==='client-form.html'?destination:'';}
+function setAuthView(view){if(!accountAccess)return;accountAccess.dataset.view=view;accountAccess.querySelectorAll(".account-form").forEach(form=>form.classList.toggle("active",form.dataset.authForm===view));accountAccess.querySelectorAll(".account-tab").forEach(tab=>tab.classList.toggle("active",tab.dataset.authView===view));if(accountMessage){accountMessage.textContent="";accountMessage.classList.remove("success");}accountAccess.querySelector(`.account-form[data-auth-form="${view}"] input`)?.focus();}
+accountAccess?.addEventListener("click",event=>{const button=event.target.closest("[data-auth-view]");if(button)setAuthView(button.dataset.authView);});
+document.querySelector("#clientSignupForm")?.addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget,f=form.elements;if(f.password.value!==f.confirm_password.value){accountMessage.textContent="Passwords do not match.";return;}accountMessage.textContent="Creating account…";try{await apiRequest("client_signup",{full_name:f.full_name.value.trim(),email:f.email.value.trim(),phone:f.phone.value.trim(),password:f.password.value});form.reset();setAuthView("client-login");accountMessage.textContent="Account created. You can now sign in.";accountMessage.classList.add("success");}catch(error){accountMessage.textContent=error.message;}});
+document.querySelector("#clientLoginForm")?.addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget,f=form.elements;accountMessage.textContent="Signing in…";try{const result=await apiRequest("client_login",{login:f.login.value.trim(),password:f.password.value});localStorage.setItem("heeraClientSession",JSON.stringify(result.user));window.dispatchEvent(new CustomEvent("heera:auth-changed",{detail:{authenticated:true,role:"client",user:result.user}}));const destination=safeAuthReturn();if(destination){window.location.href=destination;return;}form.reset();closeLoginPopup();}catch(error){accountMessage.textContent=error.message;}});
+document.querySelector("#adminLoginForm")?.addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements;accountMessage.textContent="Signing in…";try{const result=await apiRequest("login",{login:f.login.value.trim(),password:f.password.value});const user=result.user||{};localStorage.setItem("havenlyAdminSession",JSON.stringify({loggedIn:true,email:user.email||f.login.value,name:user.name||user.email||f.login.value}));window.location.href=safeAuthReturn()||"admin.html";}catch(error){accountMessage.textContent=error.message;}});
+document.querySelector("#forgotPasswordForm")?.addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements;accountMessage.textContent="Sending request…";try{const result=await apiRequest("forgot_password",{identity:f.identity.value.trim()});accountMessage.textContent=result.message;accountMessage.classList.add("success");}catch(error){accountMessage.textContent=error.message;}});
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && popupElements.modal && !popupElements.modal.hidden) {
     closeLoginPopup();
@@ -730,4 +855,7 @@ if (document.querySelector("#homeGallery")) {
 }
 if (document.querySelector("#agentsGrid")) {
   loadAgents();
+}
+if (document.querySelector("#officeAddresses")) {
+  loadPublicOfficeAddresses();
 }

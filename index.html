@@ -15,10 +15,12 @@
   <link rel="stylesheet" href="navigation-fixes.css" />
   <link rel="stylesheet" href="footer-compact.css" />
   <link rel="stylesheet" href="gallery-compact.css" />
+  <link rel="stylesheet" href="property-slider.css" />
   <link rel="stylesheet" href="hero-background.css" />
+  <link rel="stylesheet" href="auth-portal.css" />
+  <link rel="stylesheet" href="auth-compact.css" />
 </head>
 <body>
-  <a class="client-form-button" href="client-form.html">Client Form <span>＋</span></a>
   <header class="site-header" id="top">
     <a class="brand" href="#top" aria-label="Havenly home">
       <span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span>
@@ -35,9 +37,13 @@
         <button class="projects-toggle" type="button" aria-expanded="false">Projects <span>⌄</span></button>
         <div class="projects-menu" id="projectsMenu"><span class="projects-loading">Loading projects…</span></div>
       </div>
+      <a href="plot-finder.html">PLOT FINDER</a>
       <a href="#contact">Contact</a>
     </nav>
-    <button class="admin-login-icon login-button" id="openIndexLogin" type="button">Login</button>
+    <div class="header-actions">
+      <a class="client-form-button" href="client-form.html">Client Form <span>＋</span></a>
+      <button class="admin-login-icon login-button" id="openIndexLogin" type="button">Login</button>
+    </div>
   </header>
 
   <main>
@@ -54,6 +60,7 @@
               <option value="House">House</option>
               <option value="Apartment">Apartment</option>
               <option value="Villa">Villa</option>
+              <option value="Land">Land</option>
             </select>
           </label>
           <label>
@@ -72,7 +79,7 @@
           <button type="submit" class="button button-primary">Search homes <span>→</span></button>
         </form>
       </div>
-      <div class="hero-credit">Office:  <strong>HEERA ESTATE</strong></div>
+      <div class="hero-credit">Featured in <strong>ARCHITECTURAL DIGEST</strong></div>
     </section>
 
     <section class="featured section" id="listings">
@@ -84,7 +91,12 @@
         <button class="text-link" id="clearFilters">View all homes <span>→</span></button>
       </div>
       <p id="resultsMessage" class="results-message" aria-live="polite"></p>
-      <div class="property-grid" id="propertyGrid"></div>
+      <div class="property-slider-shell" id="propertySliderShell">
+        <button class="property-page-control property-page-previous" id="propertyPrevious" type="button" aria-label="Previous properties" hidden>‹</button>
+        <div class="property-grid" id="propertyGrid"></div>
+        <button class="property-page-control property-page-next" id="propertyNext" type="button" aria-label="Next properties" hidden>›</button>
+      </div>
+      <p class="property-page-status" id="propertyPageStatus" aria-live="polite"></p>
     </section>
 
      <!--<section class="neighborhoods section">
@@ -126,6 +138,14 @@
       </div>
     </section>
 
+    <section class="office-locations section" id="office-locations">
+      <div class="section-heading">
+        <div><p class="eyebrow">Visit us</p><h2>Office addresses</h2></div>
+        <p class="section-note">Meet our team at a Heera Estate office near you.</p>
+      </div>
+      <div class="office-addresses" id="officeAddresses" aria-live="polite"></div>
+    </section>
+
     <section class="contact section" id="contact">
       <div>
         <p class="eyebrow">Let’s talk</p>
@@ -138,7 +158,7 @@
           <label>Email address<input name="email" required type="email" placeholder="you@example.com" /></label>
         </div>
         <label>I'm interested in<select name="interest"><option>Buying a home</option><option>Selling a home</option><option>Renting a home</option><option>Speaking to an agent</option></select></label>
-        <label>Message<textarea name="message" rows="3" placeholder="Tell us a little about your plans"></textarea></label>
+        <label>Message<textarea name="message" rows="2" placeholder="Tell us a little about your plans"></textarea></label>
         <button class="button button-primary" type="submit">Send enquiry <span>→</span></button>
         <p class="form-success" id="formSuccess" role="status"></p>
       </form>
@@ -147,17 +167,16 @@
 
   <div class="auth-popup" id="loginPopup" hidden>
     <div class="auth-popup-backdrop" id="loginPopupBackdrop"></div>
-    <div class="auth-popup-panel">
+    <div class="auth-popup-panel auth-access-panel">
       <button class="modal-close auth-close" id="closeLoginPopup" type="button" aria-label="Close login">×</button>
-      <form class="auth-card" id="indexLoginForm">
-        <p class="eyebrow">Agent access</p>
-        <h2>Welcome back</h2>
-        <label>Email address<input name="email" type="email" autocomplete="username" placeholder="admin@havenly.local" required /></label>
-        <label>Password<input name="password" type="password" autocomplete="current-password" placeholder="Your password" required /></label>
-        <button class="button button-primary" type="submit">Log in <span>→</span></button>
-        <p class="login-error" id="indexLoginError" role="alert"></p>
-        <p class="credentials-note">Demo login: <strong>admin@havenly.local</strong><br />Password: <strong>Havenly2026!</strong></p>
-      </form>
+      <div class="account-access" id="accountAccess" data-view="client-login">
+        <div class="account-tabs"><button class="account-tab active" data-auth-view="client-login" type="button">Client sign in</button><button class="account-tab" data-auth-view="signup" type="button">Sign up</button></div>
+        <form class="account-form active" id="clientLoginForm" data-auth-form="client-login"><h2>Welcome back</h2><label>Email or phone<input name="login" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="account-primary" type="submit">Client sign in</button><button class="account-admin-switch" data-auth-view="admin-login" type="button">Admin login</button><button class="account-link" data-auth-view="forgot" type="button">Forgot your password?</button></form>
+        <form class="account-form" id="clientSignupForm" data-auth-form="signup"><h2>Create client account</h2><label>Full name<input name="full_name" autocomplete="name" required></label><label>Email<input name="email" type="email" autocomplete="email"></label><label>Phone number<input name="phone" autocomplete="tel"></label><label>Password<input name="password" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirm password<input name="confirm_password" type="password" minlength="8" autocomplete="new-password" required></label><button class="account-primary" type="submit">Sign up</button></form>
+        <form class="account-form" id="adminLoginForm" data-auth-form="admin-login"><h2>Admin login</h2><label>Username or email<input name="login" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="account-primary account-admin" type="submit">Sign in as admin</button><button class="account-link" data-auth-view="client-login" type="button">Back to client sign in</button></form>
+        <form class="account-form" id="forgotPasswordForm" data-auth-form="forgot"><h2>Forgot password</h2><label>Email or phone number<input name="identity" required></label><button class="account-primary" type="submit">Request reset</button><button class="account-link" data-auth-view="client-login" type="button">Back to client sign in</button></form>
+        <p class="account-message" id="accountMessage" role="status"></p>
+      </div>
     </div>
   </div>
 
@@ -168,6 +187,7 @@
       
       <div class="popup-content">
         <img class="popup-image" src="" alt="" />
+        <video class="popup-video" controls playsinline preload="metadata" hidden></video>
         <span class="popup-counter" id="popupCounter"></span>
         <h3 class="popup-headline"></h3>
         <div class="popup-body"></div>

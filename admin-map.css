@@ -1,0 +1,51 @@
+#plotMapWorkspace { display: grid; gap: 22px; }
+#plotMapWorkspace[hidden] { display: none; }
+.map-manager-toolbar,.mapped-plot-records { background: rgba(255,255,255,.9); border: 1px solid rgba(24,49,67,.09); border-radius: 18px; box-shadow: 0 12px 34px rgba(15,35,49,.07); padding: 22px; }
+.map-manager-toolbar { display: grid; gap: 18px; grid-template-columns: minmax(230px,1fr) minmax(260px,.7fr) minmax(290px,.9fr); }
+.map-manager-toolbar h2 { font-family: "DM Sans",sans-serif; font-size: 27px; margin: 5px 0 8px; }
+.map-manager-toolbar p { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0; }
+.map-manager-selectors { display: grid; gap: 12px; }
+.map-manager-selectors label,.map-manager-create strong { color: #516068; display: grid; font-size: 11px; font-weight: 800; gap: 7px; letter-spacing: .5px; text-transform: uppercase; }
+.map-manager-selectors select,.map-manager-create input { background: white; border: 1px solid #d1dae0; border-radius: 9px; font: 600 13px "DM Sans",sans-serif; min-height: 42px; padding: 0 11px; width: 100%; }
+.map-manager-create { display: grid; gap: 14px; }
+.map-manager-create form { background: #f2f7fa; border-radius: 12px; display: grid; gap: 8px; padding: 12px; }
+.map-manager-create form > div { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.map-manager-create .button { font-size: 11px; min-height: 38px; padding: 8px 13px; }
+#mapManagerMessage { grid-column: 1 / -1; margin: 0; }
+.map-manager-layout { align-items: start; display: grid; gap: 20px; grid-template-columns: minmax(0,1.75fr) minmax(330px,.75fr); }
+.map-manager-map { max-width: none; min-width: 0; }
+.admin-map-canvas { height: min(72vh,760px); min-height: 550px; }
+.admin-map-hint { background: rgba(7,37,60,.86); border-radius: 10px; bottom: 14px; color: white; font-size: 12px; left: 50%; max-width: calc(100% - 28px); padding: 10px 14px; position: absolute; transform: translateX(-50%); z-index: 4; }
+.map-plot-editor { background: rgba(255,255,255,.92); border: 1px solid rgba(24,49,67,.09); border-radius: 18px; box-shadow: 0 12px 34px rgba(15,35,49,.07); padding: 20px; }
+.map-size-field output { color: #d74629; float: right; font-weight: 800; }
+.map-size-field input { padding: 0; }
+.map-coordinate-readout { background: #f0f6f9; border-radius: 10px; color: #587080; font-size: 12px; padding: 11px; }
+.map-coordinate-readout strong { color: #17384f; }
+.polygon-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.polygon-actions .button { font-size: 11px; padding: 9px 11px; }
+.map-record-tools { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 10px; }
+.map-record-tools input[type="search"] { background: #f7fafb; border: 1px solid #d1dae0; border-radius: 9px; flex: 1 1 260px; min-height: 42px; padding: 0 12px; }
+.map-record-tools .button { cursor: pointer; font-size: 11px; min-height: 42px; padding: 10px 14px; }
+.mapped-plot-list { display: grid; gap: 10px; grid-template-columns: repeat(3,minmax(0,1fr)); margin-top: 16px; max-height: 510px; overflow: auto; }
+.mapped-plot-item { align-items: center; background: #f8fbfc; border: 1px solid #dde6eb; border-radius: 12px; display: grid; gap: 10px; grid-template-columns: 38px 1fr auto; padding: 11px; }
+.mapped-plot-item .plot-status-dot { background: #e12929; border-radius: 50%; height: 14px; justify-self: center; width: 14px; }
+.mapped-plot-item .plot-status-dot.Reserved { background: #e79a18; }
+.mapped-plot-item .plot-status-dot.Sold,.mapped-plot-item .plot-status-dot.Unavailable { background: #697580; }
+.mapped-plot-item h3 { font-family: "DM Sans",sans-serif; font-size: 14px; margin: 0; }
+.mapped-plot-item p { color: #657683; font-size: 11px; margin: 3px 0 0; }
+.mapped-plot-item button { background: #133b57; border: 0; border-radius: 7px; color: white; cursor: pointer; font-size: 11px; padding: 8px; }
+.map-fullscreen-shell:fullscreen .admin-map-canvas { height: 100vh; }
+
+@media (max-width: 1180px) {
+  .map-manager-toolbar { grid-template-columns: 1fr 1fr; }
+  .map-manager-toolbar > div:first-child { grid-column: 1 / -1; }
+  .map-manager-layout { grid-template-columns: 1fr; }
+  .mapped-plot-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 650px) {
+  .map-manager-toolbar { grid-template-columns: 1fr; padding: 16px; }
+  .map-manager-toolbar > div:first-child { grid-column: auto; }
+  .admin-map-canvas { height: 62vh; min-height: 430px; }
+  .map-plot-editor,.mapped-plot-records { padding: 15px; }
+  .mapped-plot-list { grid-template-columns: 1fr; }
+}

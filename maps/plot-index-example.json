@@ -1,0 +1,13 @@
+{
+  "method": "Normalized plot index",
+  "plots": [
+    {
+      "id": 1,
+      "plot_number": "125",
+      "block": "Executive Block",
+      "normalized_x": 0.42,
+      "normalized_y": 0.61,
+      "confidence": 100
+    }
+  ]
+}

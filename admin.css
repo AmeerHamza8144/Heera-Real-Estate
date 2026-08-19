@@ -58,6 +58,8 @@
 .admin-property h3 { font-family: var(--sans); font-size: 13px; margin: 0 0 5px; }
 .admin-property p { color: var(--muted); font-size: 11px; margin: 0 0 5px; }
 .admin-property strong { font-family: var(--serif); font-size: 17px; }
+.office-admin-icon { align-items:center; background:#153f35; color:#fff; display:flex; font-size:25px; height:65px; justify-content:center; width:76px; }
+.login-user-avatar{align-items:center;background:linear-gradient(135deg,#153f35,#d3a64b);color:#fff;display:flex;font-size:24px;font-weight:700;height:65px;justify-content:center;width:76px}.login-user-item strong{text-transform:capitalize}
 .admin-row-actions { display: flex; flex-direction: column; gap: 6px; }
 .admin-row-actions button, .cancel-edit { background: transparent; border: 0; color: var(--ink); font-size: 11px; font-weight: 700; padding: 5px; }
 .admin-row-actions button:hover, .cancel-edit:hover { color: var(--orange); }
@@ -89,6 +91,7 @@
 .remove-plan-btn { background: transparent; border: 0; color: #b3453d; cursor: pointer; font-size: 18px; font-weight: 700; line-height: 1; padding: 2px 6px; }
 .remove-plan-btn:hover { color: #8a2e27; }
 .plan-fields { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
+.plan-fields .plan-name-field { grid-column: span 2; }
 .plan-fields label { color: var(--muted); display: flex; flex-direction: column; font-size: 9px; font-weight: 700; gap: 4px; letter-spacing: .6px; text-transform: uppercase; }
 .plan-fields input { background: white; border: 1px solid #d9d8d0; border-radius: 3px; font-size: 13px; padding: 8px; }
 .add-plan-btn { background: transparent; border: 1px dashed #b4b8af; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 600; padding: 10px; text-align: center; }
@@ -109,8 +112,9 @@
 .gallery-upload-label { align-items: center; justify-content: center; min-height: 42px; }
 .home-popup-form { display: grid; gap: 16px; margin-top: 24px; max-width: 720px; }
 .home-popup-form label { color: var(--muted); display: flex; flex-direction: column; font-size: 10px; font-weight: 700; gap: 8px; letter-spacing: .8px; text-transform: uppercase; }
-.home-popup-form input, .home-popup-form textarea { background: white; border: 1px solid #d9d8d0; border-radius: 3px; font-size: 14px; padding: 12px; }
+.home-popup-form input, .home-popup-form select, .home-popup-form textarea { background: white; border: 1px solid #d9d8d0; border-radius: 3px; font-size: 14px; padding: 12px; }
 .home-popup-form textarea { resize: vertical; }
+.popup-type-fields{background:#f6f9fb;border:1px solid #dde8ee;border-radius:12px;display:grid;gap:14px;padding:14px}.popup-type-fields[hidden]{display:none!important}.admin-popup-type-preview{align-items:center;background:linear-gradient(135deg,#e9f3f8,#d8e9f2);border-radius:10px;color:#205b78;display:flex;font-size:11px;font-weight:800;height:62px;justify-content:center;text-transform:uppercase;width:68px}.admin-popup-video{background:#102b3d;object-fit:cover}
 .home-popup-form .checkbox-label { flex-direction: row; align-items: center; gap: 8px; font-size: 12px; text-transform: none; letter-spacing: 0; }
 .home-popup-form .checkbox-label input { width: auto; }
 #adminPopupList { margin-top: 28px; display: grid; gap: 14px; }
@@ -121,6 +125,6 @@
 .admin-gallery-item button { background: var(--ink); border: 0; color: white; font-size: 11px; font-weight: 700; padding: 7px 9px; position: absolute; right: 7px; top: 7px; }
 
 @media (max-width: 1000px) { .dashboard-layout { grid-template-columns: 1fr; } .admin-property-list { max-height: 400px; } .home-gallery-form { grid-template-columns: 1fr 1fr; } .admin-home-gallery { grid-template-columns: repeat(3,1fr); } }
-@media (max-width: 720px) { .login-screen { grid-template-columns: 1fr; } .login-intro { padding: 70px 25px 45px; } .login-card { margin: 0 20px 50px; max-width: none; padding: 30px; } .dashboard { padding: 38px 18px 60px; } .dashboard-topbar { align-items: start; gap: 20px; } .dashboard-topbar h1 { font-size: 38px; } .dashboard-actions { align-items: end; flex-direction: column; gap: 8px; } .listing-manager,.editor-panel,.gallery-manager-panel { padding: 20px; } .admin-home-gallery { grid-template-columns: repeat(2,1fr); } }
-@media (max-width: 500px) { .admin-header { height: 67px; padding: 0 20px; } .login-screen { min-height: calc(100vh - 67px); } .two-column,.three-column { grid-template-columns: 1fr; } .form-actions { align-items: start; flex-direction: column; } .form-actions .button { width: 100%; } }
+@media (max-width: 720px) { .login-screen { grid-template-columns: 1fr; } .login-intro { padding: 70px 25px 45px; } .login-card { margin: 0 20px 50px; max-width: none; padding: 30px; } .dashboard { padding: 38px 18px 60px; } .dashboard-topbar { align-items: start; gap: 20px; } .dashboard-topbar h1 { font-size: 38px; } .dashboard-actions { align-items: end; flex-direction: column; gap: 8px; } .listing-manager,.editor-panel,.gallery-manager-panel { padding: 20px; } .admin-home-gallery { grid-template-columns: repeat(2,1fr); } .plan-fields { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 500px) { .admin-header { height: 67px; padding: 0 20px; } .login-screen { min-height: calc(100vh - 67px); } .two-column,.three-column,.plan-fields { grid-template-columns: 1fr; } .plan-fields .plan-name-field { grid-column: auto; } .form-actions { align-items: start; flex-direction: column; } .form-actions .button { width: 100%; } }
 .client-review-tab{background:#fff2f0!important;color:#b42318!important}.client-review-tab.active{background:#b42318!important;color:#fff!important}.client-review-tab span:not(:empty){display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:5px;border-radius:999px;background:#d92d20;color:#fff;font-size:11px}.client-review-tab.active span{background:#fff;color:#b42318}.submission-images{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.submission-images img{width:92px;height:72px;border-radius:9px;object-fit:cover}.submission-actions{display:flex;gap:10px;flex-wrap:wrap}.submission-reject{background:#fff0ee!important;color:#b42318!important}.submission-status{display:inline-block;margin-top:5px;padding:3px 7px;border-radius:999px;background:#f2f4f3;font-size:11px;text-transform:capitalize}.submission-status.pending{background:#fff4d5;color:#865900}.submission-status.approved{background:#def5e8;color:#176b43}.submission-status.rejected{background:#ffe5e1;color:#a4251a}
