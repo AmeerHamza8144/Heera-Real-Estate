@@ -1,0 +1,11 @@
+.calculator-page { background: var(--theme-bg); }
+.calculator-hero { align-items: end; background: linear-gradient(110deg,rgba(8,44,38,.95),rgba(29,91,75,.78)),url("images/al-rehman-garden-hero.png") center/cover; color: #fff; display: flex; min-height: 390px; padding: 70px clamp(24px,9vw,140px); }
+.calculator-hero>div { max-width: 850px; }
+.calculator-hero h1 { color: #fff; font-size: clamp(44px,7vw,80px); line-height: 1; margin: 8px 0 18px; }
+.calculator-hero p:last-child { color: rgba(255,255,255,.82); font-size: 17px; line-height: 1.7; max-width: 720px; }
+.calculator-section { background: linear-gradient(180deg,#edf5f2,var(--theme-bg)); }
+.standalone-calculator { margin: 0 auto; max-width: 1280px; }
+.calculator-selector-grid { display: grid; flex: 0 1 430px; gap: 12px; width: min(100%,430px); }
+.calculator-load-message { color: var(--theme-muted,var(--muted)); font: 600 13px "DM Sans",sans-serif; margin: 15px 0 0; }
+html[data-theme="dark"] .calculator-section { background: var(--theme-bg); }
+@media(max-width:720px){.calculator-hero{align-items:center;min-height:320px;padding:55px 22px}.calculator-hero h1{font-size:43px}.calculator-hero p:last-child{font-size:15px}.calculator-section{padding-left:12px!important;padding-right:12px!important}.calculator-selector-grid{width:100%}}

@@ -74,6 +74,13 @@ let properties = [
   }
 ];
 
+function extractPaymentPlanNames(rawPlans) {
+  try {
+    const plans = Array.isArray(rawPlans) ? rawPlans : JSON.parse(String(rawPlans || "[]"));
+    return uniqueValues(plans.map((plan) => plan?.plan_name || "Payment Plan"));
+  } catch { return []; }
+}
+
 async function loadProperties() {
   try {
     const response = await fetch("api.php?action=properties", { headers: { Accept: "application/json" } });
@@ -82,8 +89,10 @@ async function loadProperties() {
     if (Array.isArray(data)) {
       properties = data.map((property) => ({
         id: Number(property.property_id),
+        slug: property.slug || "",
         status: property.listing_type === "rent" ? "For rent" : "For sale",
         listingType: property.listing_type,
+        availability: property.status || "available",
         type: property.property_type,
         address: property.title || property.address_line1,
         city: [property.city, property.state_region].filter(Boolean).join(", "),
@@ -103,11 +112,18 @@ async function loadProperties() {
         propertyFacing: property.property_facing || "",
         pricePkr: property.price_pkr ? Number(property.price_pkr) : null,
         pricePerMarla: property.price_per_marla ? Number(property.price_per_marla) : null
+        ,projectId: property.project_id ? Number(property.project_id) : null
+        ,projectName: property.project_title || ""
+        ,projectPlanName: property.project_plan_name || ""
+        ,blockName: property.block_name || ""
+        ,hasPaymentPlan: Number(property.has_payment_plan || 0) === 1
+        ,paymentPlanNames: extractPaymentPlanNames(property.project_payment_plans)
       }));
     }
   } catch (error) {
     // The page remains usable with sample listings until the PHP/MySQL API is configured.
   }
+  populateAdvancedSearchOptions();
   renderProperties();
 }
 
@@ -298,10 +314,7 @@ function showFrontPopupByIndex(index) {
   dots.forEach((dot, i) => dot.classList.toggle('active', i === frontPopupIndex));
   // update counter
   const counter = existing.querySelector('#popupCounter');
-  if (counter) {
-    counter.hidden = frontPopups.length < 2;
-    counter.textContent = frontPopups.length > 1 ? `${frontPopupIndex + 1} / ${frontPopups.length}` : '';
-  }
+  if (counter) counter.textContent = `${frontPopupIndex + 1} / ${frontPopups.length}`;
   // restart auto-advance
   restartPopupTimer();
 }
@@ -311,10 +324,7 @@ function renderPopupDots() {
   if (!existing) return;
   const dotsWrap = existing.querySelector('.popup-dots');
   if (!dotsWrap) return;
-  const singlePopup = frontPopups.length < 2;
-  dotsWrap.hidden = singlePopup;
-  dotsWrap.innerHTML = singlePopup ? '' : frontPopups.map((_, i) => `<button type="button" class="popup-dot" data-index="${i}" aria-label="Go to ad ${i + 1}"></button>`).join('');
-  existing.querySelectorAll('.popup-nav').forEach((button) => { button.hidden = singlePopup; });
+  dotsWrap.innerHTML = frontPopups.map((_, i) => `<button type="button" class="popup-dot" data-index="${i}" aria-label="Go to ad ${i + 1}"></button>`).join('');
 }
 
 function restartPopupTimer() {
@@ -491,8 +501,43 @@ const elements = {
   resultsMessage: document.querySelector("#resultsMessage"),
   type: document.querySelector("#typeFilter"),
   location: document.querySelector("#locationFilter"),
-  price: document.querySelector("#priceFilter")
+  project: document.querySelector("#projectFilter"),
+  block: document.querySelector("#blockFilter"),
+  size: document.querySelector("#sizeFilter"),
+  minPrice: document.querySelector("#minPriceFilter"),
+  maxPrice: document.querySelector("#maxPriceFilter"),
+  facing: document.querySelector("#facingFilter"),
+  availability: document.querySelector("#availabilityFilter"),
+  paymentPlan: document.querySelector("#paymentPlanFilter")
 };
+
+function uniqueValues(values) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
+function populateAdvancedSearchOptions() {
+  if (elements.project) {
+    const projects = new Map();
+    properties.forEach((property) => {
+      if (!property.projectId || !property.projectName) return;
+      projects.set(property.projectId, `${property.projectName}${property.projectPlanName ? ` — ${property.projectPlanName}` : ""}`);
+    });
+    elements.project.innerHTML = '<option value="all">Any project</option>' + [...projects.entries()].map(([id, label]) => `<option value="${id}">${escapeHtml(label)}</option>`).join("");
+  }
+  const datalists = [
+    ["#propertyBlockOptions", uniqueValues(properties.map((property) => property.blockName))],
+    ["#propertySizeOptions", uniqueValues(properties.map((property) => property.sizeLabel))],
+    ["#propertyFacingOptions", uniqueValues(properties.map((property) => property.propertyFacing))]
+  ];
+  datalists.forEach(([selector, values]) => {
+    const list = document.querySelector(selector);
+    if (list) list.innerHTML = values.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("");
+  });
+  if (elements.paymentPlan) {
+    const names = uniqueValues(properties.flatMap((property) => property.paymentPlanNames || []));
+    elements.paymentPlan.innerHTML = '<option value="all">Any payment option</option><option value="yes">Any payment plan</option><option value="no">Full payment / no plan</option>' + (names.length ? `<optgroup label="Specific plans">${names.map((name) => `<option value="plan:${escapeHtml(name.toLowerCase())}">${escapeHtml(name)}</option>`).join("")}</optgroup>` : "");
+  }
+}
 
 window.addEventListener("agents:updated", () => {
   loadAgents();
@@ -537,8 +582,9 @@ function propertyCardsMarkup(list) {
     const image = safeUrl(property.image) || "https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=900&q=85";
     const images = (Array.isArray(property.images) ? property.images : [image]).map(safeUrl).filter(Boolean);
     if (!images.length) images.push(image);
+    const detailUrl = property.slug ? `property/${encodeURIComponent(property.slug)}` : `property.php?id=${property.id}`;
     const carouselSlides = images.map((imageUrl, index) => `
-      <a class="property-listing-slide" href="property.html?id=${property.id}" aria-label="View ${escapeHtml(property.address)}, photo ${index + 1}">
+      <a class="property-listing-slide" href="${detailUrl}" aria-label="View ${escapeHtml(property.address)}, photo ${index + 1}">
         <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(property.type)} at ${escapeHtml(property.address)}${images.length > 1 ? `, photo ${index + 1}` : ""}" loading="lazy" />
       </a>`).join("");
     const carouselControls = images.length > 1 ? `
@@ -554,6 +600,7 @@ function propertyCardsMarkup(list) {
       externalUrl ? `<a href="${externalUrl}" target="_blank" rel="noopener">↗ View details</a>` : ""
     ].filter(Boolean).join("");
     const specificationItems = [
+      property.projectName ? `⌂ ${escapeHtml(property.projectName)}${property.projectPlanName ? ` · ${escapeHtml(property.projectPlanName)}` : ""}` : "",
       property.type !== "Land" && property.beds !== null && property.beds !== undefined ? `▣ ${escapeHtml(property.beds)} beds` : "",
       property.type !== "Land" && property.baths !== null && property.baths !== undefined ? `◒ ${escapeHtml(property.baths)} baths` : "",
       property.sizeLabel ? `⌗ ${escapeHtml(property.sizeLabel)}` : "",
@@ -561,7 +608,7 @@ function propertyCardsMarkup(list) {
       property.propertyFacing ? `◈ ${escapeHtml(property.propertyFacing)}` : ""
     ].filter(Boolean);
     return `
-      <article class="property-card" data-id="${property.id}">
+      <article class="property-card" data-id="${property.id}" data-slug="${escapeHtml(property.slug || "")}">
         <div class="property-image">
           <div class="property-listing-track">${carouselSlides}</div>
           ${carouselControls}
@@ -570,10 +617,10 @@ function propertyCardsMarkup(list) {
         </div>
         <div class="property-content">
           <div class="property-price">${formatPrice(property)}</div>
-          <p class="property-address"><a href="property.html?id=${property.id}">${escapeHtml(property.address)}</a></p>
+          <p class="property-address"><a href="${detailUrl}">${escapeHtml(property.address)}</a></p>
           <p class="property-city">${escapeHtml(property.city)}</p>
           ${mediaLinks ? `<div class="property-media-links">${mediaLinks}</div>` : ""}
-          <a class="property-detail-button" href="property.html?id=${property.id}">View details</a>
+          <a class="property-detail-button" href="${detailUrl}">View details</a>
           ${specificationItems.length ? `<div class="property-specs">${specificationItems.map((item) => `<span>${item}</span>`).join("")}</div>` : ""}
         </div>
       </article>`;
@@ -668,12 +715,26 @@ function applyFilters() {
   propertyPage = 0;
   const type = elements.type.value;
   const location = elements.location.value.trim().toLowerCase();
-  const maxPrice = elements.price.value === "all" ? Infinity : Number(elements.price.value);
+  const projectId = elements.project?.value || "all";
+  const block = elements.block?.value.trim().toLowerCase() || "";
+  const size = elements.size?.value.trim().toLowerCase() || "";
+  const facing = elements.facing?.value.trim().toLowerCase() || "";
+  const minPrice = elements.minPrice?.value ? Number(elements.minPrice.value) : 0;
+  const maxPrice = elements.maxPrice?.value ? Number(elements.maxPrice.value) : Infinity;
+  const availability = elements.availability?.value || "all";
+  const paymentPlan = elements.paymentPlan?.value || "all";
   renderProperties(properties.filter((property) =>
     (listingMode === "all" || property.listingType === listingMode || (listingMode === "rent" && property.status === "For rent") || (listingMode === "sale" && property.status === "For sale")) &&
     (type === "all" || property.type === type) &&
     (!location || `${property.address} ${property.city}`.toLowerCase().includes(location)) &&
-    Number(property.searchPrice ?? property.price) <= maxPrice
+    (projectId === "all" || Number(property.projectId) === Number(projectId)) &&
+    (!block || String(property.blockName || "").toLowerCase().includes(block)) &&
+    (!size || String(property.sizeLabel || "").toLowerCase().includes(size)) &&
+    (!facing || String(property.propertyFacing || "").toLowerCase().includes(facing)) &&
+    Number(property.searchPrice ?? property.price) >= minPrice &&
+    Number(property.searchPrice ?? property.price) <= maxPrice &&
+    (availability === "all" || availability === property.availability || availability === property.listingType) &&
+    (paymentPlan === "all" || (paymentPlan === "yes" && property.hasPaymentPlan) || (paymentPlan === "no" && !property.hasPaymentPlan) || (paymentPlan.startsWith("plan:") && (property.paymentPlanNames || []).some((name) => name.toLowerCase() === paymentPlan.slice(5))))
   ));
 }
 
@@ -710,13 +771,34 @@ if (clearFiltersButton) {
   clearFiltersButton.addEventListener("click", () => {
     elements.type.value = "all";
     elements.location.value = "";
-    elements.price.value = "all";
+    if (elements.project) elements.project.value = "all";
+    if (elements.block) elements.block.value = "";
+    if (elements.size) elements.size.value = "";
+    if (elements.minPrice) elements.minPrice.value = "";
+    if (elements.maxPrice) elements.maxPrice.value = "";
+    if (elements.facing) elements.facing.value = "";
+    if (elements.availability) elements.availability.value = "all";
+    if (elements.paymentPlan) elements.paymentPlan.value = "all";
     listingMode = "all";
     propertyListExpanded = !propertyListExpanded;
     propertyPage = 0;
     renderProperties();
   });
 }
+
+const advancedSearchToggle = document.querySelector("#advancedSearchToggle");
+const advancedSearchFields = document.querySelector("#advancedSearchFields");
+advancedSearchToggle?.addEventListener("click", () => {
+  const opening = advancedSearchToggle.getAttribute("aria-expanded") !== "true";
+  advancedSearchToggle.setAttribute("aria-expanded", String(opening));
+  advancedSearchFields.hidden = !opening;
+});
+document.querySelector("#resetAdvancedSearch")?.addEventListener("click", () => {
+  searchForm?.reset();
+  listingMode = "all";
+  propertyListExpanded = false;
+  applyFilters();
+});
 
 document.querySelector("#propertyPrevious")?.addEventListener("click", () => {
   propertyPage -= 1;
@@ -750,7 +832,7 @@ if (elements.grid) {
     if (interactiveLink) return;
     const card = event.target.closest(".property-card");
     if (card && card.dataset.id) {
-      window.location.href = `property.html?id=${card.dataset.id}`;
+      window.location.href = card.dataset.slug ? `property/${encodeURIComponent(card.dataset.slug)}` : `property.php?id=${card.dataset.id}`;
     }
   });
 

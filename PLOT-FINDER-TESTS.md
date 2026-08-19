@@ -16,8 +16,3 @@
 14. Test every Admin View/Add submenu at desktop and mobile widths.
 15. Add at least four properties. Confirm desktop shows three per slider page, mobile shows one, Previous/Next work, and View all homes expands the full grid.
 16. Select Land in the homepage Looking for filter and confirm only Land listings remain.
-17. Confirm `vendor/pdfjs/pdf.mjs` and `vendor/pdfjs/pdf.worker.mjs` load successfully in the browser without an external CDN.
-18. Upload a new single-page map PDF in **Digital Maps > Add Map** without selecting a map image. Confirm the browser conversion finishes, the API accepts both files, and the Admin card displays the generated pixel dimensions.
-19. Confirm **Open saved PDF**, **Open image**, and **View in Plot Finder** appear for the converted map.
-20. Click **View in Plot Finder** and confirm the correct project is selected from the `map_id` URL, the generated image loads, and pan, wheel zoom, pinch zoom, buttons and full screen work.
-21. On an older PDF-only map, click **Convert PDF** and confirm the high-resolution image and Plot Finder link appear after conversion.

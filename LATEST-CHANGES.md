@@ -1,19 +1,48 @@
 # Latest update
 
+## Installment calculator and navigation
+
+- Added a responsive standalone **Installment Calculator** that can load any published project payment plan or accept manual figures.
+- Calculates total monthly installments, one-installment amounts, half-yearly totals, down payment, balloting, possession, other payments, discounts, preferred-location charges and remaining balance.
+- Added monthly installment count and optional discount/location-charge fields to the Admin project payment-plan editor; the existing JSON storage requires no SQL migration.
+- Project detail pages now display the calculator below their saved payment-plan tables.
+- Added **Features** navigation with Plot Finder and Installment Calculator submenus.
+- Moved Agents into the **Contact** submenu alongside Contact Us on desktop and mobile navigation.
+
+## Existing content visibility fix
+
+- Property and project API reads no longer stop when an automatic SEO/search schema upgrade or index cannot be created.
+- Added fallback property queries and compatibility reads for older existing databases.
+- Duplicate legacy slugs are repaired before unique indexes are created.
+
+## Security hardening
+
+- Added CSRF tokens to authenticated dashboard, logout, upload, map and client-property write actions.
+- Added session-cookie hardening, browser security headers and a five-attempt/ten-minute login throttle.
+- Database exceptions are logged server-side without exposing SQL details to visitors.
+- Direct access to environment, SQL, log, INI and Markdown files is blocked by Apache.
+- Script execution and directory browsing are blocked inside public upload folders.
+
+## Advanced property search
+
+- Added Project, Block, Size, minimum/maximum Price, Property Type, Facing, Availability and Payment Plan filters.
+- Added an optional Linked Project field to Admin properties.
+- Search choices are populated from real property/project data and remain responsive on desktop and mobile.
+
+## SEO system
+
+- Dynamic titles, descriptions, canonical URLs, Open Graph and Twitter previews.
+- Stable property/project slugs and friendly canonical routes.
+- Server-rendered property, project, and location pages with breadcrumbs and JSON-LD.
+- Database-driven `sitemap.xml`, dynamic `robots.txt`, and internal location links.
+- Environment-based Search Console verification and GA4 integration.
+- Automatic WebP conversion and 2400px resizing for future uploads when PHP GD is available.
+
 ## Included functionality
 
 - Modern dashboard menu groups with View/Add submenus for each content manager.
 - Separated Properties, Projects, Agents, Addresses and Login Users so View shows only records and Add shows only the form.
 - Added unlimited exclusive popup types: each popup is Content only, Image only or Video only.
-- Fixed Digital Map PDF uploads, added visible saved-PDF links, and added a public PDF-only map viewer.
-- Upgraded the multilingual chatbot with guided property type/size questions, live availability results and property-detail links.
-- Added an Admin Chat Messages manager with visitor details, saved search context, Call/WhatsApp actions and message statuses.
-- Fixed stale popup IDs after deleting or starting a new popup; uploaded video-only popups now save correctly and link URLs are optional.
-- Removed the large empty area from image/video popups and hid carousel controls when only one popup is published.
-- Added automatic 300-DPI PDF-to-JPG conversion through the PHP API. Generated dimensions are stored and the map appears immediately in Plot Finder.
-- Bundled Mozilla PDF.js as the default converter so XAMPP does not need Imagick, Poppler or Ghostscript.
-- Added **Convert PDF / Rebuild image** and **View in Plot Finder** actions to Admin Digital Maps.
-- Added Apache/XAMPP and per-directory PHP upload-limit configuration for map PDFs up to 100 MB.
 - Multi-map Digital Maps manager with image, PDF and normalized JSON-index uploads.
 - Unlimited block names per map, entered only through Admin; no block-name detection or seeding.
 - Public Plot Finder project selector and per-map block selector.
@@ -26,13 +55,10 @@
 
 ## Main files changed or added
 
-- `admin.html`, `admin.js`, `admin-submenus.css`, `admin-modern.css`
+- `admin.html`, `admin.js`, `admin-submenus.css`
 - `api.php`, `database.sql`, `digital-map-migration.sql`
-- `chatbot.js`, `chatbot.css`
-- `vendor/pdfjs/` (bundled converter, worker, fonts, CMaps, WASM decoders and license)
 - `plot-finder.html`, `plot-finder.js`, `image-map.js`
-- `plot-pdf.css`, `maps/uploads/.gitkeep`
 - `index.html`, `script.js`, `site-nav.js`, `navigation-fixes.css`, `property-slider.css`
-- `.htaccess`, `.user.ini`, `README.md`, `INSTALLATION.md`, `PLOT-FINDER-TESTS.md`
+- `.user.ini`, `README.md`, `INSTALLATION.md`, `PLOT-FINDER-TESTS.md`
 - `popup-type-migration.sql`
 - `maps/plot-index-example.json`

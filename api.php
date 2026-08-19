@@ -1,15 +1,24 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/seo.php';
 
 /*
  * Havenly's small same-origin JSON API. Configure the database using environment
  * variables HAVENLY_DB_HOST, HAVENLY_DB_NAME, HAVENLY_DB_USER, and HAVENLY_DB_PASSWORD.
  */
 $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Lax', 'secure' => $isHttps]);
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => $isHttps]);
 session_start();
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: SAMEORIGIN');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+header('Cross-Origin-Resource-Policy: same-origin');
+header('Cache-Control: no-store, private');
+if ($isHttps) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 
 function respond($data, int $status = 200): void {
     http_response_code($status);
@@ -51,6 +60,33 @@ function requestData(): array {
     parse_str($raw, $parsed);
     if (is_array($parsed) && count($parsed) > 0) return array_merge($_POST, $parsed);
     errorResponse('Invalid request data.');
+}
+
+function csrfToken(): string {
+    if (empty($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function verifyCsrf(): void {
+    $provided = trim((string)($_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['_csrf'] ?? ''));
+    if ($provided === '' || !hash_equals(csrfToken(), $provided)) errorResponse('Your secure session expired. Refresh the page and try again.', 419);
+}
+
+function loginRateLimit(string $scope): void {
+    $now = time();
+    $attempts = array_values(array_filter((array)($_SESSION['login_attempts'][$scope] ?? []), static fn($attempt): bool => is_int($attempt) && $attempt > $now - 600));
+    $_SESSION['login_attempts'][$scope] = $attempts;
+    if (count($attempts) >= 5) errorResponse('Too many login attempts. Wait 10 minutes and try again.', 429);
+}
+
+function recordLoginFailure(string $scope): void {
+    $_SESSION['login_attempts'][$scope][] = time();
+}
+
+function clearLoginFailures(string $scope): void {
+    unset($_SESSION['login_attempts'][$scope]);
 }
 
 function currentAdmin(): ?array {
@@ -115,12 +151,14 @@ function clientSignup(array $data): void {
 
 function clientLogin(array $data): void {
     $pdo = db(); ensureLoginUsersSchema($pdo);
+    loginRateLimit('client');
     $identity = trim((string)($data['login'] ?? ''));
     $password = (string)($data['password'] ?? '');
     $stmt = $pdo->prepare('SELECT client_id,full_name,email,phone,password_hash,is_active FROM client_users WHERE email=? OR phone=? LIMIT 1');
     $stmt->execute([strtolower($identity), preg_replace('/\s+/', '', $identity)]);
     $user = $stmt->fetch();
-    if (!$user || !$user['is_active'] || !password_verify($password, $user['password_hash'])) errorResponse('Incorrect login details.', 401);
+    if (!$user || !$user['is_active'] || !password_verify($password, $user['password_hash'])) {recordLoginFailure('client');errorResponse('Incorrect login details.', 401);}
+    clearLoginFailures('client');
     session_regenerate_id(true); unset($_SESSION['admin_id']); $_SESSION['client_id'] = (int)$user['client_id'];
     respond(['user' => ['id'=>(int)$user['client_id'],'name'=>$user['full_name'],'email'=>$user['email'],'phone'=>$user['phone'],'role'=>'client']]);
 }
@@ -134,10 +172,10 @@ function currentClient(): ?array {
 
 function accountSession(): array {
     $admin=currentAdmin();
-    if($admin) return ['authenticated'=>true,'role'=>'admin','user'=>userPayload($admin)];
+    if($admin) return ['authenticated'=>true,'role'=>'admin','user'=>userPayload($admin),'csrf_token'=>csrfToken()];
     $client=currentClient();
-    if($client) return ['authenticated'=>true,'role'=>'client','user'=>['id'=>(int)$client['client_id'],'name'=>$client['full_name'],'email'=>$client['email'],'phone'=>$client['phone']]];
-    return ['authenticated'=>false,'role'=>null,'user'=>null];
+    if($client) return ['authenticated'=>true,'role'=>'client','user'=>['id'=>(int)$client['client_id'],'name'=>$client['full_name'],'email'=>$client['email'],'phone'=>$client['phone']],'csrf_token'=>csrfToken()];
+    return ['authenticated'=>false,'role'=>null,'user'=>null,'csrf_token'=>csrfToken()];
 }
 
 function requirePropertySubmitter(): array {
@@ -201,8 +239,12 @@ function propertyMedia(PDO $pdo, int $propertyId): array {
 function propertiesMedia(PDO $pdo, array $propertyIds): array {
     if (!$propertyIds) return [];
     $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
-    $statement = $pdo->prepare("SELECT media_id, property_id, media_type, file_path, is_cover, sort_order FROM property_media WHERE property_id IN ($placeholders) ORDER BY property_id, media_type, is_cover DESC, sort_order, media_id");
-    $statement->execute($propertyIds);
+    try {
+        $statement = $pdo->prepare("SELECT media_id, property_id, media_type, file_path, is_cover, sort_order FROM property_media WHERE property_id IN ($placeholders) ORDER BY property_id, media_type, is_cover DESC, sort_order, media_id");
+        $statement->execute($propertyIds);
+    } catch (PDOException $exception) {
+        return [];
+    }
     $grouped = [];
     foreach ($statement->fetchAll() as $media) {
         $grouped[(int)$media['property_id']][] = $media;
@@ -212,17 +254,34 @@ function propertiesMedia(PDO $pdo, array $propertyIds): array {
 
 function ensurePropertyPublishingSchema(PDO $pdo): void {
     static $ready=false;if($ready)return;
-    foreach(['block_name'=>"ALTER TABLE properties ADD COLUMN block_name VARCHAR(120) NULL AFTER state_region",'publish_start_date'=>"ALTER TABLE properties ADD COLUMN publish_start_date DATE NULL AFTER description",'publish_end_date'=>"ALTER TABLE properties ADD COLUMN publish_end_date DATE NULL AFTER publish_start_date"] as $column=>$sql){if(!$pdo->query("SHOW COLUMNS FROM properties LIKE ".$pdo->quote($column))->fetch())$pdo->exec($sql);}
+    foreach(['project_id'=>"ALTER TABLE properties ADD COLUMN project_id INT UNSIGNED NULL AFTER property_id",'block_name'=>"ALTER TABLE properties ADD COLUMN block_name VARCHAR(120) NULL AFTER state_region",'publish_start_date'=>"ALTER TABLE properties ADD COLUMN publish_start_date DATE NULL AFTER description",'publish_end_date'=>"ALTER TABLE properties ADD COLUMN publish_end_date DATE NULL AFTER publish_start_date"] as $column=>$sql){try{if(!$pdo->query("SHOW COLUMNS FROM properties LIKE ".$pdo->quote($column))->fetch())$pdo->exec($sql);}catch(Throwable $e){/* Existing rows must remain readable even if ALTER is unavailable. */}}
+    try{if(!$pdo->query("SHOW INDEX FROM properties WHERE Key_name='idx_property_project'")->fetch())$pdo->exec('ALTER TABLE properties ADD INDEX idx_property_project (project_id)');}catch(Throwable $e){}
+    try{seo_ensure_schema($pdo);}catch(Throwable $e){}
     $ready=true;
+}
+
+function databaseColumnExists(PDO $pdo, string $table, string $column): bool {
+    try { return seo_column_exists($pdo, $table, $column); } catch (Throwable $exception) { return false; }
 }
 
 function listings(bool $onlyAvailable): array {
     $pdo = db();
     ensurePropertyPublishingSchema($pdo);
-    $sql = 'SELECT property_id, listing_type, property_type, status, title, address_line1, city, state_region, block_name, postal_code, price, bedrooms, bathrooms, area_sqft, description, size_label, property_facing, price_pkr, price_per_marla, publish_start_date, publish_end_date, created_at, updated_at FROM properties';
-    if ($onlyAvailable) $sql .= " WHERE status = 'available' AND (publish_start_date IS NULL OR publish_start_date <= CURRENT_DATE) AND (publish_end_date IS NULL OR publish_end_date >= CURRENT_DATE)";
-    $sql .= ' ORDER BY updated_at DESC, property_id DESC';
-    $rows = $pdo->query($sql)->fetchAll();
+    $sql = "SELECT pr.property_id,pr.project_id,pr.slug,pr.listing_type,pr.property_type,pr.status,pr.title,pr.address_line1,pr.city,pr.state_region,pr.block_name,pr.postal_code,pr.price,pr.bedrooms,pr.bathrooms,pr.area_sqft,pr.description,pr.size_label,pr.property_facing,pr.price_pkr,pr.price_per_marla,pr.publish_start_date,pr.publish_end_date,pr.created_at,pr.updated_at,pj.title AS project_title,pj.plan_name AS project_plan_name,pj.payment_plans AS project_payment_plans,CASE WHEN pj.payment_plans IS NOT NULL AND TRIM(pj.payment_plans) NOT IN ('','[]','null') THEN 1 ELSE 0 END AS has_payment_plan FROM properties pr LEFT JOIN projects pj ON pj.project_id=pr.project_id";
+    if ($onlyAvailable) $sql .= " WHERE pr.status = 'available' AND (pr.publish_start_date IS NULL OR pr.publish_start_date <= CURRENT_DATE) AND (pr.publish_end_date IS NULL OR pr.publish_end_date >= CURRENT_DATE)";
+    $sql .= ' ORDER BY pr.updated_at DESC, pr.property_id DESC';
+    try {
+        $rows = $pdo->query($sql)->fetchAll();
+    } catch (PDOException $exception) {
+        $fallback = "SELECT pr.*,NULL AS project_title,NULL AS project_plan_name,NULL AS project_payment_plans,0 AS has_payment_plan FROM properties pr";
+        $conditions = [];
+        if ($onlyAvailable && databaseColumnExists($pdo, 'properties', 'status')) $conditions[] = "pr.status='available'";
+        if ($onlyAvailable && databaseColumnExists($pdo, 'properties', 'publish_start_date')) $conditions[] = '(pr.publish_start_date IS NULL OR pr.publish_start_date<=CURRENT_DATE)';
+        if ($onlyAvailable && databaseColumnExists($pdo, 'properties', 'publish_end_date')) $conditions[] = '(pr.publish_end_date IS NULL OR pr.publish_end_date>=CURRENT_DATE)';
+        if ($conditions) $fallback .= ' WHERE ' . implode(' AND ', $conditions);
+        $fallback .= databaseColumnExists($pdo, 'properties', 'updated_at') ? ' ORDER BY pr.updated_at DESC,pr.property_id DESC' : ' ORDER BY pr.property_id DESC';
+        $rows = $pdo->query($fallback)->fetchAll();
+    }
     $mediaByProperty = propertiesMedia($pdo, array_map('intval', array_column($rows, 'property_id')));
     foreach ($rows as &$row) {
         $pid = (int)$row['property_id'];
@@ -252,14 +311,29 @@ function listings(bool $onlyAvailable): array {
     return $rows;
 }
 
-function property(int $propertyId): array {
+function property(int $propertyId, string $slug = ''): array {
     $pdo = db();
     ensurePropertyPublishingSchema($pdo);
-    $statement = $pdo->prepare("SELECT property_id, listing_type, property_type, status, title, address_line1, city, state_region, block_name, postal_code, price, bedrooms, bathrooms, area_sqft, description, size_label, property_facing, price_pkr, price_per_marla, publish_start_date, publish_end_date, created_at, updated_at FROM properties WHERE property_id = ? AND status='available' AND (publish_start_date IS NULL OR publish_start_date<=CURRENT_DATE) AND (publish_end_date IS NULL OR publish_end_date>=CURRENT_DATE)");
-    $statement->execute([$propertyId]);
-    $row = $statement->fetch();
+    $hasSlug = databaseColumnExists($pdo, 'properties', 'slug');
+    if ($slug !== '' && !$hasSlug && $propertyId < 1) errorResponse('Property not found.', 404);
+    $useSlug = $slug !== '' && $hasSlug;
+    $selector = $useSlug ? 'pr.slug = ?' : 'pr.property_id = ?';
+    $value = $useSlug ? $slug : $propertyId;
+    try {
+        $statement = $pdo->prepare("SELECT pr.property_id,pr.project_id,pr.slug,pr.listing_type,pr.property_type,pr.status,pr.title,pr.address_line1,pr.city,pr.state_region,pr.block_name,pr.postal_code,pr.price,pr.bedrooms,pr.bathrooms,pr.area_sqft,pr.description,pr.size_label,pr.property_facing,pr.price_pkr,pr.price_per_marla,pr.publish_start_date,pr.publish_end_date,pr.created_at,pr.updated_at,pj.title AS project_title,pj.plan_name AS project_plan_name,pj.payment_plans AS project_payment_plans,CASE WHEN pj.payment_plans IS NOT NULL AND TRIM(pj.payment_plans) NOT IN ('','[]','null') THEN 1 ELSE 0 END AS has_payment_plan FROM properties pr LEFT JOIN projects pj ON pj.project_id=pr.project_id WHERE {$selector} AND pr.status='available' AND (pr.publish_start_date IS NULL OR pr.publish_start_date<=CURRENT_DATE) AND (pr.publish_end_date IS NULL OR pr.publish_end_date>=CURRENT_DATE)");
+        $statement->execute([$value]);
+        $row = $statement->fetch();
+    } catch (PDOException $exception) {
+        $conditions = [str_replace('pr.', '', $selector)];
+        if (databaseColumnExists($pdo, 'properties', 'status')) $conditions[] = "status='available'";
+        if (databaseColumnExists($pdo, 'properties', 'publish_start_date')) $conditions[] = '(publish_start_date IS NULL OR publish_start_date<=CURRENT_DATE)';
+        if (databaseColumnExists($pdo, 'properties', 'publish_end_date')) $conditions[] = '(publish_end_date IS NULL OR publish_end_date>=CURRENT_DATE)';
+        $statement = $pdo->prepare('SELECT properties.*,NULL AS project_title,NULL AS project_plan_name,NULL AS project_payment_plans,0 AS has_payment_plan FROM properties WHERE ' . implode(' AND ', $conditions) . ' LIMIT 1');
+        $statement->execute([$value]);
+        $row = $statement->fetch();
+    }
     if (!$row) errorResponse('Property not found.', 404);
-    $row['media'] = propertyMedia($pdo, $propertyId);
+    try {$row['media'] = propertyMedia($pdo, (int)$row['property_id']);} catch (PDOException $exception) {$row['media'] = [];}
     $row['payment_plans'] = [];
     return $row;
 }
@@ -301,6 +375,20 @@ function validMediaUrl(string $url): bool {
     $parts = parse_url($url);
     return is_array($parts) && isset($parts['scheme']) && in_array(strtolower($parts['scheme']), ['http', 'https'], true)
         && filter_var($url, FILTER_VALIDATE_URL) !== false;
+}
+
+function storeOptimizedImageUpload(string $temporaryFile, string $directory, string $mime, string $baseName): string {
+    $fallbackExtensions = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp','image/gif'=>'gif'];
+    $canOptimize = in_array($mime, ['image/jpeg','image/png','image/webp'], true) && function_exists('imagewebp') && function_exists('imagecreatetruecolor');
+    if ($canOptimize) {
+        $source = $mime === 'image/jpeg' && function_exists('imagecreatefromjpeg') ? @imagecreatefromjpeg($temporaryFile) : ($mime === 'image/png' && function_exists('imagecreatefrompng') ? @imagecreatefrompng($temporaryFile) : ($mime === 'image/webp' && function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($temporaryFile) : false));
+        if ($source) {
+            $width=imagesx($source);$height=imagesy($source);$scale=min(1,2400/max($width,$height));$newWidth=max(1,(int)round($width*$scale));$newHeight=max(1,(int)round($height*$scale));$target=imagecreatetruecolor($newWidth,$newHeight);imagealphablending($target,false);imagesavealpha($target,true);imagecopyresampled($target,$source,0,0,0,0,$newWidth,$newHeight,$width,$height);$filename=$baseName.'.webp';$saved=imagewebp($target,$directory.DIRECTORY_SEPARATOR.$filename,82);imagedestroy($source);imagedestroy($target);if($saved)return $filename;
+        }
+    }
+    $filename=$baseName.'.'.($fallbackExtensions[$mime]??'jpg');
+    if(!move_uploaded_file($temporaryFile,$directory.DIRECTORY_SEPARATOR.$filename))errorResponse('The image could not be saved.',500);
+    return $filename;
 }
 
 function validPopupVideoUrl(string $url): bool {
@@ -419,6 +507,15 @@ function saveProperty(array $data): void {
     $listingType = allowedValue(stringValue($data, 'listing_type'), ['sale', 'rent'], 'listing type');
     $propertyType = allowedValue(stringValue($data, 'property_type'), ['House', 'Apartment', 'Villa', 'Condo', 'Land'], 'property type');
     $status = allowedValue(stringValue($data, 'status'), ['available', 'pending', 'sold', 'rented'], 'status');
+    $projectId = (int)($data['project_id'] ?? 0);
+    if($projectId>0){$projectCheck=$pdo->prepare('SELECT project_id FROM projects WHERE project_id=?');$projectCheck->execute([$projectId]);if(!$projectCheck->fetch())errorResponse('The selected project no longer exists.');}
+    $existingSlug = '';
+    if ($propertyId > 0) {
+        $slugStatement = $pdo->prepare('SELECT slug FROM properties WHERE property_id=?');
+        $slugStatement->execute([$propertyId]);
+        $existingSlug = (string)($slugStatement->fetchColumn() ?: '');
+    }
+    $slug = $existingSlug !== '' ? $existingSlug : seo_unique_slug($pdo, 'properties', 'property_id', 'slug', $title . ' ' . $city, $propertyId);
     $publishStart=dateValue($data,'publish_start_date');$publishEnd=dateValue($data,'publish_end_date');
     if($publishStart&&$publishEnd&&$publishEnd<$publishStart) errorResponse('The removal date must be the same as or later than the publication start date.');
     $values = [
@@ -431,8 +528,9 @@ function saveProperty(array $data): void {
             $exists = $pdo->prepare('SELECT property_id FROM properties WHERE property_id = ?');
             $exists->execute([$propertyId]);
             if (!$exists->fetch()) errorResponse('This property no longer exists.', 404);
-            $statement = $pdo->prepare('UPDATE properties SET listing_type=?, property_type=?, status=?, title=?, address_line1=?, state_region=?, block_name=?, postal_code=?, city=?, price=?, bedrooms=?, bathrooms=?, area_sqft=?, description=?, size_label=?, property_facing=?, price_pkr=?, price_per_marla=?, publish_start_date=?, publish_end_date=? WHERE property_id=?');
+            $statement = $pdo->prepare('UPDATE properties SET project_id=?, listing_type=?, property_type=?, status=?, title=?, address_line1=?, state_region=?, block_name=?, postal_code=?, city=?, price=?, bedrooms=?, bathrooms=?, area_sqft=?, description=?, size_label=?, property_facing=?, price_pkr=?, price_per_marla=?, publish_start_date=?, publish_end_date=? WHERE property_id=?');
             $statement->execute([
+                $projectId ?: null,
                 $listingType,
                 $propertyType,
                 $status,
@@ -456,9 +554,10 @@ function saveProperty(array $data): void {
                 $propertyId
             ]);
         } else {
-            $statement = $pdo->prepare('INSERT INTO properties (listing_type, property_type, status, title, address_line1, state_region, block_name, postal_code, city, price, bedrooms, bathrooms, area_sqft, description, size_label, property_facing, price_pkr, price_per_marla, publish_start_date, publish_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $statement = $pdo->prepare('INSERT INTO properties (project_id, listing_type, property_type, status, title, slug, address_line1, state_region, block_name, postal_code, city, price, bedrooms, bathrooms, area_sqft, description, size_label, property_facing, price_pkr, price_per_marla, publish_start_date, publish_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
             array_splice($values, 6, 0, [optionalStringValue($data, 'block_name', 120)]);
-            $statement->execute([...$values, optionalStringValue($data, 'size_label', 60), optionalStringValue($data, 'property_facing', 60), nullableNumber($data, 'price_pkr'), nullableNumber($data, 'price_per_marla'),$publishStart,$publishEnd]);
+            array_splice($values, 4, 0, [$slug]);
+            $statement->execute([$projectId ?: null, ...$values, optionalStringValue($data, 'size_label', 60), optionalStringValue($data, 'property_facing', 60), nullableNumber($data, 'price_pkr'), nullableNumber($data, 'price_per_marla'),$publishStart,$publishEnd]);
             $propertyId = (int)$pdo->lastInsertId();
         }
         saveMedia($pdo, $propertyId, is_array($data['media'] ?? null) ? $data['media'] : []);
@@ -481,16 +580,24 @@ function deleteProperty(array $data): void {
 }
 
 function projectMedia(PDO $pdo, int $projectId): array {
-    $statement = $pdo->prepare('SELECT media_id, media_type, file_path, caption, sort_order FROM project_media WHERE project_id = ? ORDER BY media_type, sort_order, media_id');
-    $statement->execute([$projectId]);
-    return $statement->fetchAll();
+    try {
+        $statement = $pdo->prepare('SELECT media_id, media_type, file_path, caption, sort_order FROM project_media WHERE project_id = ? ORDER BY media_type, sort_order, media_id');
+        $statement->execute([$projectId]);
+        return $statement->fetchAll();
+    } catch (PDOException $exception) {
+        return [];
+    }
 }
 
 function projectsMedia(PDO $pdo, array $projectIds): array {
     if (!$projectIds) return [];
     $placeholders = implode(',', array_fill(0, count($projectIds), '?'));
-    $statement = $pdo->prepare("SELECT media_id, project_id, media_type, file_path, caption, sort_order FROM project_media WHERE project_id IN ($placeholders) ORDER BY project_id, media_type, sort_order, media_id");
-    $statement->execute($projectIds);
+    try {
+        $statement = $pdo->prepare("SELECT media_id, project_id, media_type, file_path, caption, sort_order FROM project_media WHERE project_id IN ($placeholders) ORDER BY project_id, media_type, sort_order, media_id");
+        $statement->execute($projectIds);
+    } catch (PDOException $exception) {
+        return [];
+    }
     $grouped = [];
     foreach ($statement->fetchAll() as $media) {
         $grouped[(int)$media['project_id']][] = $media;
@@ -501,19 +608,17 @@ function projectsMedia(PDO $pdo, array $projectIds): array {
 function ensureProjectPlanSchema(PDO $pdo): void {
     static $ready = false;
     if ($ready) return;
-    $column = $pdo->query("SHOW COLUMNS FROM projects LIKE 'plan_name'")->fetch();
-    if (!$column) $pdo->exec("ALTER TABLE projects ADD COLUMN plan_name VARCHAR(180) NULL AFTER title");
-    $oldUnique = $pdo->query("SHOW INDEX FROM projects WHERE Key_name = 'uq_project_title'")->fetch();
-    if ($oldUnique) $pdo->exec("ALTER TABLE projects DROP INDEX uq_project_title");
-    $newIndex = $pdo->query("SHOW INDEX FROM projects WHERE Key_name = 'idx_project_title_plan'")->fetch();
-    if (!$newIndex) $pdo->exec("ALTER TABLE projects ADD INDEX idx_project_title_plan (title, plan_name)");
+    try{$column=$pdo->query("SHOW COLUMNS FROM projects LIKE 'plan_name'")->fetch();if(!$column)$pdo->exec("ALTER TABLE projects ADD COLUMN plan_name VARCHAR(180) NULL AFTER title");}catch(Throwable $e){}
+    try{$oldUnique=$pdo->query("SHOW INDEX FROM projects WHERE Key_name = 'uq_project_title'")->fetch();if($oldUnique)$pdo->exec("ALTER TABLE projects DROP INDEX uq_project_title");}catch(Throwable $e){}
+    try{$newIndex=$pdo->query("SHOW INDEX FROM projects WHERE Key_name = 'idx_project_title_plan'")->fetch();if(!$newIndex)$pdo->exec("ALTER TABLE projects ADD INDEX idx_project_title_plan (title, plan_name)");}catch(Throwable $e){}
+    try{seo_ensure_schema($pdo);}catch(Throwable $e){}
     $ready = true;
 }
 
 function projects(bool $onlyPublished): array {
     $pdo = db();
     ensureProjectPlanSchema($pdo);
-    $sql = 'SELECT project_id, title, plan_name, category, location, status, hero_image_url, headline, description, payment_plans, created_at, updated_at FROM projects';
+    $sql = 'SELECT * FROM projects';
     if ($onlyPublished) $sql .= " WHERE status = 'published'";
     $sql .= ' ORDER BY updated_at DESC, project_id ASC';
     $rows = $pdo->query($sql)->fetchAll();
@@ -530,15 +635,17 @@ function projects(bool $onlyPublished): array {
     return $rows;
 }
 
-function projectById(int $projectId): ?array {
-    if ($projectId < 1) return null;
+function projectById(int $projectId, string $slug = ''): ?array {
+    if ($projectId < 1 && $slug === '') return null;
     $pdo = db();
     ensureProjectPlanSchema($pdo);
-    $statement = $pdo->prepare("SELECT project_id, title, plan_name, category, location, status, hero_image_url, headline, description, payment_plans, created_at, updated_at FROM projects WHERE project_id = ? AND status = 'published'");
-    $statement->execute([$projectId]);
+    $hasSlug = false;try{$hasSlug=(bool)$pdo->query("SHOW COLUMNS FROM projects LIKE 'slug'")->fetch();}catch(Throwable $e){}
+    $selector = $slug !== '' && $hasSlug ? 'slug = ?' : 'project_id = ?';
+    $statement = $pdo->prepare("SELECT * FROM projects WHERE {$selector} AND status = 'published'");
+    $statement->execute([$slug !== '' && $hasSlug ? $slug : $projectId]);
     $project = $statement->fetch();
     if (!$project) return null;
-$project['media'] = projectMedia(db(), $projectId);
+$project['media'] = projectMedia(db(), (int)$project['project_id']);
     // decode optional payment plans stored as JSON
     $rawPlans = $project['payment_plans'] ?? null;
     $project['payment_plans'] = [];
@@ -581,6 +688,13 @@ function saveProject(array $data): void {
     if ($title === '' || $category === '' || $location === '') errorResponse('Project name, category, and location are required.');
     if ($heroImage !== '' && !validMediaUrl($heroImage)) errorResponse('The hero image URL is invalid.');
     $status = allowedValue(stringValue($data, 'status'), ['published', 'draft'], 'project status');
+    $existingSlug = '';
+    if ($projectId > 0) {
+        $slugStatement = $pdo->prepare('SELECT slug FROM projects WHERE project_id=?');
+        $slugStatement->execute([$projectId]);
+        $existingSlug = (string)($slugStatement->fetchColumn() ?: '');
+    }
+    $slug = $existingSlug !== '' ? $existingSlug : seo_unique_slug($pdo, 'projects', 'project_id', 'slug', trim($title . ' ' . $planName), $projectId);
     // payment_plans will be stored as JSON text (optional)
     $paymentPlansJson = null;
     if (isset($data['payment_plans']) && is_array($data['payment_plans'])) {
@@ -596,7 +710,8 @@ function saveProject(array $data): void {
             $statement = $pdo->prepare('UPDATE projects SET title=?, plan_name=?, category=?, location=?, status=?, hero_image_url=?, headline=?, description=?, payment_plans=? WHERE project_id=?');
             $statement->execute([...$values, $projectId]);
         } else {
-            $statement = $pdo->prepare('INSERT INTO projects (title, plan_name, category, location, status, hero_image_url, headline, description, payment_plans) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $statement = $pdo->prepare('INSERT INTO projects (title, plan_name, slug, category, location, status, hero_image_url, headline, description, payment_plans) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            array_splice($values, 2, 0, [$slug]);
             $statement->execute($values);
             $projectId = (int)$pdo->lastInsertId();
         }
@@ -749,55 +864,6 @@ function saveChatLead(array $data): void {
     respond(['saved' => true, 'enquiry_id' => (int)db()->lastInsertId()]);
 }
 
-function adminChatMessages(): array {
-    requireAdmin();
-    $pdo = db();
-    $statement = $pdo->prepare("SELECT e.enquiry_id,e.property_id,e.name,e.phone,e.message,e.status,e.created_at,p.title AS property_title FROM enquiries e LEFT JOIN properties p ON p.property_id=e.property_id WHERE e.email=? ORDER BY e.created_at DESC,e.enquiry_id DESC LIMIT 500");
-    $statement->execute(['chatbot@heera-estate.local']);
-    return array_map(function (array $row): array {
-        $stored = trim((string)($row['message'] ?? ''));
-        $language = 'en';
-        if (preg_match('/^Chatbot lead \(([^)]+)\)/u', $stored, $match)) $language = $match[1];
-        $message = trim((string)preg_replace('/^Chatbot lead(?: \([^)]+\))?\s*/u', '', $stored));
-        return [
-            'enquiry_id' => (int)$row['enquiry_id'],
-            'property_id' => $row['property_id'] === null ? null : (int)$row['property_id'],
-            'property_title' => $row['property_title'],
-            'name' => $row['name'],
-            'phone' => $row['phone'],
-            'language' => $language,
-            'message' => $message,
-            'status' => $row['status'],
-            'created_at' => $row['created_at'],
-        ];
-    }, $statement->fetchAll());
-}
-
-function updateChatMessage(array $data): void {
-    requireAdmin();
-    $id = (int)($data['enquiry_id'] ?? 0);
-    $status = allowedValue(stringValue($data, 'status'), ['new', 'contacted', 'closed'], 'message status');
-    if ($id < 1) errorResponse('Choose a valid chatbot message.');
-    $statement = db()->prepare("UPDATE enquiries SET status=? WHERE enquiry_id=? AND email='chatbot@heera-estate.local'");
-    $statement->execute([$status, $id]);
-    if (!$statement->rowCount()) {
-        $check = db()->prepare("SELECT enquiry_id FROM enquiries WHERE enquiry_id=? AND email='chatbot@heera-estate.local'");
-        $check->execute([$id]);
-        if (!$check->fetchColumn()) errorResponse('This chatbot message no longer exists.', 404);
-    }
-    respond(['saved' => true]);
-}
-
-function deleteChatMessage(array $data): void {
-    requireAdmin();
-    $id = (int)($data['enquiry_id'] ?? 0);
-    if ($id < 1) errorResponse('Choose a valid chatbot message.');
-    $statement = db()->prepare("DELETE FROM enquiries WHERE enquiry_id=? AND email='chatbot@heera-estate.local'");
-    $statement->execute([$id]);
-    if (!$statement->rowCount()) errorResponse('This chatbot message no longer exists.', 404);
-    respond(['deleted' => true]);
-}
-
 function ensurePropertySubmissionsTable(PDO $pdo): void {
     $pdo->exec("CREATE TABLE IF NOT EXISTS property_submissions (
         submission_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -880,8 +946,7 @@ function submitProperty(): void {
             if ($_FILES['images']['size'][$index] > 8 * 1024 * 1024) errorResponse('Each image must be 8 MB or smaller.');
             $mime = $finfo->file($temporaryFile);
             if (!isset($allowed[$mime])) errorResponse('Only JPG, PNG, and WebP images are supported.');
-            $filename = bin2hex(random_bytes(16)) . '.' . $allowed[$mime];
-            if (!move_uploaded_file($temporaryFile, $directory . DIRECTORY_SEPARATOR . $filename)) errorResponse('An image could not be saved.', 500);
+            $filename = storeOptimizedImageUpload($temporaryFile, $directory, $mime, bin2hex(random_bytes(16)));
             $uploaded[] = 'uploads/' . $filename;
         }
     }
@@ -1101,9 +1166,7 @@ function savePopup(array $data): void {
         if ($popupId > 0) {
             $exists = $pdo->prepare('SELECT popup_id FROM popup_ads WHERE popup_id = ?');
             $exists->execute([$popupId]);
-            if (!$exists->fetchColumn()) $popupId = 0;
-        }
-        if ($popupId > 0) {
+            if (!$exists->fetch()) errorResponse('This popup no longer exists.', 404);
             $stmt = $pdo->prepare('UPDATE popup_ads SET popup_type = ?, image_url = ?, video_url = ?, link_url = ?, headline = ?, html_content = ?, is_published = ?, sort_order = ? WHERE popup_id = ?');
             $stmt->execute([$popupType, $image ?: null, $video ?: null, $link ?: null, $headline ?: null, $html ?: null, $isPublished, $sortOrder, $popupId]);
         } else {
@@ -1124,6 +1187,7 @@ function deletePopup(array $data): void {
     if ($id < 1) errorResponse('A valid popup is required.');
     $stmt = $pdo->prepare('DELETE FROM popup_ads WHERE popup_id = ?');
     $stmt->execute([$id]);
+    if ($stmt->rowCount() === 0) errorResponse('This popup no longer exists.', 404);
     respond(['deleted' => true]);
 }
 
@@ -1145,8 +1209,8 @@ function uploadMedia(): void {
         $mime = $finfo->file($temporaryFile);
         if (!isset($allowed[$mime])) errorResponse('Only JPG, PNG, GIF, WebP, MP4, and WebM files are supported.');
         [$type, $extension] = $allowed[$mime];
-        $filename = bin2hex(random_bytes(16)) . '.' . $extension;
-        if (!move_uploaded_file($temporaryFile, $directory . DIRECTORY_SEPARATOR . $filename)) errorResponse('The file could not be moved to the upload folder.', 500);
+        $filename = $type === 'image' ? storeOptimizedImageUpload($temporaryFile,$directory,$mime,bin2hex(random_bytes(16))) : bin2hex(random_bytes(16)).'.'.$extension;
+        if ($type !== 'image' && !move_uploaded_file($temporaryFile, $directory . DIRECTORY_SEPARATOR . $filename)) errorResponse('The file could not be moved to the upload folder.', 500);
         $uploaded[] = ['url' => 'uploads/' . $filename, 'type' => $type];
     }
     respond(['files' => $uploaded]);
@@ -1184,12 +1248,12 @@ function automaticPlotMeta(): array {
 function automaticPlotProperty(string $plotNumber, string $block): ?array {
     try {
         $pdo=db();ensurePropertyPublishingSchema($pdo);$needle='%'.$plotNumber.'%';
-        $sql="SELECT property_id,title,property_type,status,size_label,property_facing,price_pkr,address_line1,city,block_name FROM properties WHERE status='available' AND (publish_start_date IS NULL OR publish_start_date<=CURRENT_DATE) AND (publish_end_date IS NULL OR publish_end_date>=CURRENT_DATE) AND (title LIKE ? OR address_line1 LIKE ?)";
+        $sql="SELECT property_id,slug,title,property_type,status,size_label,property_facing,price_pkr,address_line1,city,block_name FROM properties WHERE status='available' AND (publish_start_date IS NULL OR publish_start_date<=CURRENT_DATE) AND (publish_end_date IS NULL OR publish_end_date>=CURRENT_DATE) AND (title LIKE ? OR address_line1 LIKE ?)";
         $values=[$needle,$needle];
         if($block!==''){$sql.=' AND (block_name LIKE ? OR title LIKE ? OR address_line1 LIKE ?)';$bn='%'.$block.'%';array_push($values,$bn,$bn,$bn);}
         $sql.=' ORDER BY updated_at DESC LIMIT 1';$statement=$pdo->prepare($sql);$statement->execute($values);$property=$statement->fetch();
         if(!$property&&$block!=='')return automaticPlotProperty($plotNumber,'');if(!$property)return null;
-        return ['property_id'=>(int)$property['property_id'],'title'=>$property['title'],'property_type'=>$property['property_type'],'status'=>$property['status'],'size_label'=>$property['size_label'],'facing'=>$property['property_facing'],'block_name'=>$property['block_name'],'price_pkr'=>$property['price_pkr']===null?null:(float)$property['price_pkr'],'address'=>$property['address_line1'],'city'=>$property['city']];
+        return ['property_id'=>(int)$property['property_id'],'slug'=>$property['slug'],'title'=>$property['title'],'property_type'=>$property['property_type'],'status'=>$property['status'],'size_label'=>$property['size_label'],'facing'=>$property['property_facing'],'block_name'=>$property['block_name'],'price_pkr'=>$property['price_pkr']===null?null:(float)$property['price_pkr'],'address'=>$property['address_line1'],'city'=>$property['city']];
     } catch(Throwable $exception){return null;}
 }
 
@@ -1202,239 +1266,15 @@ function automaticPlotSearch(): array {
     return ['found'=>count($results)>0,'map_id'=>$map['map_id'],'project'=>$map['name'],'plot_number'=>(string)((int)$plotNumber),'requested_block'=>$block,'block_fallback'=>$fallback,'matches'=>$results,'total_matches'=>count($results),'property'=>automaticPlotProperty((string)((int)$plotNumber),$block),'source'=>$index['method']??'Uploaded plot index'];
 }
 
-function convertedMapImage(string $absolutePath, string $directory, string $method): ?array {
-    clearstatcache(true, $absolutePath);
-    if (!is_file($absolutePath) || filesize($absolutePath) < 1024) return null;
-    $size = @getimagesize($absolutePath);
-    if (!$size || ($size['mime'] ?? '') !== 'image/jpeg') {
-        @unlink($absolutePath);
-        return null;
-    }
-    $width = (int)$size[0];
-    $height = (int)$size[1];
-    if ($width < 1000 || $height < 1000 || $width > 30000 || $height > 30000) {
-        @unlink($absolutePath);
-        return null;
-    }
-    return [
-        'path' => 'maps/uploads/' . basename($absolutePath),
-        'width' => $width,
-        'height' => $height,
-        'method' => $method,
-    ];
-}
-
-function executableCandidates(string $environmentName, array $defaults): array {
-    $configured = trim((string)getenv($environmentName));
-    $items = $configured !== '' ? [$configured, ...$defaults] : $defaults;
-    $unique = [];
-    foreach ($items as $item) {
-        $item = trim((string)$item);
-        if ($item !== '' && !in_array($item, $unique, true)) $unique[] = $item;
-    }
-    return $unique;
-}
-
-function canTryExecutable(string $executable): bool {
-    if (!str_contains($executable, '/') && !str_contains($executable, '\\')) return true;
-    return is_file($executable) && is_readable($executable);
-}
-
-function convertPdfToMapImage(string $pdfAbsolutePath, string $directory): array {
-    $token = bin2hex(random_bytes(16));
-    $output = $directory . DIRECTORY_SEPARATOR . $token . '.jpg';
-
-    if (class_exists('Imagick')) {
-        try {
-            if (defined('Imagick::RESOURCETYPE_MEMORY')) @Imagick::setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 768 * 1024 * 1024);
-            $document = new Imagick();
-            $document->setResolution(300, 300);
-            $document->readImage($pdfAbsolutePath . '[0]');
-            $document->setImageBackgroundColor('white');
-            $flattened = $document->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
-            $flattened->setImageFormat('jpeg');
-            $flattened->setImageCompression(Imagick::COMPRESSION_JPEG);
-            $flattened->setImageCompressionQuality(92);
-            $flattened->stripImage();
-            $flattened->writeImage($output);
-            $flattened->clear();
-            $document->clear();
-            $result = convertedMapImage($output, $directory, 'Imagick at 300 DPI');
-            if ($result) return $result;
-        } catch (Throwable $exception) {
-            @unlink($output);
-        }
-    }
-
-    if (function_exists('exec')) {
-        $popplerDefaults = [
-            __DIR__ . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'poppler' . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'pdftoppm.exe',
-            'C:\\xampp\\poppler\\Library\\bin\\pdftoppm.exe',
-            'C:\\poppler\\Library\\bin\\pdftoppm.exe',
-            'C:\\Program Files\\poppler\\Library\\bin\\pdftoppm.exe',
-            'pdftoppm',
-        ];
-        foreach (executableCandidates('HEERA_PDFTOPPM_PATH', $popplerDefaults) as $executable) {
-            if (!canTryExecutable($executable)) continue;
-            $outputBase = $directory . DIRECTORY_SEPARATOR . $token;
-            $command = escapeshellarg($executable) . ' -f 1 -l 1 -singlefile -jpeg -r 300 -jpegopt quality=92 ' . escapeshellarg($pdfAbsolutePath) . ' ' . escapeshellarg($outputBase) . ' 2>&1';
-            $lines = [];
-            $status = 1;
-            @exec($command, $lines, $status);
-            if ($status === 0) {
-                $result = convertedMapImage($output, $directory, 'Poppler at 300 DPI');
-                if ($result) return $result;
-            }
-            @unlink($output);
-        }
-
-        $ghostscriptDefaults = [
-            'C:\\Program Files\\gs\\gs10.05.1\\bin\\gswin64c.exe',
-            'C:\\Program Files\\gs\\gs10.04.0\\bin\\gswin64c.exe',
-            'C:\\Program Files\\gs\\gs10.03.1\\bin\\gswin64c.exe',
-            'gswin64c.exe',
-            'gs',
-        ];
-        foreach (executableCandidates('HEERA_GHOSTSCRIPT_PATH', $ghostscriptDefaults) as $executable) {
-            if (!canTryExecutable($executable)) continue;
-            $command = escapeshellarg($executable) . ' -dSAFER -dBATCH -dNOPAUSE -dFirstPage=1 -dLastPage=1 -sDEVICE=jpeg -dJPEGQ=92 -r300 -sOutputFile=' . escapeshellarg($output) . ' ' . escapeshellarg($pdfAbsolutePath) . ' 2>&1';
-            $lines = [];
-            $status = 1;
-            @exec($command, $lines, $status);
-            if ($status === 0) {
-                $result = convertedMapImage($output, $directory, 'Ghostscript at 300 DPI');
-                if ($result) return $result;
-            }
-            @unlink($output);
-        }
-    }
-
-    return [
-        'error' => 'Automatic PDF conversion is unavailable on this server. Install PHP Imagick, Poppler pdftoppm, or Ghostscript. On XAMPP, extract Poppler to C:\\xampp\\poppler and restart Apache.',
-    ];
-}
-
 function saveDigitalMap(): void {
-    requireAdmin();
-    if (empty($_POST) && ((int)($_SERVER['CONTENT_LENGTH'] ?? 0)) > 0) errorResponse('The upload was rejected by PHP. Increase post_max_size and upload_max_filesize, restart Apache, and try again.', 413);
-    $pdo = db();
-    ensureDigitalMapSchema($pdo);
-    $id = (int)($_POST['map_id'] ?? 0);
-    $name = stringValue($_POST, 'name', 180);
-    if ($name === '') errorResponse('Map name is required.');
-    $existing = $id ? digitalMapById($id, false) : null;
-    if ($id && !$existing) errorResponse('This map no longer exists.', 404);
-
-    $image = $existing['map_image'] ?? '';
-    $pdf = $existing['original_pdf'] ?? null;
-    $indexFile = $existing['plot_index_file'] ?? null;
-    $width = (int)($existing['original_width'] ?? 0);
-    $height = (int)($existing['original_height'] ?? 0);
-    $conversionMethod = null;
-    $browserConverted = !empty($_POST['browser_converted']);
-    $browserDpi = max(72, min(300, (int)($_POST['conversion_dpi'] ?? 300)));
-    $uploadedMapImage = false;
-    $directory = __DIR__ . DIRECTORY_SEPARATOR . 'maps' . DIRECTORY_SEPARATOR . 'uploads';
-    if (!is_dir($directory) && !mkdir($directory, 0755, true)) errorResponse('The map upload folder could not be created.', 500);
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-
-    if (isset($_FILES['map_image']) && ($_FILES['map_image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-        $file = $_FILES['map_image'];
-        if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] > 60 * 1024 * 1024) errorResponse('Map image upload failed or is larger than 60 MB.');
-        $mime = $finfo->file($file['tmp_name']);
-        $extension = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'][$mime] ?? null;
-        if (!$extension) errorResponse('Map image must be JPG, PNG or WebP.');
-        $size = getimagesize($file['tmp_name']);
-        if (!$size) errorResponse('The map image is invalid.');
-        [$width, $height] = $size;
-        $filename = bin2hex(random_bytes(16)) . '.' . $extension;
-        if (!move_uploaded_file($file['tmp_name'], $directory . DIRECTORY_SEPARATOR . $filename)) errorResponse('The map image could not be saved.');
-        $image = 'maps/uploads/' . $filename;
-        $uploadedMapImage = true;
-        if ($browserConverted) $conversionMethod = 'Bundled PDF.js at ' . $browserDpi . ' DPI';
-    }
-
-    if (isset($_FILES['original_pdf']) && ($_FILES['original_pdf']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-        $file = $_FILES['original_pdf'];
-        if ($file['error'] !== UPLOAD_ERR_OK) errorResponse('The PDF upload failed. Check the PHP upload limits and try again.');
-        if ($file['size'] < 5 || $file['size'] > 100 * 1024 * 1024) errorResponse('The PDF must be smaller than 100 MB.');
-        $header = (string)file_get_contents($file['tmp_name'], false, null, 0, 5);
-        if ($header !== '%PDF-') errorResponse('The selected file is not a valid PDF document.');
-        $filename = bin2hex(random_bytes(16)) . '.pdf';
-        $pdfAbsolutePath = $directory . DIRECTORY_SEPARATOR . $filename;
-        if (!move_uploaded_file($file['tmp_name'], $pdfAbsolutePath)) errorResponse('The PDF could not be saved. Make maps/uploads writable.', 500);
-        if ($browserConverted && $uploadedMapImage) {
-            $pdf = 'maps/uploads/' . $filename;
-        } else {
-            $conversion = convertPdfToMapImage($pdfAbsolutePath, $directory);
-            if (isset($conversion['error'])) {
-                @unlink($pdfAbsolutePath);
-                errorResponse($conversion['error'], 500);
-            }
-            $pdf = 'maps/uploads/' . $filename;
-            $image = $conversion['path'];
-            $width = (int)$conversion['width'];
-            $height = (int)$conversion['height'];
-            $conversionMethod = $conversion['method'];
-        }
-    }
-
-    if ($image === '' && empty($pdf)) errorResponse('Upload a map PDF or a high-resolution map image.');
-    if ($image !== '' && ($width < 100 || $height < 100)) errorResponse('The map image is too small or invalid.');
-    if ($image === '') { $width = 1; $height = 1; }
-
-    if (isset($_FILES['plot_index']) && ($_FILES['plot_index']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-        if ($image === '') errorResponse('Upload or convert a high-resolution map image before adding a plot index.');
-        $file = $_FILES['plot_index'];
-        if ($file['error'] !== UPLOAD_ERR_OK || $file['size'] > 15 * 1024 * 1024) errorResponse('Plot index upload failed or is larger than 15 MB.');
-        $decoded = json_decode((string)file_get_contents($file['tmp_name']), true);
-        if (!is_array($decoded) || !isset($decoded['plots']) || !is_array($decoded['plots'])) errorResponse('Plot index JSON must contain a plots array.');
-        foreach ($decoded['plots'] as $plot) {
-            if (!isset($plot['plot_number'], $plot['normalized_x'], $plot['normalized_y']) || (float)$plot['normalized_x'] < 0 || (float)$plot['normalized_x'] > 1 || (float)$plot['normalized_y'] < 0 || (float)$plot['normalized_y'] > 1) errorResponse('A plot-index record is invalid.');
-        }
-        $decoded['project'] = $name;
-        $decoded['map_image'] = $image;
-        $decoded['original_pdf'] = $pdf;
-        $decoded['original_width'] = $width;
-        $decoded['original_height'] = $height;
-        $filename = bin2hex(random_bytes(16)) . '.json';
-        $written = file_put_contents($directory . DIRECTORY_SEPARATOR . $filename, json_encode($decoded, JSON_UNESCAPED_SLASHES));
-        if ($written === false) errorResponse('The plot index could not be saved.', 500);
-        $indexFile = 'maps/uploads/' . $filename;
-    }
-
-    $active = !empty($_POST['is_active']) ? 1 : 0;
-    try {
-        if ($id) {
-            $statement = $pdo->prepare('UPDATE digital_maps SET name=?,map_image=?,original_pdf=?,plot_index_file=?,original_width=?,original_height=?,is_active=? WHERE map_id=?');
-            $statement->execute([$name, $image, $pdf, $indexFile, $width, $height, $active, $id]);
-        } else {
-            $statement = $pdo->prepare('INSERT INTO digital_maps (name,map_image,original_pdf,plot_index_file,original_width,original_height,is_active) VALUES (?,?,?,?,?,?,?)');
-            $statement->execute([$name, $image, $pdf, $indexFile, $width, $height, $active]);
-            $id = (int)$pdo->lastInsertId();
-        }
-        respond(['saved' => true, 'map_id' => $id, 'map_image' => $image, 'original_width' => $width, 'original_height' => $height, 'converted' => $conversionMethod !== null, 'conversion_method' => $conversionMethod]);
-    } catch (PDOException $exception) {
-        errorResponse('A map with this name already exists.', 409);
-    }
-}
-
-function convertExistingDigitalMap(array $data): void {
-    requireAdmin();
-    $pdo = db();
-    ensureDigitalMapSchema($pdo);
-    $id = (int)($data['map_id'] ?? 0);
-    $map = $id > 0 ? digitalMapById($id, false) : null;
-    if (!$map || empty($map['original_pdf'])) errorResponse('This map does not have a saved PDF.', 404);
-    $mapsRoot = realpath(__DIR__ . DIRECTORY_SEPARATOR . 'maps');
-    $pdfAbsolutePath = realpath(__DIR__ . DIRECTORY_SEPARATOR . str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $map['original_pdf']));
-    if (!$mapsRoot || !$pdfAbsolutePath || !str_starts_with($pdfAbsolutePath, $mapsRoot . DIRECTORY_SEPARATOR) || !is_readable($pdfAbsolutePath)) errorResponse('The saved PDF is unavailable.', 404);
-    $directory = __DIR__ . DIRECTORY_SEPARATOR . 'maps' . DIRECTORY_SEPARATOR . 'uploads';
-    $conversion = convertPdfToMapImage($pdfAbsolutePath, $directory);
-    if (isset($conversion['error'])) errorResponse($conversion['error'], 500);
-    $statement = $pdo->prepare('UPDATE digital_maps SET map_image=?,original_width=?,original_height=? WHERE map_id=?');
-    $statement->execute([$conversion['path'], $conversion['width'], $conversion['height'], $id]);
-    respond(['converted' => true, 'map_id' => $id, 'map_image' => $conversion['path'], 'original_width' => $conversion['width'], 'original_height' => $conversion['height'], 'conversion_method' => $conversion['method']]);
+    requireAdmin();$pdo=db();ensureDigitalMapSchema($pdo);$id=(int)($_POST['map_id']??0);$name=stringValue($_POST,'name',180);if($name==='')errorResponse('Map name is required.');$existing=$id?digitalMapById($id,false):null;if($id&&!$existing)errorResponse('This map no longer exists.',404);
+    $image=$existing['map_image']??'';$pdf=$existing['original_pdf']??null;$indexFile=$existing['plot_index_file']??null;$width=(int)($existing['original_width']??0);$height=(int)($existing['original_height']??0);$directory=__DIR__.DIRECTORY_SEPARATOR.'maps'.DIRECTORY_SEPARATOR.'uploads';if(!is_dir($directory)&&!mkdir($directory,0755,true))errorResponse('The map upload folder could not be created.',500);$finfo=new finfo(FILEINFO_MIME_TYPE);
+    if(isset($_FILES['map_image'])&&($_FILES['map_image']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){$file=$_FILES['map_image'];if($file['error']!==UPLOAD_ERR_OK||$file['size']>60*1024*1024)errorResponse('Map image upload failed or is larger than 60 MB.');$mime=$finfo->file($file['tmp_name']);$ext=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'][$mime]??null;if(!$ext)errorResponse('Map image must be JPG, PNG or WebP.');$size=getimagesize($file['tmp_name']);if(!$size)errorResponse('The map image is invalid.');[$width,$height]=$size;$filename=bin2hex(random_bytes(16)).'.'.$ext;if(!move_uploaded_file($file['tmp_name'],$directory.DIRECTORY_SEPARATOR.$filename))errorResponse('The map image could not be saved.');$image='maps/uploads/'.$filename;}
+    if($image===''||$width<100||$height<100)errorResponse('Upload a valid high-resolution map image.');
+    if(isset($_FILES['original_pdf'])&&($_FILES['original_pdf']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){$file=$_FILES['original_pdf'];if($file['error']!==UPLOAD_ERR_OK||$file['size']>100*1024*1024)errorResponse('PDF upload failed or is larger than 100 MB.');if($finfo->file($file['tmp_name'])!=='application/pdf')errorResponse('Original map document must be a PDF.');$filename=bin2hex(random_bytes(16)).'.pdf';if(!move_uploaded_file($file['tmp_name'],$directory.DIRECTORY_SEPARATOR.$filename))errorResponse('The PDF could not be saved.');$pdf='maps/uploads/'.$filename;}
+    if(isset($_FILES['plot_index'])&&($_FILES['plot_index']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){$file=$_FILES['plot_index'];if($file['error']!==UPLOAD_ERR_OK||$file['size']>15*1024*1024)errorResponse('Plot index upload failed or is larger than 15 MB.');$decoded=json_decode((string)file_get_contents($file['tmp_name']),true);if(!is_array($decoded)||!isset($decoded['plots'])||!is_array($decoded['plots']))errorResponse('Plot index JSON must contain a plots array.');foreach($decoded['plots'] as $plot){if(!isset($plot['plot_number'],$plot['normalized_x'],$plot['normalized_y'])||(float)$plot['normalized_x']<0||(float)$plot['normalized_x']>1||(float)$plot['normalized_y']<0||(float)$plot['normalized_y']>1)errorResponse('A plot-index record is invalid.');}$decoded['project']=$name;$decoded['map_image']=$image;$decoded['original_pdf']=$pdf;$decoded['original_width']=$width;$decoded['original_height']=$height;$filename=bin2hex(random_bytes(16)).'.json';$written=file_put_contents($directory.DIRECTORY_SEPARATOR.$filename,json_encode($decoded,JSON_UNESCAPED_SLASHES));if($written===false)errorResponse('The plot index could not be saved.',500);$indexFile='maps/uploads/'.$filename;}
+    $active=!empty($_POST['is_active'])?1:0;
+    try{if($id){$stmt=$pdo->prepare('UPDATE digital_maps SET name=?,map_image=?,original_pdf=?,plot_index_file=?,original_width=?,original_height=?,is_active=? WHERE map_id=?');$stmt->execute([$name,$image,$pdf,$indexFile,$width,$height,$active,$id]);}else{$stmt=$pdo->prepare('INSERT INTO digital_maps (name,map_image,original_pdf,plot_index_file,original_width,original_height,is_active) VALUES (?,?,?,?,?,?,?)');$stmt->execute([$name,$image,$pdf,$indexFile,$width,$height,$active]);$id=(int)$pdo->lastInsertId();}respond(['saved'=>true,'map_id'=>$id]);}catch(PDOException $e){errorResponse('A map with this name already exists.',409);}
 }
 
 function deleteDigitalMap(array $data): void {requireAdmin();$pdo=db();ensureDigitalMapSchema($pdo);$id=(int)($data['map_id']??0);if($id<1)errorResponse('Choose a valid map.');$stmt=$pdo->prepare('DELETE FROM digital_maps WHERE map_id=?');$stmt->execute([$id]);if(!$stmt->rowCount())errorResponse('This map no longer exists.',404);respond(['deleted'=>true]);}
@@ -1442,15 +1282,23 @@ function saveDigitalMapBlock(array $data): void {requireAdmin();$pdo=db();ensure
 function deleteDigitalMapBlock(array $data): void {requireAdmin();$pdo=db();ensureDigitalMapSchema($pdo);$id=(int)($data['block_id']??0);$stmt=$pdo->prepare('DELETE FROM digital_map_blocks WHERE block_id=?');$stmt->execute([$id]);if(!$stmt->rowCount())errorResponse('This block no longer exists.',404);respond(['deleted'=>true]);}
 
 $action = $_GET['action'] ?? '';
+$csrfProtectedActions = [
+    'logout','submit_property','save_submission','approve_submission','save_property','delete_property',
+    'save_project','delete_project','save_home_gallery','delete_home_gallery','save_popup','delete_popup',
+    'save_agent','delete_agent','save_office_address','delete_office_address','save_login_user','delete_login_user',
+    'save_digital_map','delete_digital_map','save_digital_map_block','delete_digital_map_block','upload'
+];
+if (in_array($action, $csrfProtectedActions, true)) verifyCsrf();
 try {
     switch ($action) {
+        case 'csrf': respond(['csrf_token' => csrfToken()]);
         case 'properties': respond(listings(true));
         case 'projects': respond(projects(true));
         case 'auto_plot_meta': respond(automaticPlotMeta());
         case 'auto_plot_search': respond(automaticPlotSearch());
         case 'project':
             $projectId = (int)($_GET['id'] ?? 0);
-            $project = projectById($projectId);
+            $project = projectById($projectId, trim((string)($_GET['slug'] ?? '')));
             if (!$project) errorResponse('Project not found.', 404);
             respond($project);
         case 'home_gallery': respond(homeGallery(false));
@@ -1464,8 +1312,9 @@ try {
         case 'submit_property': submitProperty();
         case 'session':
             $user = currentAdmin();
-            respond(['authenticated' => $user !== null, 'user' => $user ? userPayload($user) : null]);
+            respond(['authenticated' => $user !== null, 'user' => $user ? userPayload($user) : null, 'csrf_token' => csrfToken()]);
         case 'login':
+            loginRateLimit('admin');
             $data = requestData();
             $pdo = db(); ensureLoginUsersSchema($pdo);
             $identity = strtolower(trim((string)($data['login'] ?? $data['email'] ?? '')));
@@ -1473,7 +1322,8 @@ try {
             $statement = $pdo->prepare('SELECT admin_id, first_name, last_name, email, password_hash, is_active FROM admin_users WHERE email = ? OR username = ? LIMIT 1');
             $statement->execute([$identity, $identity]);
             $user = $statement->fetch();
-            if (!$user || !$user['is_active'] || !password_verify($password, $user['password_hash'])) errorResponse('Incorrect username/email or password.', 401);
+            if (!$user || !$user['is_active'] || !password_verify($password, $user['password_hash'])) {recordLoginFailure('admin');errorResponse('Incorrect username/email or password.', 401);}
+            clearLoginFailures('admin');
             session_regenerate_id(true);
             unset($_SESSION['client_id']);
             $_SESSION['admin_id'] = (int)$user['admin_id'];
@@ -1491,8 +1341,9 @@ try {
         case 'admin_digital_maps': requireAdmin(); respond(digitalMaps(false));
         case 'property':
             $propertyId = isset($_GET['property_id']) ? (int)$_GET['property_id'] : 0;
-            if ($propertyId < 1) errorResponse('Invalid property specified.', 400);
-            respond(property($propertyId));
+            $propertySlug = trim((string)($_GET['slug'] ?? ''));
+            if ($propertyId < 1 && $propertySlug === '') errorResponse('Invalid property specified.', 400);
+            respond(property($propertyId, $propertySlug));
         case 'admin_home_gallery':
             requireAdmin();
             respond(homeGallery(true));
@@ -1512,7 +1363,6 @@ try {
             requireAdmin();
             respond(officeAddresses(false));
         case 'admin_login_users': respond(loginUsers());
-        case 'admin_chat_messages': respond(adminChatMessages());
         case 'admin_submissions': respond(adminSubmissions());
         case 'save_submission': saveSubmission(requestData());
         case 'approve_submission': approveSubmission(requestData());
@@ -1528,10 +1378,7 @@ try {
         case 'delete_office_address': deleteOfficeAddress(requestData());
         case 'save_login_user': saveLoginUser(requestData());
         case 'delete_login_user': deleteLoginUser(requestData());
-        case 'update_chat_message': updateChatMessage(requestData());
-        case 'delete_chat_message': deleteChatMessage(requestData());
         case 'save_digital_map': saveDigitalMap();
-        case 'convert_digital_map': convertExistingDigitalMap(requestData());
         case 'delete_digital_map': deleteDigitalMap(requestData());
         case 'save_digital_map_block': saveDigitalMapBlock(requestData());
         case 'delete_digital_map_block': deleteDigitalMapBlock(requestData());
@@ -1539,6 +1386,7 @@ try {
         default: errorResponse('Unknown API action.', 404);
     }
 } catch (Throwable $exception) {
-    $message = $exception->getMessage() ?: 'An unexpected server error occurred.';
+    error_log('[Heera API] ' . get_class($exception) . ': ' . $exception->getMessage());
+    $message = $exception instanceof PDOException ? 'The database request could not be completed.' : ($exception->getMessage() ?: 'An unexpected server error occurred.');
     errorResponse($message, 500);
 }

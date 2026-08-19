@@ -1,20 +1,21 @@
-<IfModule php_module>
-  php_value upload_max_filesize 110M
-  php_value post_max_size 190M
-  php_value max_execution_time 600
-  php_value max_input_time 600
-  php_value memory_limit 1024M
+DirectoryIndex index.php index.html
+Options -Indexes
+RewriteEngine On
+RewriteRule ^property/([a-z0-9-]+)/?$ property.php?slug=$1 [QSA,L,NC]
+RewriteRule ^project/([a-z0-9-]+)/?$ project.php?slug=$1 [QSA,L,NC]
+RewriteRule ^location/([a-z0-9-]+)/?$ location.php?slug=$1 [QSA,L,NC]
+RewriteRule ^sitemap\.xml$ sitemap.php [L,NC]
+RewriteRule ^robots\.txt$ robots.php [L,NC]
+RewriteRule ^index\.html$ index.php [L,NC]
+<IfModule mod_headers.c>
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "SAMEORIGIN"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+Header always set X-Permitted-Cross-Domain-Policies "none"
 </IfModule>
-
-<IfModule mod_php.c>
-  php_value upload_max_filesize 110M
-  php_value post_max_size 190M
-  php_value max_execution_time 600
-  php_value max_input_time 600
-  php_value memory_limit 1024M
-</IfModule>
-
-<IfModule mod_mime.c>
-  AddType text/javascript .mjs
-  AddType application/wasm .wasm
-</IfModule>
+<FilesMatch "(?i)^(\.env.*|.*\.(sql|log|ini|md))$">
+Require all denied
+</FilesMatch>
+AddType application/javascript .mjs
+AddType application/wasm .wasm

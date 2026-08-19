@@ -30,10 +30,12 @@ CREATE TABLE client_users (
 
 CREATE TABLE properties (
   property_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  project_id INT UNSIGNED DEFAULT NULL,
   listing_type ENUM('sale', 'rent') NOT NULL DEFAULT 'sale',
   property_type ENUM('House', 'Apartment', 'Villa', 'Condo', 'Land') NOT NULL,
   status ENUM('available', 'pending', 'sold', 'rented') NOT NULL DEFAULT 'available',
   title VARCHAR(180) NOT NULL,
+  slug VARCHAR(190) DEFAULT NULL,
   address_line1 VARCHAR(255) NOT NULL,
   city VARCHAR(100) NOT NULL,
   state_region VARCHAR(100),
@@ -52,6 +54,8 @@ CREATE TABLE properties (
   publish_end_date DATE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_property_slug (slug),
+  INDEX idx_property_project (project_id),
   INDEX idx_property_search (status, listing_type, property_type, city, price)
 );
 
@@ -157,6 +161,7 @@ CREATE TABLE projects (
   project_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(180) NOT NULL,
   plan_name VARCHAR(180) DEFAULT NULL,
+  slug VARCHAR(190) DEFAULT NULL,
   category VARCHAR(100) NOT NULL,
   location VARCHAR(180) NOT NULL,
 status ENUM('published', 'draft') NOT NULL DEFAULT 'draft',
@@ -166,6 +171,7 @@ status ENUM('published', 'draft') NOT NULL DEFAULT 'draft',
   payment_plans TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_project_slug (slug),
   INDEX idx_project_title_plan (title, plan_name),
   INDEX idx_project_status (status, updated_at)
 );

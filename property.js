@@ -1,5 +1,6 @@
 const propertyPage = {
-  id: Number(new URLSearchParams(window.location.search).get("id") || new URLSearchParams(window.location.search).get("property_id")),
+  id: Number(window.__PROPERTY_DATA__?.property_id || new URLSearchParams(window.location.search).get("id") || new URLSearchParams(window.location.search).get("property_id")),
+  slug: String(window.__PROPERTY_DATA__?.slug || new URLSearchParams(window.location.search).get("slug") || ""),
   images: [],
   currentImage: 0
 };
@@ -192,6 +193,9 @@ function renderProperty(property) {
   const secondaryPrice = pkrPrice && usdPrice ? usdPrice : "";
 
   document.title = `Heera Estate | ${title}`;
+  const descriptionMeta = document.querySelector('meta[name="description"]');
+  if (descriptionMeta && property.description) descriptionMeta.content = String(property.description).replace(/\s+/g, " ").slice(0, 158);
+  if (property.slug && !/\/property\//.test(window.location.pathname)) history.replaceState(null, "", `property/${encodeURIComponent(property.slug)}`);
   element("propertyTitle").textContent = title;
   element("propertyListingType").textContent = property.listing_type === "rent" ? "For rent" : "For sale";
   element("propertyType").textContent = labelValue(property.property_type || "Property");
@@ -205,8 +209,11 @@ function renderProperty(property) {
   element("propertyReference").textContent = `#${property.property_id}`;
 
   const facts = element("propertyFacts");
+  facts.replaceChildren();
   addFact(facts, "Listing", listingType);
   addFact(facts, "Property type", labelValue(property.property_type));
+  addFact(facts, "Project", [property.project_title, property.project_plan_name].filter(Boolean).join(" — "));
+  addFact(facts, "Payment plan", Number(property.has_payment_plan || 0) === 1 ? "Available" : "Not listed");
   addFact(facts, "Status", status);
   addFact(facts, "Size", property.size_label);
   addFact(facts, "Block", property.block_name);
@@ -245,13 +252,18 @@ function showPropertyError(title, message) {
 }
 
 async function loadProperty() {
-  if (!Number.isInteger(propertyPage.id) || propertyPage.id < 1) {
+  if (window.__PROPERTY_DATA__) {
+    renderProperty(window.__PROPERTY_DATA__);
+    return;
+  }
+  if ((!Number.isInteger(propertyPage.id) || propertyPage.id < 1) && !propertyPage.slug) {
     showPropertyError("No property was selected.", "Return to the listings and click the property you want to view.");
     return;
   }
 
   try {
-    const response = await fetch(`api.php?action=property&property_id=${encodeURIComponent(propertyPage.id)}`, {
+    const query = propertyPage.slug ? `slug=${encodeURIComponent(propertyPage.slug)}` : `property_id=${encodeURIComponent(propertyPage.id)}`;
+    const response = await fetch(`api.php?action=property&${query}`, {
       headers: { Accept: "application/json" }
     });
     const result = await response.json().catch(() => null);

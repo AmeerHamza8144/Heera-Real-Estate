@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Calculate property down payment, monthly installments, half-yearly installments and remaining balance for Heera Estate projects." />
+  <title>Installment Calculator | Heera Estate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="project.css" />
+  <link rel="stylesheet" href="installment-calculator.css" />
+  <link rel="stylesheet" href="chatbot.css" />
+  <link rel="stylesheet" href="client-button.css" />
+  <link rel="stylesheet" href="liquid-glass.css" />
+  <link rel="stylesheet" href="navigation-fixes.css" />
+  <link rel="stylesheet" href="footer-compact.css" />
+</head>
+<body class="calculator-page">
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Heera Estate home"><span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span><span>Heera Estate</span></a>
+    <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <nav class="main-nav" aria-label="Main navigation">
+      <a href="index.html" data-page="home">Home</a>
+      <a href="index.html?listing=sale#listings">Buy</a>
+      <a href="index.html?listing=rent#listings">Rent</a>
+      <a href="index.html#agents">Agents</a>
+      <div class="projects-nav"><button class="projects-toggle" type="button" aria-expanded="false">Projects <span>⌄</span></button><div class="projects-menu" id="projectsMenu"><span class="projects-loading">Loading projects…</span></div></div>
+      <a href="plot-finder.html">PLOT FINDER</a>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+    <div class="header-actions"><a class="client-form-button" href="client-form.html">Client Form <span>＋</span></a><a class="admin-login-icon login-button" href="index.html#admin-login">Login</a></div>
+  </header>
+
+  <main>
+    <section class="calculator-hero">
+      <div><p class="eyebrow light">Plan your purchase</p><h1>Installment Calculator</h1><p>Choose a published project payment plan or enter your own figures to calculate the complete payment schedule.</p></div>
+    </section>
+    <section class="calculator-section section">
+      <article class="installment-calculator standalone-calculator" data-installment-calculator>
+        <div class="calculator-heading">
+          <div><p class="eyebrow">Payment estimator</p><h3>Calculate your payment plan</h3><p>All amounts are calculated in Pakistani Rupees (PKR).</p></div>
+          <div class="calculator-selector-grid">
+            <label class="calculator-plan-select">Project<select id="calculatorProject"><option value="manual">Manual calculation</option></select></label>
+            <label class="calculator-plan-select">Payment plan<select id="calculatorPlan"><option value="manual">Enter figures manually</option></select></label>
+          </div>
+        </div>
+        <p class="calculator-load-message" id="calculatorLoadMessage" role="status"></p>
+        <div class="calculator-fields">
+          <label>Total price (PKR)<input data-calc-field="total_price" type="number" min="0" step="1" inputmode="decimal" placeholder="1575000" /></label>
+          <label>Down payment (PKR)<input data-calc-field="booking_amount" type="number" min="0" step="1" inputmode="decimal" placeholder="225000" /></label>
+          <label>Total monthly installments<input data-calc-field="monthly_installment_count" type="number" min="0" step="1" inputmode="numeric" placeholder="42" /></label>
+          <label>One monthly installment (PKR)<input data-calc-field="monthly_installment" type="number" min="0" step="1" inputmode="decimal" placeholder="10000" /></label>
+          <label>Total half-yearly installments<input data-calc-field="half_yearly_count" type="number" min="0" step="1" inputmode="numeric" placeholder="7" /></label>
+          <label>One half-yearly installment (PKR)<input data-calc-field="half_yearly_installment" type="number" min="0" step="1" inputmode="decimal" placeholder="105000" /></label>
+          <label>Balloting payment (PKR)<input data-calc-field="balloting" type="number" min="0" step="1" inputmode="decimal" placeholder="195000" /></label>
+          <label>On possession (PKR)<input data-calc-field="on_possession" type="number" min="0" step="1" inputmode="decimal" /></label>
+          <label>Other payment (PKR)<input data-calc-field="other_payment" type="number" min="0" step="1" inputmode="decimal" /></label>
+        </div>
+        <div class="calculator-adjustments">
+          <label>Payment discount<select data-calc-discount><option value="0">No discount</option></select></label>
+          <label class="calculator-check" data-location-charge-wrap hidden><input data-calc-location-charge type="checkbox" /><span data-location-charge-label>Apply preferred-location charge</span></label>
+        </div>
+        <div class="calculator-results" aria-live="polite">
+          <div><span>Monthly installments total</span><strong data-calc-result="monthly_total">PKR 0</strong></div>
+          <div><span>Half-yearly installments total</span><strong data-calc-result="half_yearly_total">PKR 0</strong></div>
+          <div><span>Discount</span><strong data-calc-result="discount">PKR 0</strong></div>
+          <div><span>Location charge</span><strong data-calc-result="location_charge">PKR 0</strong></div>
+          <div class="calculator-result-primary"><span>Adjusted total price</span><strong data-calc-result="adjusted_total">PKR 0</strong></div>
+          <div class="calculator-result-primary"><span>Total scheduled payments</span><strong data-calc-result="scheduled_total">PKR 0</strong></div>
+          <div class="calculator-result-balance"><span data-calc-balance-label>Remaining balance</span><strong data-calc-result="balance">PKR 0</strong></div>
+        </div>
+        <div class="calculator-progress" aria-hidden="true"><span data-calc-progress></span></div>
+        <p class="calculator-note">This calculator provides an estimate only. Confirm the final price, payment dates, discount and preferred-location charges with Heera Estate.</p>
+        <div class="calculator-actions"><button class="button button-outline" type="button" data-calc-reset>Reset calculator</button><button class="button button-primary" type="button" data-calc-copy>Copy calculation</button></div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="site-footer"><a class="brand footer-brand" href="index.html"><span class="brand-mark">H</span><span>Heera Estate</span></a><p>Homes that feel like home.</p><span>© <span id="year"></span> Heera Real Estate</span></footer>
+  <script src="site-nav.js"></script>
+  <script src="installment-calculator.js"></script>
+  <script src="chatbot.js" defer></script>
+  <script src="theme.js" defer></script>
+</body>
+</html>

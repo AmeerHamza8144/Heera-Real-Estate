@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Heera Estate helps you discover homes you will love." />
+  <meta name="robots" content="index,follow,max-image-preview:large" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Heera Estate" />
+  <meta property="og:title" content="Heera Estate | Properties, Plots and Projects" />
+  <meta property="og:description" content="Find available properties, projects, payment plans and plots with Heera Estate." />
+  <meta property="og:image" content="images/al-rehman-garden-hero.png" />
+  <meta name="twitter:card" content="summary_large_image" />
   <title>Heera Estate | Find your Dream</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,6 +26,9 @@
   <link rel="stylesheet" href="hero-background.css" />
   <link rel="stylesheet" href="auth-portal.css" />
   <link rel="stylesheet" href="auth-compact.css" />
+  <link rel="stylesheet" href="seo.css" />
+  <link rel="stylesheet" href="seo-home.css" />
+  <link rel="stylesheet" href="advanced-search.css" />
 </head>
 <body>
   <header class="site-header" id="top">
@@ -52,31 +62,22 @@
         <p class="eyebrow light">A place to call your own</p>
         <h1>Find a home that<br />feels like <em>you.</em></h1>
         <p class="hero-copy">Thoughtfully selected homes in the places you want to be.</p>
-        <form class="search-panel" id="searchForm">
-          <label>
-            <span>Looking for</span>
-            <select id="typeFilter">
-              <option value="all">Any property type</option>
-              <option value="House">House</option>
-              <option value="Apartment">Apartment</option>
-              <option value="Villa">Villa</option>
-              <option value="Land">Land</option>
-            </select>
-          </label>
-          <label>
-            <span>Location</span>
-            <input id="locationFilter" type="search" placeholder="City or neighborhood" />
-          </label>
-          <label>
-            <span>Budget</span>
-            <select id="priceFilter">
-              <option value="all">Any price</option>
-              <option value="500000">Up to $500k</option>
-              <option value="1000000">Up to $1m</option>
-              <option value="2000000">Up to $2m</option>
-            </select>
-          </label>
-          <button type="submit" class="button button-primary">Search homes <span>→</span></button>
+        <form class="search-panel advanced-property-search" id="searchForm">
+          <label><span>Property type</span><select id="typeFilter"><option value="all">Any property type</option><option value="House">House</option><option value="Apartment">Apartment</option><option value="Villa">Villa</option><option value="Condo">Condo</option><option value="Land">Land</option></select></label>
+          <label><span>Location</span><input id="locationFilter" type="search" placeholder="City or neighborhood" /></label>
+          <button class="advanced-search-toggle" id="advancedSearchToggle" type="button" aria-expanded="false" aria-controls="advancedSearchFields">Advanced property search <span>＋</span></button>
+          <button type="submit" class="button button-primary">Search properties <span>→</span></button>
+          <div class="advanced-search-fields" id="advancedSearchFields" hidden>
+            <label><span>Project</span><select id="projectFilter"><option value="all">Any project</option></select></label>
+            <label><span>Block</span><input id="blockFilter" type="search" list="propertyBlockOptions" placeholder="Any block" /><datalist id="propertyBlockOptions"></datalist></label>
+            <label><span>Size</span><input id="sizeFilter" type="search" list="propertySizeOptions" placeholder="e.g. 5 Marla" /><datalist id="propertySizeOptions"></datalist></label>
+            <label><span>Minimum price (PKR)</span><input id="minPriceFilter" type="number" min="0" step="1000" placeholder="No minimum" /></label>
+            <label><span>Maximum price (PKR)</span><input id="maxPriceFilter" type="number" min="0" step="1000" placeholder="No maximum" /></label>
+            <label><span>Facing / type</span><input id="facingFilter" type="search" list="propertyFacingOptions" placeholder="Corner, Park Facing…" /><datalist id="propertyFacingOptions"></datalist></label>
+            <label><span>Availability</span><select id="availabilityFilter"><option value="all">Any availability</option><option value="available">Available now</option><option value="sale">For sale</option><option value="rent">For rent</option></select></label>
+            <label><span>Payment plan</span><select id="paymentPlanFilter"><option value="all">Any payment option</option><option value="yes">Any payment plan</option><option value="no">Full payment / no plan</option></select></label>
+            <button class="advanced-search-reset" id="resetAdvancedSearch" type="button">Reset all filters</button>
+          </div>
         </form>
       </div>
       <div class="hero-credit">Featured in <strong>ARCHITECTURAL DIGEST</strong></div>

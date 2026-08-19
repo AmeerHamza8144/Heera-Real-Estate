@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
   <title>Heera Estate | Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -34,14 +35,13 @@
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="projectsWorkspace" data-default-subview="list" role="tab" aria-selected="false">Projects <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="projectsWorkspace" data-target="adminProjectList" data-subview="list">View Projects</button><button type="button" data-workspace="projectsWorkspace" data-target="projectForm" data-reset="project" data-subview="form">Add Project</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="digitalMapsWorkspace" role="tab" aria-selected="false">Digital Maps <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="digitalMapsWorkspace" data-target="adminDigitalMapList">View Maps</button><button type="button" data-workspace="digitalMapsWorkspace" data-target="digitalMapForm" data-reset="map">Add Map</button><button type="button" data-workspace="digitalMapsWorkspace" data-target="digitalMapBlocksPanel">Manage Blocks</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="galleryWorkspace" role="tab" aria-selected="false">Home Gallery <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="galleryWorkspace" data-target="adminHomeGallery">View Gallery</button><button type="button" data-workspace="galleryWorkspace" data-target="homeGalleryForm">Add Image</button></div></div>
-        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="popupsWorkspace" role="tab" aria-selected="false">Popups <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="popupsWorkspace" data-target="adminPopupList">View Popups</button><button type="button" data-workspace="popupsWorkspace" data-target="homePopupForm" data-reset="popup">Add Popup</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="popupsWorkspace" role="tab" aria-selected="false">Popups <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="popupsWorkspace" data-target="adminPopupList">View Popups</button><button type="button" data-workspace="popupsWorkspace" data-target="homePopupForm">Add Popup</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="agentsWorkspace" data-default-subview="list" role="tab" aria-selected="false">Agents <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="agentsWorkspace" data-target="adminAgentList" data-subview="list">View Agents</button><button type="button" data-workspace="agentsWorkspace" data-target="agentForm" data-reset="agent" data-subview="form">Add Agent</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="addressesWorkspace" data-default-subview="list" role="tab" aria-selected="false">Office Addresses <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="addressesWorkspace" data-target="adminOfficeAddressList" data-subview="list">View Addresses</button><button type="button" data-workspace="addressesWorkspace" data-target="officeAddressForm" data-reset="address" data-subview="form">Add Address</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="loginUsersWorkspace" data-default-subview="list" role="tab" aria-selected="false">Login Users <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="loginUsersWorkspace" data-target="adminLoginUserList" data-subview="list">View Users</button><button type="button" data-workspace="loginUsersWorkspace" data-target="loginUserForm" data-reset="user" data-subview="form">Add User</button></div></div>
-        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="chatMessagesWorkspace" role="tab" aria-selected="false">Chat Messages <span id="newChatMessageBadge"></span><span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="chatMessagesWorkspace" data-target="adminChatMessageList">View Messages</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab client-review-tab" type="button" data-workspace="submissionsWorkspace" role="tab" aria-selected="false">Client Submissions <span id="pendingSubmissionBadge"></span><span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="submissionsWorkspace" data-target="adminSubmissionList">View Submissions</button><button type="button" data-workspace="submissionsWorkspace" data-target="submissionForm">Review Selected</button></div></div>
       </div>
-      <div class="dashboard-overview" aria-label="Dashboard overview"><article><span>Properties</span><strong id="dashPropertyCount">0</strong><small>Managed listings</small></article><article><span>Projects</span><strong id="dashProjectCount">0</strong><small>Development plans</small></article><article><span>Submissions</span><strong id="dashSubmissionCount">0</strong><small>Client requests</small></article><article><span>Users</span><strong id="dashUserCount">0</strong><small>Login accounts</small></article><article><span>Chat Messages</span><strong id="dashChatMessageCount">0</strong><small>Visitor callbacks</small></article></div>
+      <div class="dashboard-overview" aria-label="Dashboard overview"><article><span>Properties</span><strong id="dashPropertyCount">0</strong><small>Managed listings</small></article><article><span>Projects</span><strong id="dashProjectCount">0</strong><small>Development plans</small></article><article><span>Submissions</span><strong id="dashSubmissionCount">0</strong><small>Client requests</small></article><article><span>Users</span><strong id="dashUserCount">0</strong><small>Login accounts</small></article></div>
       <div id="propertiesWorkspace" class="admin-workspace" data-subview="list">
       <div class="dashboard-layout">
         <section class="listing-manager">
@@ -61,6 +61,7 @@
               <label>Property type<select name="property_type" id="propertyTypeSelect"><option>House</option><option>Apartment</option><option>Villa</option><option>Condo</option><option>Land</option></select></label>
               <label>Status<select name="status"><option value="available">Available</option><option value="pending">Pending</option><option value="sold">Sold</option><option value="rented">Rented</option></select></label>
             </div>
+            <label>Linked project / payment plan<select name="project_id" id="propertyProjectSelect"><option value="">No linked project</option></select><span class="field-hint">Linking a project enables Project and Payment Plan filters on the public website.</span></label>
             <label>Street address<input name="address_line1" required placeholder="4236 Mornington Road" /></label>
             <div class="three-column">
               <label>City<input name="city" required placeholder="Austin" /></label>
@@ -150,9 +151,8 @@
             <form id="digitalMapForm" class="property-form" enctype="multipart/form-data">
               <input name="map_id" type="hidden">
               <label>Map / project name<input name="name" required maxlength="180" placeholder="e.g. Al-Rehman Garden Phase 7"></label>
-              <p class="field-help">Upload a map PDF and bundled PDF.js will automatically convert its first page into a high-resolution JPG. The API saves both files and their real dimensions, then publishes the image in Plot Finder. No Imagick, Poppler or Ghostscript installation is required.</p>
-              <label class="upload-label">High-resolution map image <span class="field-hint">Optional manual replacement</span><input name="map_image" type="file" accept="image/jpeg,image/png,image/webp"><span>JPG, PNG or WebP · up to 60 MB.</span></label>
-              <label class="upload-label">Map PDF<input name="original_pdf" type="file" accept="application/pdf"><span>PDF up to 100 MB · automatically converted to a high-resolution image.</span></label>
+              <label class="upload-label">High-resolution map image *<input name="map_image" type="file" accept="image/jpeg,image/png,image/webp"><span>JPG, PNG or WebP · up to 60 MB. Required for a new map.</span></label>
+              <label class="upload-label">Original PDF (optional)<input name="original_pdf" type="file" accept="application/pdf"><span>PDF up to 100 MB for full-quality viewing.</span></label>
               <label class="upload-label">Automatic plot index JSON (optional)<input name="plot_index" type="file" accept="application/json,.json"><span>Upload normalized plot coordinates. Block names are never detected or created automatically.</span></label>
               <label class="checkbox-label"><input name="is_active" type="checkbox" checked> Publish this map in Plot Finder</label>
               <p class="field-help" id="digitalMapCurrentFiles"></p>
@@ -192,14 +192,14 @@
               <label class="upload-label">Upload one popup image<input id="popupImageUpload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /><span>JPG, PNG, GIF or WebP · maximum 15 MB</span></label>
             </div>
             <div class="popup-type-fields" data-popup-type-fields="video" hidden>
-              <label>Video URL <span class="field-hint">Optional when uploading</span><input name="video_url" placeholder="uploads/video.mp4 or direct MP4/WebM URL" /></label>
+              <label>Video URL<input name="video_url" placeholder="uploads/video.mp4 or direct MP4/WebM URL" /></label>
               <label class="upload-label">Upload one popup video<input id="popupVideoUpload" type="file" accept="video/mp4,video/webm" /><span>MP4 or WebM · maximum 15 MB</span></label>
             </div>
             <div class="popup-type-fields" data-popup-type-fields="content">
               <label>Headline<input name="headline" placeholder="Content popup headline" /></label>
               <label>HTML content<textarea name="html_content" rows="4" placeholder="Text and simple formatting for this popup"></textarea></label>
             </div>
-            <label>Link URL <span class="field-hint">Optional</span><input name="link_url" placeholder="https://.../destination" /></label>
+            <label>Link URL<input name="link_url" placeholder="https://.../destination" /></label>
             <label class="checkbox-label"><input type="checkbox" name="is_published" /> Publish popup (visible on site)</label>
             <div class="form-actions"><button class="button button-primary" type="submit" id="saveHomePopupButton">Save popup <span>→</span></button><p id="homePopupMessage" class="property-message" role="status"></p></div>
           </form>
@@ -266,13 +266,6 @@
           </section>
         </div>
       </div>
-      <div id="chatMessagesWorkspace" class="admin-workspace" hidden>
-        <section class="listing-manager chat-message-manager">
-          <div class="manager-heading"><div><h2>Chatbot messages</h2><p class="field-help">Visitors appear here after they request a callback and provide their name and phone number.</p></div><span id="chatMessageCount">0 messages</span></div>
-          <div class="chat-message-toolbar"><label>Filter status<select id="chatMessageFilter"><option value="all">All messages</option><option value="new">New</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select></label><button class="button button-dark" id="refreshChatMessages" type="button">Refresh</button></div>
-          <div class="admin-property-list" id="adminChatMessageList"></div>
-        </section>
-      </div>
       <div id="submissionsWorkspace" class="admin-workspace" hidden>
         <div class="dashboard-layout">
           <section class="listing-manager"><div class="manager-heading"><h2>Client properties</h2><span id="submissionCount">0 submissions</span></div><div class="admin-property-list" id="adminSubmissionList"></div></section>
@@ -290,7 +283,7 @@
       </div>
     </section>
   </main>
-  <script src="admin.js?v=20260818-pdfjs"></script>
+  <script src="admin.js"></script>
   <script src="theme.js" defer></script>
 </body>
 </html>

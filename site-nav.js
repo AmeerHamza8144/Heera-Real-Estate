@@ -11,6 +11,34 @@
   let accountProfile = null;
   let profileToggle = null;
   let profileMenu = null;
+  let csrfToken = "";
+
+  function initializeUtilityMenus() {
+    if (!navigation || navigation.querySelector(".features-nav")) return;
+    const directLinks = [...navigation.children].filter((item) => item.matches("a"));
+    const agentsLink = directLinks.find((link) => link.textContent.trim().toLowerCase() === "agents");
+    const plotFinderLink = directLinks.find((link) => link.textContent.trim().toLowerCase().includes("plot finder"));
+    const contactLink = directLinks.find((link) => link.textContent.trim().toLowerCase() === "contact");
+    agentsLink?.remove();
+    plotFinderLink?.remove();
+
+    const features = document.createElement("div");
+    features.className = "projects-nav utility-nav features-nav";
+    features.innerHTML = `<button class="projects-toggle utility-toggle" type="button" aria-expanded="false">Features <span>⌄</span></button><div class="projects-menu utility-menu"><a href="plot-finder.html">Plot Finder</a><a href="installment-calculator.html">Installment Calculator</a></div>`;
+
+    const contact = document.createElement("div");
+    contact.className = "projects-nav utility-nav contact-nav";
+    contact.innerHTML = `<button class="projects-toggle utility-toggle" type="button" aria-expanded="false">Contact <span>⌄</span></button><div class="projects-menu utility-menu"><a href="index.html#contact">Contact Us</a><a href="index.html#agents">Agents</a></div>`;
+
+    if (contactLink) {
+      contactLink.replaceWith(features, contact);
+    } else {
+      navigation.append(features, contact);
+    }
+  }
+
+  initializeUtilityMenus();
+  const utilityNavigations = [...navigation.querySelectorAll(".utility-nav")];
 
   const fallbackProjects = [
     "Harbor Point Residences",
@@ -27,6 +55,7 @@
     menuToggle?.setAttribute("aria-expanded", "false");
     menuToggle?.setAttribute("aria-label", "Open menu");
     document.body.classList.remove("menu-open");
+    closeUtilityMenus();
   }
 
   function closeProjectsMenu() {
@@ -34,6 +63,14 @@
     projectsToggle?.setAttribute("aria-expanded", "false");
     projectsMenu?.querySelectorAll(".project-menu-group.open").forEach((group) => group.classList.remove("open"));
     projectsMenu?.querySelectorAll(".project-group-toggle").forEach((toggle) => toggle.setAttribute("aria-expanded", "false"));
+  }
+
+  function closeUtilityMenus(except = null) {
+    utilityNavigations.forEach((item) => {
+      if (item === except) return;
+      item.querySelector(".utility-menu")?.classList.remove("open");
+      item.querySelector(".utility-toggle")?.setAttribute("aria-expanded", "false");
+    });
   }
 
   function closeProfileMenu() {
@@ -69,7 +106,9 @@
     try {
       const response = await fetch("api.php?action=account_session", { credentials: "same-origin", headers: { Accept: "application/json" } });
       if (!response.ok) throw new Error("Account session unavailable");
-      showSignedInHeader(await response.json());
+      const session = await response.json();
+      csrfToken = session.csrf_token || "";
+      showSignedInHeader(session);
     } catch {
       showSignedOutHeader();
     } finally {
@@ -96,7 +135,7 @@
       button.disabled = true;
       button.textContent = "Logging out…";
       try {
-        await fetch("api.php?action=logout", { method: "POST", credentials: "same-origin", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: "{}" });
+        await fetch("api.php?action=logout", { method: "POST", credentials: "same-origin", headers: { Accept: "application/json", "Content-Type": "application/json", "X-CSRF-Token": csrfToken }, body: "{}" });
       } finally {
         localStorage.removeItem("havenlyAdminSession");
         localStorage.removeItem("heeraClientSession");
@@ -123,7 +162,7 @@
       const planned = group.projects.filter((project) => String(project.plan_name || "").trim());
       if (!planned.length && group.projects.length === 1) {
         const link = document.createElement("a");
-        link.href = `project.html?id=${Number(group.projects[0].project_id)}`;
+        link.href = group.projects[0].slug ? `project/${encodeURIComponent(group.projects[0].slug)}` : `project.php?id=${Number(group.projects[0].project_id)}`;
         link.textContent = group.title;
         return link;
       }
@@ -138,7 +177,7 @@
       submenu.className = "project-submenu";
       group.projects.forEach((project) => {
         const link = document.createElement("a");
-        link.href = `project.html?id=${Number(project.project_id)}`;
+        link.href = project.slug ? `project/${encodeURIComponent(project.slug)}` : `project.php?id=${Number(project.project_id)}`;
         link.textContent = String(project.plan_name || "Project overview").trim();
         submenu.appendChild(link);
       });
@@ -169,16 +208,29 @@
     menuToggle.setAttribute("aria-expanded", String(isOpen));
     menuToggle.setAttribute("aria-label", isOpen ? "Close menu" : "Open menu");
     document.body.classList.toggle("menu-open", isOpen);
-    if (!isOpen) closeProjectsMenu();
+    if (!isOpen) { closeProjectsMenu(); closeUtilityMenus(); }
   });
 
   projectsToggle?.addEventListener("click", (event) => {
     event.stopPropagation();
+    closeUtilityMenus();
     const isOpen = projectsMenu?.classList.toggle("open") || false;
     projectsToggle.setAttribute("aria-expanded", String(isOpen));
   });
 
   navigation?.addEventListener("click", (event) => {
+    const utilityToggle = event.target.closest(".utility-toggle");
+    if (utilityToggle) {
+      event.stopPropagation();
+      const utilityNavigation = utilityToggle.closest(".utility-nav");
+      const utilityMenu = utilityNavigation?.querySelector(".utility-menu");
+      const willOpen = !utilityMenu?.classList.contains("open");
+      closeProjectsMenu();
+      closeUtilityMenus(utilityNavigation);
+      utilityMenu?.classList.toggle("open", willOpen);
+      utilityToggle.setAttribute("aria-expanded", String(willOpen));
+      return;
+    }
     const groupToggle = event.target.closest(".project-group-toggle");
     if (groupToggle) {
       event.stopPropagation();
@@ -190,11 +242,13 @@
     if (event.target.closest("a")) {
       closeMobileMenu();
       closeProjectsMenu();
+      closeUtilityMenus();
     }
   });
 
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".projects-nav")) closeProjectsMenu();
+    if (!event.target.closest(".utility-nav")) closeUtilityMenus();
     if (!event.target.closest(".header-profile")) closeProfileMenu();
     if (!event.target.closest(".site-header")) closeMobileMenu();
   });
@@ -203,6 +257,7 @@
     if (event.key === "Escape") {
       closeMobileMenu();
       closeProjectsMenu();
+      closeUtilityMenus();
       closeProfileMenu();
     }
   });
@@ -214,6 +269,12 @@
   const pageName = window.location.pathname.split("/").pop() || "index.html";
   if (pageName === "index.html" || pageName === "") {
     header.querySelector('[data-page="home"]')?.classList.add("is-active");
+  }
+  if (["plot-finder.html", "installment-calculator.html"].includes(pageName)) {
+    header.querySelector(".features-nav .utility-toggle")?.classList.add("is-active");
+  }
+  if ((pageName === "index.html" || pageName === "") && ["#contact", "#agents"].includes(window.location.hash)) {
+    header.querySelector(".contact-nav .utility-toggle")?.classList.add("is-active");
   }
 
   window.addEventListener("heera:auth-changed", refreshAccountState);

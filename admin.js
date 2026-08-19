@@ -1,4 +1,5 @@
-const adminState = { properties: [], projects: [], homeGallery: [], submissions: [], officeAddresses: [], loginUsers: [], digitalMaps: [], chatMessages: [] };
+const adminState = { properties: [], projects: [], homeGallery: [], submissions: [], officeAddresses: [], loginUsers: [], digitalMaps: [] };
+let adminCsrfToken = "";
 const welcomeScreen = document.querySelector("#welcomeScreen");
 const loginModal = document.querySelector("#loginModal");
 const dashboard = document.querySelector("#dashboard");
@@ -83,7 +84,6 @@ function showDashboard(user) {
   loadAgents();
   loadOfficeAddresses();
   loadLoginUsers();
-  loadChatMessages();
   loadSubmissions();
   loadDigitalMaps();
 }
@@ -163,7 +163,14 @@ document.querySelector('#approveSubmission').addEventListener('click', async () 
 });
 
 async function api(action, data = null, isUpload = false) {
+  if (data && !adminCsrfToken) {
+    const tokenResponse = await fetch("api.php?action=csrf", { credentials: "same-origin", headers: { Accept: "application/json" } });
+    const tokenResult = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok || !tokenResult.csrf_token) throw new Error("Could not create a secure session. Refresh the page and try again.");
+    adminCsrfToken = tokenResult.csrf_token;
+  }
   const options = { method: data ? "POST" : "GET", headers: { Accept: "application/json" }, credentials: 'same-origin' };
+  if (data) options.headers["X-CSRF-Token"] = adminCsrfToken;
   if (data && !isUpload) {
     options.headers["Content-Type"] = "application/json";
     options.body = JSON.stringify(data);
@@ -172,6 +179,7 @@ async function api(action, data = null, isUpload = false) {
   const response = await fetch(`api.php?action=${encodeURIComponent(action)}`, options);
   const result = await response.json().catch(() => ({ error: "The server returned an invalid response." }));
   if (!response.ok) throw new Error(result.error || "Something went wrong.");
+  if (result.csrf_token) adminCsrfToken = result.csrf_token;
   return result;
 }
 
@@ -216,7 +224,7 @@ function renderPropertyList() {
     const priceDisplay = formatPricePkr(property);
     return `<article class="admin-property">
       <img src="${escapeHtml(image)}" alt="" />
-      <div><h3>${escapeHtml(property.title)}</h3><p>${escapeHtml(property.city)} · ${escapeHtml(property.listing_type)}</p><strong>${escapeHtml(priceDisplay)}</strong></div>
+      <div><h3>${escapeHtml(property.title)}</h3><p>${escapeHtml(property.city)} · ${escapeHtml(property.listing_type)}${property.project_title ? ` · ${escapeHtml(property.project_title)}` : ""}</p><strong>${escapeHtml(priceDisplay)}</strong></div>
       <div class="admin-row-actions"><button type="button" class="edit-listing" data-id="${property.property_id}">Edit</button><button type="button" class="delete-listing" data-id="${property.property_id}">Delete</button></div>
     </article>`;
   }).join("");
@@ -235,8 +243,9 @@ function updateBedsBathsVisibility() {
 
 function populateEditor(property) {
   setAdminSubview("propertiesWorkspace", "form");
+  syncPropertyProjectOptions();
   const fields = propertyForm.elements;
-  ["property_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
+  ["property_id", "project_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
     fields[field].value = property[field] ?? "";
   });
   fields.images.value = mediaLines(property, "image");
@@ -334,7 +343,7 @@ propertyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const fields = propertyForm.elements;
   const body = {};
-  ["property_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
+  ["property_id", "project_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
     body[field] = fields[field] ? fields[field].value.trim() : "";
   });
   body.media = { images: splitUrls(fields.images.value), videos: splitUrls(fields.videos.value), links: splitUrls(fields.links.value) };
@@ -380,10 +389,23 @@ async function loadProjects() {
   try {
     adminState.projects = await api("admin_projects");
     renderProjectList();
+    syncPropertyProjectOptions();
   } catch (error) {
     document.querySelector("#projectMessage").textContent = error.message;
     document.querySelector("#projectMessage").classList.add("error");
   }
+}
+
+function syncPropertyProjectOptions() {
+  const select = document.querySelector("#propertyProjectSelect");
+  if (!select) return;
+  const selected = select.value;
+  const options = adminState.projects.map((project) => {
+    const label = `${project.title}${project.plan_name ? ` — ${project.plan_name}` : ""}${project.status !== "published" ? " (Draft)" : ""}`;
+    return `<option value="${Number(project.project_id)}">${escapeHtml(label)}</option>`;
+  }).join("");
+  select.innerHTML = `<option value="">No linked project</option>${options}`;
+  if ([...select.options].some((option) => option.value === selected)) select.value = selected;
 }
 
 function projectMediaLines(project, type) {
@@ -405,14 +427,18 @@ function createProjectPlanRow(planData) {
     <div class="plan-fields">
       <label class="plan-name-field">Payment Plan Name<input name="project_plan_name_${index}" value="${escapeHtml(planData?.plan_name || "")}" placeholder="e.g. Executive Block Plan" required /></label>
       <label>Size / Type<input name="project_plan_size_label_${index}" value="${escapeHtml(planData?.size_label || "")}" placeholder="3 Marla" /></label>
-      <label>Booking<input name="project_plan_booking_${index}" type="number" min="0" value="${planData?.booking_amount || ""}" placeholder="1000000" /></label>
-      <label>Monthly Installment<input name="project_plan_monthly_${index}" type="number" min="0" value="${planData?.monthly_installment || ""}" placeholder="40000" /></label>
-      <label>Half Yearly Count<input name="project_plan_half_count_${index}" type="number" min="0" value="${planData?.half_yearly_count || ""}" placeholder="5" /></label>
-      <label>Half Yearly Installment<input name="project_plan_half_amount_${index}" type="number" min="0" value="${planData?.half_yearly_installment || ""}" placeholder="150000" /></label>
-      <label>On Possession<input name="project_plan_possession_${index}" type="number" min="0" value="${planData?.on_possession || ""}" placeholder="350000" /></label>
-      <label>Balloting<input name="project_plan_balloting_${index}" value="${escapeHtml(planData?.balloting || "")}" placeholder="Q1 2027 or Yes/No" /></label>
-      <label>Other Payment<input name="project_plan_other_payment_${index}" type="number" min="0" value="${planData?.other_payment || ""}" placeholder="250000" /></label>
-      <label>Total Price<input name="project_plan_total_${index}" type="number" min="0" value="${planData?.total_price || ""}" placeholder="3300000" /></label>
+      <label>Booking<input name="project_plan_booking_${index}" type="number" min="0" value="${escapeHtml(planData?.booking_amount || "")}" placeholder="1000000" /></label>
+      <label>Total Monthly Installments<input name="project_plan_monthly_count_${index}" type="number" min="0" step="1" value="${escapeHtml(planData?.monthly_installment_count || "")}" placeholder="42" /></label>
+      <label>One Monthly Installment Amount<input name="project_plan_monthly_${index}" type="number" min="0" value="${escapeHtml(planData?.monthly_installment || "")}" placeholder="10000" /></label>
+      <label>Total Half-Yearly Installments<input name="project_plan_half_count_${index}" type="number" min="0" step="1" value="${escapeHtml(planData?.half_yearly_count || "")}" placeholder="7" /></label>
+      <label>One Half-Yearly Installment Amount<input name="project_plan_half_amount_${index}" type="number" min="0" value="${escapeHtml(planData?.half_yearly_installment || "")}" placeholder="105000" /></label>
+      <label>On Possession<input name="project_plan_possession_${index}" type="number" min="0" value="${escapeHtml(planData?.on_possession || "")}" placeholder="350000" /></label>
+      <label>Balloting Payment / Note<input name="project_plan_balloting_${index}" value="${escapeHtml(planData?.balloting || "")}" placeholder="195000 or On demand" /></label>
+      <label>Other Payment<input name="project_plan_other_payment_${index}" type="number" min="0" value="${escapeHtml(planData?.other_payment || "")}" placeholder="250000" /></label>
+      <label>Total Price<input name="project_plan_total_${index}" type="number" min="0" value="${escapeHtml(planData?.total_price || "")}" placeholder="3300000" /></label>
+      <label>Full Payment Discount %<input name="project_plan_full_discount_${index}" type="number" min="0" max="100" step="0.01" value="${escapeHtml(planData?.full_payment_discount_percent || "")}" placeholder="10" /></label>
+      <label>50% Payment Discount %<input name="project_plan_half_discount_${index}" type="number" min="0" max="100" step="0.01" value="${escapeHtml(planData?.half_payment_discount_percent || "")}" placeholder="5" /></label>
+      <label>Preferred Location Charge %<input name="project_plan_location_charge_${index}" type="number" min="0" max="100" step="0.01" value="${escapeHtml(planData?.preferred_location_charge_percent || "")}" placeholder="10" /></label>
     </div>`;
   const removeBtn = row.querySelector(".remove-plan-btn");
   removeBtn.addEventListener("click", () => { row.remove(); reindexProjectPlanRows(); });
@@ -444,13 +470,17 @@ function getProjectPaymentPlansData() {
       plan_name: row.querySelector(`[name="project_plan_name_${i}"]`)?.value?.trim() || "Payment Plans",
       size_label: sizeLabel,
       booking_amount: row.querySelector(`[name="project_plan_booking_${i}"]`)?.value?.trim() || "",
+      monthly_installment_count: row.querySelector(`[name="project_plan_monthly_count_${i}"]`)?.value?.trim() || "",
       monthly_installment: row.querySelector(`[name="project_plan_monthly_${i}"]`)?.value?.trim() || "",
       half_yearly_count: row.querySelector(`[name="project_plan_half_count_${i}"]`)?.value?.trim() || "",
       half_yearly_installment: row.querySelector(`[name="project_plan_half_amount_${i}"]`)?.value?.trim() || "",
       on_possession: row.querySelector(`[name="project_plan_possession_${i}"]`)?.value?.trim() || "",
       balloting: row.querySelector(`[name="project_plan_balloting_${i}"]`)?.value?.trim() || "",
       other_payment: row.querySelector(`[name="project_plan_other_payment_${i}"]`)?.value?.trim() || "",
-      total_price: row.querySelector(`[name="project_plan_total_${i}"]`)?.value?.trim() || ""
+      total_price: row.querySelector(`[name="project_plan_total_${i}"]`)?.value?.trim() || "",
+      full_payment_discount_percent: row.querySelector(`[name="project_plan_full_discount_${i}"]`)?.value?.trim() || "",
+      half_payment_discount_percent: row.querySelector(`[name="project_plan_half_discount_${i}"]`)?.value?.trim() || "",
+      preferred_location_charge_percent: row.querySelector(`[name="project_plan_location_charge_${i}"]`)?.value?.trim() || ""
     });
   });
   return plans;
@@ -624,15 +654,6 @@ function syncPopupTypeFields() {
   form.querySelectorAll('[data-popup-type-fields]').forEach((group) => { group.hidden = group.dataset.popupTypeFields !== type; });
 }
 
-function resetHomePopupEditor() {
-  const form = document.querySelector('#homePopupForm');
-  form.reset();
-  form.elements.popup_id.value = '';
-  form.elements.popup_type.value = 'content';
-  syncPopupTypeFields();
-  document.querySelector('#homePopupMessage').textContent = '';
-}
-
 function populateHomePopupEditor(popup) {
   const form = document.querySelector('#homePopupForm');
   form.elements.popup_id.value = popup.popup_id || '';
@@ -660,7 +681,6 @@ document.querySelector('#adminPopupList').addEventListener('click', async (event
     if (!window.confirm('Delete this popup?')) return;
     try {
       await api('delete_popup', { popup_id: id });
-      if (Number(document.querySelector('#homePopupForm').elements.popup_id.value) === id) resetHomePopupEditor();
       await loadAdminPopups();
     } catch (error) { window.alert(error.message); }
   }
@@ -685,9 +705,11 @@ document.querySelector('#homePopupForm').addEventListener('submit', async (event
   msg.textContent = 'Saving…';
   try {
     await api('save_popup', body);
-    await loadAdminPopups();
-    resetHomePopupEditor();
     msg.textContent = 'Popup saved.';
+    await loadAdminPopups();
+    form.reset();
+    form.elements.popup_type.value = 'content';
+    syncPopupTypeFields();
   } catch (error) { msg.textContent = error.message; msg.classList.add('error'); }
 });
 
@@ -899,26 +921,6 @@ document.querySelector("#cancelLoginUserEdit").addEventListener("click",()=>{res
 document.querySelector("#adminLoginUserList").addEventListener("click",async event=>{const id=Number(event.target.dataset.id),type=event.target.dataset.type,item=adminState.loginUsers.find(user=>Number(user.user_id)===id&&user.user_type===type);if(event.target.classList.contains("edit-login-user")&&item)populateLoginUserEditor(item);if(event.target.classList.contains("delete-login-user")&&item){if(!confirm(`Delete login account for “${item.full_name}”?`))return;try{await api("delete_login_user",{user_id:id,user_type:type});await loadLoginUsers();resetLoginUserEditor();}catch(error){alert(error.message);}}});
 document.querySelector("#loginUserForm").addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements,message=document.querySelector("#loginUserMessage");message.classList.remove("error");message.textContent="Saving user…";try{await api("save_login_user",{user_id:f.user_id.value,user_type:f.user_type.value,full_name:f.full_name.value.trim(),email:f.email.value.trim(),phone:f.phone.value.trim(),username:f.username.value.trim(),new_password:f.new_password.value,is_active:f.is_active.checked?1:0});await loadLoginUsers();resetLoginUserEditor();message.textContent="Login user saved securely.";}catch(error){message.textContent=error.message;message.classList.add("error");}});
 
-async function loadChatMessages() {
-  const list = document.querySelector("#adminChatMessageList");
-  try { adminState.chatMessages = await api("admin_chat_messages"); renderChatMessages(); }
-  catch (error) { if (list) list.innerHTML = `<p class="empty-list">${escapeHtml(error.message)}</p>`; }
-}
-function chatLanguageLabel(value) { return ({en:"English",ur:"Urdu",roman:"Roman Urdu"})[value] || value || "English"; }
-function whatsappNumber(value) { const digits=String(value||"").replace(/\D/g,"");return digits.startsWith("0")?`92${digits.slice(1)}`:digits; }
-function renderChatMessages() {
-  const list=document.querySelector("#adminChatMessageList"),filter=document.querySelector("#chatMessageFilter")?.value||"all",all=adminState.chatMessages||[],items=filter==="all"?all:all.filter(item=>item.status===filter),newCount=all.filter(item=>item.status==="new").length;
-  document.querySelector("#chatMessageCount").textContent=`${all.length} message${all.length===1?"":"s"}`;
-  document.querySelector("#dashChatMessageCount").textContent=String(all.length);
-  document.querySelector("#newChatMessageBadge").textContent=newCount?String(newCount):"";
-  if(!items.length){list.innerHTML=`<p class="empty-list">${filter==="all"?"No chatbot callback messages yet.":`No ${escapeHtml(filter)} chatbot messages.`}</p>`;return;}
-  list.innerHTML=items.map(item=>{const phone=escapeHtml(item.phone||""),wa=whatsappNumber(item.phone),date=item.created_at?new Date(String(item.created_at).replace(" ","T")).toLocaleString():"";return `<article class="admin-property chat-message-item" data-status="${escapeHtml(item.status)}"><span class="chat-message-avatar">${escapeHtml((item.name||"V").charAt(0).toUpperCase())}</span><div class="chat-message-content"><h3>${escapeHtml(item.name)}</h3><p><a href="tel:${phone}">${phone}</a> · ${escapeHtml(chatLanguageLabel(item.language))} · ${escapeHtml(date)}</p><div class="chat-message-text">${escapeHtml(item.message||"Callback requested from the chatbot.")}</div>${item.property_title?`<a class="chat-property-link" href="property.html?id=${Number(item.property_id)}" target="_blank" rel="noopener">Property: ${escapeHtml(item.property_title)}</a>`:""}</div><div class="chat-message-actions"><select class="chat-status-select" data-id="${item.enquiry_id}" aria-label="Message status"><option value="new"${item.status==="new"?" selected":""}>New</option><option value="contacted"${item.status==="contacted"?" selected":""}>Contacted</option><option value="closed"${item.status==="closed"?" selected":""}>Closed</option></select><a class="chat-action-link" href="tel:${phone}">Call</a>${wa?`<a class="chat-action-link whatsapp" href="https://wa.me/${wa}" target="_blank" rel="noopener">WhatsApp</a>`:""}<button class="delete-chat-message" data-id="${item.enquiry_id}" type="button">Delete</button></div></article>`;}).join("");
-}
-document.querySelector("#chatMessageFilter").addEventListener("change",renderChatMessages);
-document.querySelector("#refreshChatMessages").addEventListener("click",loadChatMessages);
-document.querySelector("#adminChatMessageList").addEventListener("change",async event=>{if(!event.target.classList.contains("chat-status-select"))return;const select=event.target;select.disabled=true;try{await api("update_chat_message",{enquiry_id:Number(select.dataset.id),status:select.value});await loadChatMessages();}catch(error){alert(error.message);select.disabled=false;}});
-document.querySelector("#adminChatMessageList").addEventListener("click",async event=>{if(!event.target.classList.contains("delete-chat-message"))return;if(!confirm("Delete this chatbot message?"))return;try{await api("delete_chat_message",{enquiry_id:Number(event.target.dataset.id)});await loadChatMessages();}catch(error){alert(error.message);}});
-
 function renderAdminHomeGallery() {
   const container = document.querySelector("#adminHomeGallery");
   if (!adminState.homeGallery.length) { container.innerHTML = '<p class="empty-list">No gallery images yet. Add one above.</p>'; return; }
@@ -963,53 +965,6 @@ document.querySelector("#adminHomeGallery").addEventListener("click", async (eve
   catch (error) { window.alert(error.message); }
 });
 
-let mapPdfModulePromise = null;
-async function convertMapPdfInBrowser(pdfFile, statusElement) {
-  if (!pdfFile || (pdfFile.type !== "application/pdf" && !/\.pdf$/i.test(pdfFile.name || ""))) throw new Error("Choose a valid map PDF.");
-  if (!mapPdfModulePromise) mapPdfModulePromise = import("./vendor/pdfjs/pdf.mjs");
-  const pdfjs = await mapPdfModulePromise;
-  pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.mjs";
-  if (statusElement) statusElement.textContent = "Reading PDF page 1…";
-  const bytes = new Uint8Array(await pdfFile.arrayBuffer());
-  const loadingTask = pdfjs.getDocument({
-    data: bytes,
-    cMapUrl: "./vendor/pdfjs/cmaps/",
-    cMapPacked: true,
-    standardFontDataUrl: "./vendor/pdfjs/standard_fonts/",
-    wasmUrl: "./vendor/pdfjs/wasm/"
-  });
-  const documentHandle = await loadingTask.promise;
-  let canvas = null;
-  try {
-    const page = await documentHandle.getPage(1);
-    const base = page.getViewport({ scale: 1 });
-    const requestedScale = 300 / 72;
-    const dimensionScale = 14000 / Math.max(base.width, base.height);
-    const pixelScale = Math.sqrt(140000000 / Math.max(1, base.width * base.height));
-    const scale = Math.min(requestedScale, dimensionScale, pixelScale);
-    const dpi = Math.max(72, Math.round(scale * 72));
-    const viewport = page.getViewport({ scale });
-    const width = Math.ceil(viewport.width);
-    const height = Math.ceil(viewport.height);
-    if (width < 1000 || height < 1000) throw new Error("The PDF page is too small to create a high-resolution map.");
-    if (statusElement) statusElement.textContent = `Converting PDF to ${width.toLocaleString()} × ${height.toLocaleString()} pixels…`;
-    canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d", { alpha: false });
-    if (!context) throw new Error("This browser cannot create the map image.");
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, width, height);
-    await page.render({ canvasContext: context, viewport, background: "#ffffff" }).promise;
-    const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("The browser could not export the high-resolution map image.")), "image/jpeg", .92));
-    const baseName = String(pdfFile.name || "map").replace(/\.pdf$/i, "").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "map";
-    return { file: new File([blob], `${baseName}-300dpi.jpg`, { type: "image/jpeg" }), width, height, dpi };
-  } finally {
-    if (canvas) { canvas.width = 1; canvas.height = 1; }
-    await documentHandle.destroy();
-  }
-}
-
 async function loadDigitalMaps(selectedMapId = null) {
   const message = document.querySelector("#digitalMapMessage");
   try { adminState.digitalMaps = await api("admin_digital_maps"); renderDigitalMaps(selectedMapId); }
@@ -1018,16 +973,16 @@ async function loadDigitalMaps(selectedMapId = null) {
 function renderDigitalMaps(selectedMapId = null) {
   const maps=adminState.digitalMaps||[],list=document.querySelector("#adminDigitalMapList");
   document.querySelector("#digitalMapCount").textContent=`${maps.length} map${maps.length===1?"":"s"}`;
-  list.innerHTML=maps.length?maps.map(map=>{const preview=map.map_image?`<img class="digital-map-preview" src="${escapeHtml(map.map_image)}" alt="">`:map.original_pdf?`<a class="digital-map-pdf-preview" href="${escapeHtml(map.original_pdf)}" target="_blank" rel="noopener">PDF</a>`:'<span class="admin-popup-type-preview">No file</span>';const files=`<div class="digital-map-file-links">${map.map_image?`<a href="${escapeHtml(map.map_image)}" target="_blank" rel="noopener">Open image</a>`:""}${map.original_pdf?`<a href="${escapeHtml(map.original_pdf)}" target="_blank" rel="noopener">Open saved PDF</a>`:""}${Number(map.is_active)&&map.map_image?`<a href="plot-finder.html?map_id=${Number(map.map_id)}" target="_blank" rel="noopener">View in Plot Finder</a>`:""}</div>`;return `<article class="admin-property">${preview}<div><h3>${escapeHtml(map.name)}</h3><p>${map.map_image?`${map.original_width.toLocaleString()} × ${map.original_height.toLocaleString()} high-resolution image`:'PDF waiting for image conversion'}</p><strong>${map.blocks.length} block${map.blocks.length===1?"":"s"} · ${Number(map.is_active)?"Published":"Hidden"}</strong>${files}</div><div class="admin-row-actions">${map.original_pdf?`<button class="convert-digital-map" data-id="${map.map_id}" type="button">${map.map_image?'Rebuild image':'Convert PDF'}</button>`:""}<button class="edit-digital-map" data-id="${map.map_id}" type="button">Edit</button><button class="delete-digital-map" data-id="${map.map_id}" type="button">Delete</button></div></article>`;}).join(""):'<p class="empty-list">No digital maps have been added.</p>';
+  list.innerHTML=maps.length?maps.map(map=>`<article class="admin-property"><img class="digital-map-preview" src="${escapeHtml(map.map_image)}" alt=""><div><h3>${escapeHtml(map.name)}</h3><p>${map.original_width} × ${map.original_height}</p><strong>${map.blocks.length} block${map.blocks.length===1?"":"s"} · ${Number(map.is_active)?"Published":"Hidden"}</strong></div><div class="admin-row-actions"><button class="edit-digital-map" data-id="${map.map_id}" type="button">Edit</button><button class="delete-digital-map" data-id="${map.map_id}" type="button">Delete</button></div></article>`).join(""):'<p class="empty-list">No digital maps have been added.</p>';
   const select=document.querySelector("#digitalMapBlockMap"),previous=selectedMapId||Number(select.value)||maps[0]?.map_id||"";select.innerHTML='<option value="">Choose a map</option>'+maps.map(map=>`<option value="${map.map_id}">${escapeHtml(map.name)}</option>`).join("");if(maps.some(map=>Number(map.map_id)===Number(previous)))select.value=String(previous);renderDigitalMapBlocks();
 }
 function renderDigitalMapBlocks(){const mapId=Number(document.querySelector("#digitalMapBlockMap").value),map=adminState.digitalMaps.find(item=>Number(item.map_id)===mapId),container=document.querySelector("#digitalMapBlockList");container.innerHTML=map?(map.blocks.length?map.blocks.map(block=>`<span class="map-block-chip">${escapeHtml(block.name)}<button type="button" class="delete-digital-map-block" data-id="${block.block_id}" aria-label="Delete ${escapeHtml(block.name)}">×</button></span>`).join(""):'<p class="empty-list">No blocks yet. Add the first block above.</p>'):'<p class="empty-list">Choose a map to manage its blocks.</p>';}
 function resetDigitalMapEditor(){const form=document.querySelector("#digitalMapForm");form.reset();form.elements.map_id.value="";form.elements.is_active.checked=true;document.querySelector("#digitalMapEditorTitle").textContent="Add a map";document.querySelector("#cancelDigitalMapEdit").hidden=true;document.querySelector("#digitalMapCurrentFiles").textContent="";document.querySelector("#saveDigitalMapButton").innerHTML='Save map <span>→</span>';}
-function editDigitalMap(map){const form=document.querySelector("#digitalMapForm");form.elements.map_id.value=map.map_id;form.elements.name.value=map.name;form.elements.is_active.checked=!!Number(map.is_active);document.querySelector("#digitalMapEditorTitle").textContent=`Edit: ${map.name}`;document.querySelector("#cancelDigitalMapEdit").hidden=false;document.querySelector("#saveDigitalMapButton").innerHTML='Save changes <span>→</span>';document.querySelector("#digitalMapCurrentFiles").innerHTML=`${map.map_image?`Image saved: <a href="${escapeHtml(map.map_image)}" target="_blank" rel="noopener">open image</a>`:"No image uploaded"}${map.original_pdf?` · PDF saved: <a href="${escapeHtml(map.original_pdf)}" target="_blank" rel="noopener">open PDF</a>`:" · No PDF uploaded"}${map.plot_index_file?' · Plot index saved':' · No automatic plot index'}`;document.querySelector("#digitalMapBlockMap").value=String(map.map_id);renderDigitalMapBlocks();}
+function editDigitalMap(map){const form=document.querySelector("#digitalMapForm");form.elements.map_id.value=map.map_id;form.elements.name.value=map.name;form.elements.is_active.checked=!!Number(map.is_active);document.querySelector("#digitalMapEditorTitle").textContent=`Edit: ${map.name}`;document.querySelector("#cancelDigitalMapEdit").hidden=false;document.querySelector("#saveDigitalMapButton").innerHTML='Save changes <span>→</span>';document.querySelector("#digitalMapCurrentFiles").textContent=`Current image: ${map.map_image}${map.original_pdf?` · PDF: ${map.original_pdf}`:""}${map.plot_index_file?` · Index: ${map.plot_index_file}`:" · No automatic plot index"}`;document.querySelector("#digitalMapBlockMap").value=String(map.map_id);renderDigitalMapBlocks();}
 document.querySelector("#cancelDigitalMapEdit").addEventListener("click",resetDigitalMapEditor);
 document.querySelector("#digitalMapBlockMap").addEventListener("change",renderDigitalMapBlocks);
-document.querySelector("#digitalMapForm").addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget,message=document.querySelector("#digitalMapMessage"),pdfFile=form.elements.original_pdf.files[0]||null,hasPdf=!!pdfFile,button=document.querySelector("#saveDigitalMapButton");button.disabled=true;try{let converted=null;if(hasPdf)converted=await convertMapPdfInBrowser(pdfFile,message);const data=new FormData(form);if(converted){data.set("map_image",converted.file,converted.file.name);data.set("browser_converted","1");data.set("conversion_dpi",String(converted.dpi));message.textContent=`Uploading PDF and ${converted.width.toLocaleString()} × ${converted.height.toLocaleString()} map image…`;}else message.textContent="Uploading and saving map…";const result=await api("save_digital_map",data,true);await loadDigitalMaps(result.map_id);resetDigitalMapEditor();message.textContent=result.converted?`PDF converted with ${result.conversion_method}: ${Number(result.original_width).toLocaleString()} × ${Number(result.original_height).toLocaleString()} pixels. It is ready in Plot Finder.`:"Digital map saved.";}catch(error){message.textContent=error.message;}finally{button.disabled=false;}});
-document.querySelector("#adminDigitalMapList").addEventListener("click",async event=>{const id=Number(event.target.dataset.id),map=adminState.digitalMaps.find(item=>Number(item.map_id)===id),message=document.querySelector("#digitalMapMessage");if(event.target.classList.contains("convert-digital-map")&&map){if(!confirm(`Convert “${map.name}” PDF into a new high-resolution map image?`))return;event.target.disabled=true;try{message.textContent="Downloading the saved PDF…";const response=await fetch(map.original_pdf,{credentials:"same-origin"});if(!response.ok)throw new Error("The saved PDF could not be opened.");const pdfBlob=await response.blob(),pdfFile=new File([pdfBlob],`${map.name}.pdf`,{type:"application/pdf"}),converted=await convertMapPdfInBrowser(pdfFile,message),data=new FormData();data.set("map_id",String(map.map_id));data.set("name",map.name);if(Number(map.is_active))data.set("is_active","1");data.set("map_image",converted.file,converted.file.name);data.set("browser_converted","1");data.set("conversion_dpi",String(converted.dpi));message.textContent="Uploading the generated high-resolution image…";const result=await api("save_digital_map",data,true);await loadDigitalMaps(id);message.textContent=`Conversion complete: ${Number(result.original_width).toLocaleString()} × ${Number(result.original_height).toLocaleString()} pixels. The map is ready in Plot Finder.`;}catch(error){message.textContent=error.message;}finally{event.target.disabled=false;}return;}if(event.target.classList.contains("edit-digital-map")&&map)editDigitalMap(map);if(event.target.classList.contains("delete-digital-map")&&map){if(!confirm(`Delete “${map.name}” and its block list?`))return;try{await api("delete_digital_map",{map_id:id});await loadDigitalMaps();resetDigitalMapEditor();}catch(error){alert(error.message);}}});
+document.querySelector("#digitalMapForm").addEventListener("submit",async event=>{event.preventDefault();const message=document.querySelector("#digitalMapMessage"),data=new FormData(event.currentTarget);message.textContent="Uploading and saving map…";try{const result=await api("save_digital_map",data,true);await loadDigitalMaps(result.map_id);resetDigitalMapEditor();message.textContent="Digital map saved.";}catch(error){message.textContent=error.message;}});
+document.querySelector("#adminDigitalMapList").addEventListener("click",async event=>{const id=Number(event.target.dataset.id),map=adminState.digitalMaps.find(item=>Number(item.map_id)===id);if(event.target.classList.contains("edit-digital-map")&&map)editDigitalMap(map);if(event.target.classList.contains("delete-digital-map")&&map){if(!confirm(`Delete “${map.name}” and its block list?`))return;try{await api("delete_digital_map",{map_id:id});await loadDigitalMaps();resetDigitalMapEditor();}catch(error){alert(error.message);}}});
 document.querySelector("#digitalMapBlockForm").addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements,message=document.querySelector("#digitalMapBlockMessage"),mapId=Number(f.map_id.value);message.textContent="Adding block…";try{await api("save_digital_map_block",{map_id:mapId,name:f.name.value.trim()});f.name.value="";await loadDigitalMaps(mapId);message.textContent="Block added manually.";}catch(error){message.textContent=error.message;}});
 document.querySelector("#digitalMapBlockList").addEventListener("click",async event=>{if(!event.target.classList.contains("delete-digital-map-block"))return;const mapId=Number(document.querySelector("#digitalMapBlockMap").value);if(!confirm("Delete this block name?"))return;try{await api("delete_digital_map_block",{block_id:Number(event.target.dataset.id)});await loadDigitalMaps(mapId);}catch(error){alert(error.message);}});
 
@@ -1039,6 +994,6 @@ document.querySelectorAll(".admin-tab").forEach((tab) => tab.addEventListener("c
   const label=tab.childNodes[0]?.textContent?.trim()||tab.textContent.trim();document.querySelector(".dashboard-topbar h1").textContent=label;
 }));
 
-document.querySelectorAll(".admin-submenu button").forEach(button=>button.addEventListener("click",()=>{const tab=[...document.querySelectorAll(".admin-tab")].find(item=>item.dataset.workspace===button.dataset.workspace);tab?.click();document.querySelectorAll(".admin-submenu button").forEach(item=>item.classList.toggle("active",item===button));setAdminSubview(button.dataset.workspace,button.dataset.subview);const reset={property:resetEditor,project:resetProjectEditor,map:resetDigitalMapEditor,popup:resetHomePopupEditor,agent:resetAgentEditor,address:resetOfficeAddressEditor,user:resetLoginUserEditor}[button.dataset.reset];reset?.();setTimeout(()=>document.getElementById(button.dataset.target)?.scrollIntoView({behavior:"smooth",block:"start"}),80);}));
+document.querySelectorAll(".admin-submenu button").forEach(button=>button.addEventListener("click",()=>{const tab=[...document.querySelectorAll(".admin-tab")].find(item=>item.dataset.workspace===button.dataset.workspace);tab?.click();document.querySelectorAll(".admin-submenu button").forEach(item=>item.classList.toggle("active",item===button));setAdminSubview(button.dataset.workspace,button.dataset.subview);const reset={property:resetEditor,project:resetProjectEditor,map:resetDigitalMapEditor,agent:resetAgentEditor,address:resetOfficeAddressEditor,user:resetLoginUserEditor}[button.dataset.reset];reset?.();setTimeout(()=>document.getElementById(button.dataset.target)?.scrollIntoView({behavior:"smooth",block:"start"}),80);}));
 
 [["listingCount","dashPropertyCount"],["projectCount","dashProjectCount"],["submissionCount","dashSubmissionCount"],["loginUserCount","dashUserCount"]].forEach(([sourceId,targetId])=>{const source=document.getElementById(sourceId),target=document.getElementById(targetId);if(!source||!target)return;const sync=()=>{target.textContent=(source.textContent.match(/\d+/)||["0"])[0];};new MutationObserver(sync).observe(source,{childList:true,characterData:true,subtree:true});sync();});

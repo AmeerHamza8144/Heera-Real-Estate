@@ -1,5 +1,15 @@
 # Havenly Real Estate Website
 
+## Advanced property search
+
+Visitors can filter public properties by Project, Block, Size, minimum/maximum Price, Property Type, Facing, Availability, and whether a Payment Plan is available. Administrators link a property to an optional project from the Property editor; existing databases can import `advanced-search-migration.sql` once.
+
+## Search engine optimization
+
+The public website includes dynamic titles and descriptions, Open Graph/Twitter previews, stable property and project slugs, PHP server-rendered detail pages, JSON-LD, visible breadcrumbs, location landing pages, database-driven `sitemap.xml`, dynamic `robots.txt`, internal location links, and automatic WebP optimization for future image uploads. Google Search Console verification and GA4 use the environment variables documented in `.env.example` and `INSTALLATION.md`.
+
+Friendly URLs use `/property/{slug}`, `/project/{slug}`, and `/location/{slug}`. Existing numeric detail links redirect to their canonical slug URL. Existing installations should import `seo-migration.sql` once; slug values and unique indexes are completed automatically by the application.
+
 This is a responsive real-estate website with an agent login and a PHP/MySQL admin panel. Agents can add, edit, delete, and publish sale or rental listings, set prices, and add image, video, or external-tour links. Uploaded files are stored in `uploads/`.
 
 ## Start it with XAMPP
@@ -37,7 +47,7 @@ The main navigation includes **PLOT FINDER**. The supplied Phase 2 map uses the 
 
 Admin Dashboard includes grouped submenus for every manager. Under **Digital Maps**, use **Add Map** to upload another high-resolution image, optional source PDF and optional normalized plot-index JSON. Use **Manage Blocks** to add any number of block names to the selected map. Blocks are never inferred from the map image or PDF.
 
-A map can be created from a PDF or a manually supplied image. When an administrator uploads a PDF, the bundled Mozilla PDF.js files in `vendor/pdfjs/` rasterize page 1 to a high-resolution JPG in the browser. `api.php?action=save_digital_map` receives the original PDF and generated JPG together, validates them, and saves the image path and exact dimensions in `digital_maps`, so the map immediately uses the interactive Plot Finder canvas. No Imagick, Poppler or Ghostscript installation is required; those remain optional server-side fallbacks. Existing PDF-only records have a **Convert PDF** action that uses the same browser converter. Automatic plot-number search becomes available after an index JSON is uploaded. `maps/plot-index-example.json` documents the required record format.
+A map can be published without an index and remains viewable. Automatic plot-number search on that map becomes available after an index JSON is uploaded. `maps/plot-index-example.json` documents the required record format. A record's optional `block` value should match an Admin-added block if block-filtered results are required.
 
 API endpoints:
 
@@ -70,7 +80,7 @@ The homepage **Looking for** filter includes **Land**. Property cards show three
 
 ## Multilingual property assistant
 
-The public pages include a free built-in chatbot (`chatbot.js` and `chatbot.css`). It supports English, Urdu, and Roman Urdu, asks for the wanted property type and size, searches only live available properties, displays full result details with property-page links, and displays published dealer/agent information. Callback requests and the visitor's recent search are saved in the existing `enquiries` table through `api.php?action=chat_lead`. Admins can review them under **Chat Messages**, call or WhatsApp the visitor, and mark each request New, Contacted or Closed. No external AI service or API key is required.
+The public pages include a free built-in chatbot (`chatbot.js` and `chatbot.css`). It supports English, Urdu, and Roman Urdu, searches the live property catalogue, displays published dealer/agent information, and saves callback requests in the existing `enquiries` table through `api.php?action=chat_lead`. No external AI service or API key is required.
 
 ## Client property submissions
 
@@ -87,6 +97,10 @@ The home gallery uses `gallery-compact.css` to reduce its section spacing and im
 The home-page hero directly below the navigation uses `images/al-rehman-garden-hero.png`. `hero-background.css` uses `background-size: contain` so the complete image remains visible without cropping, with a dark background filling any unused space.
 
 Structured project payment plans support an optional `other_payment` amount. It is editable in the project admin form, stored in the existing payment-plan JSON, and displayed as the **Other Payment** column on the public project page.
+
+The payment-plan editor also stores total monthly installments, one monthly installment amount, total half-yearly installments, one half-yearly installment amount, and optional discount/preferred-location percentages. Public project pages show a live calculator below their payment-plan tables. `installment-calculator.html` provides the same calculator as a standalone feature and loads published plans from the API; visitors can adjust figures and copy the completed calculation. Because these values are stored in the existing project payment-plan JSON, no database migration is required.
+
+The shared public navigation contains a **Features** submenu for Plot Finder and Installment Calculator. **Contact** contains Contact Us and Agents. Both dropdowns use the same desktop and mobile menu behavior on every public page.
 
 Each payment-plan row also stores a `plan_name`. Rows with the same plan name are shown together, while different plan names are rendered as separate tables on the same project page. Existing rows without a plan name remain supported under the default **Payment Plans** heading.
 
