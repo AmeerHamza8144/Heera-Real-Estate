@@ -74,6 +74,12 @@ let properties = [
   }
 ];
 
+function listingTypeLabel(type) {
+  if (type === "rent") return "For rent";
+  if (type === "installment") return "On Installments";
+  return "For sale";
+}
+
 function extractPaymentPlanNames(rawPlans) {
   try {
     const plans = Array.isArray(rawPlans) ? rawPlans : JSON.parse(String(rawPlans || "[]"));
@@ -90,7 +96,7 @@ async function loadProperties() {
       properties = data.map((property) => ({
         id: Number(property.property_id),
         slug: property.slug || "",
-        status: property.listing_type === "rent" ? "For rent" : "For sale",
+        status: listingTypeLabel(property.listing_type),
         listingType: property.listing_type,
         availability: property.status || "available",
         type: property.property_type,
@@ -117,7 +123,8 @@ async function loadProperties() {
         ,projectPlanName: property.project_plan_name || ""
         ,blockName: property.block_name || ""
         ,hasPaymentPlan: Number(property.has_payment_plan || 0) === 1
-        ,paymentPlanNames: extractPaymentPlanNames(property.project_payment_plans)
+        ,selectedPaymentPlan: property.selected_payment_plan || null
+        ,paymentPlanNames: property.selected_payment_plan ? [property.selected_payment_plan.plan_name || "Payment Plan"] : extractPaymentPlanNames(property.project_payment_plans)
       }));
     }
   } catch (error) {
@@ -128,8 +135,53 @@ async function loadProperties() {
 }
 
 let savedIds = JSON.parse(localStorage.getItem("havenlySaved") || "[]");
+let compareIds = (() => {
+  try { return JSON.parse(localStorage.getItem("heeraCompare") || "[]").map(Number).filter(Number.isFinite).slice(0, 2); }
+  catch { return []; }
+})();
+
+function ensureCompareTray() {
+  let tray = document.querySelector("#propertyCompareTray");
+  if (tray) return tray;
+  tray = document.createElement("div");
+  tray.id = "propertyCompareTray";
+  tray.className = "property-compare-tray";
+  tray.hidden = true;
+  tray.innerHTML = `<span><strong data-compare-count>0</strong>/2 selected for comparison</span><a href="property-comparison.html">Compare now →</a><button type="button" data-clear-compare aria-label="Clear comparison">×</button>`;
+  document.body.appendChild(tray);
+  tray.querySelector("[data-clear-compare]").addEventListener("click", () => { compareIds = []; persistCompare(); });
+  return tray;
+}
+
+function updateCompareUi() {
+  const tray = ensureCompareTray();
+  tray.hidden = compareIds.length === 0;
+  tray.querySelector("[data-compare-count]").textContent = String(compareIds.length);
+  document.querySelectorAll(".compare-property").forEach((button) => {
+    const active = compareIds.includes(Number(button.dataset.id));
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+    button.textContent = active ? "Added ✓" : "Compare";
+  });
+}
+
+function persistCompare() {
+  localStorage.setItem("heeraCompare", JSON.stringify(compareIds));
+  updateCompareUi();
+}
+
+function toggleCompare(id) {
+  if (!Number.isFinite(id) || id < 1) return;
+  if (compareIds.includes(id)) compareIds = compareIds.filter((item) => item !== id);
+  else if (compareIds.length < 2) compareIds.push(id);
+  else {
+    alert("You can compare two properties at a time. Remove one from the comparison or open the comparison page.");
+    return;
+  }
+  persistCompare();
+}
 const requestedListingMode = new URLSearchParams(window.location.search).get("listing");
-let listingMode = ["sale", "rent"].includes(requestedListingMode) ? requestedListingMode : "all";
+let listingMode = ["sale", "rent", "installment"].includes(requestedListingMode) ? requestedListingMode : "all";
 
 async function apiRequest(action, data = null) {
   const options = { method: data ? "POST" : "GET", headers: { Accept: "application/json" } };
@@ -620,7 +672,7 @@ function propertyCardsMarkup(list) {
           <p class="property-address"><a href="${detailUrl}">${escapeHtml(property.address)}</a></p>
           <p class="property-city">${escapeHtml(property.city)}</p>
           ${mediaLinks ? `<div class="property-media-links">${mediaLinks}</div>` : ""}
-          <a class="property-detail-button" href="${detailUrl}">View details</a>
+          <div class="property-card-actions"><a class="property-detail-button" href="${detailUrl}">View details</a><button class="compare-property${compareIds.includes(property.id) ? " active" : ""}" type="button" data-id="${property.id}" aria-pressed="${compareIds.includes(property.id)}">${compareIds.includes(property.id) ? "Added ✓" : "Compare"}</button></div>
           ${specificationItems.length ? `<div class="property-specs">${specificationItems.map((item) => `<span>${item}</span>`).join("")}</div>` : ""}
         </div>
       </article>`;
@@ -632,7 +684,6 @@ let propertyListExpanded = false;
 let currentPropertyList = [];
 
 function propertyPageSize() {
-  if (window.matchMedia("(max-width: 570px)").matches) return 1;
   if (window.matchMedia("(max-width: 820px)").matches) return 2;
   return 3;
 }
@@ -682,6 +733,7 @@ function renderProperties(list = properties) {
     if (pageStatus) pageStatus.textContent = "";
   }
   if (viewAll) viewAll.innerHTML = propertyListExpanded ? 'Show property slider <span>→</span>' : 'View all homes <span>→</span>';
+  updateCompareUi();
 }
 
 function persistSaved() {
@@ -724,7 +776,7 @@ function applyFilters() {
   const availability = elements.availability?.value || "all";
   const paymentPlan = elements.paymentPlan?.value || "all";
   renderProperties(properties.filter((property) =>
-    (listingMode === "all" || property.listingType === listingMode || (listingMode === "rent" && property.status === "For rent") || (listingMode === "sale" && property.status === "For sale")) &&
+    (listingMode === "all" || property.listingType === listingMode || (listingMode === "rent" && property.status === "For rent") || (listingMode === "sale" && property.status === "For sale") || (listingMode === "installment" && property.status === "On Installments")) &&
     (type === "all" || property.type === type) &&
     (!location || `${property.address} ${property.city}`.toLowerCase().includes(location)) &&
     (projectId === "all" || Number(property.projectId) === Number(projectId)) &&
@@ -828,6 +880,11 @@ if (elements.grid) {
       toggleSaved(Number(favoriteButton.dataset.id));
       return;
     }
+    const compareButton = event.target.closest(".compare-property");
+    if (compareButton) {
+      toggleCompare(Number(compareButton.dataset.id));
+      return;
+    }
     const interactiveLink = event.target.closest("a, button, .property-media-links a");
     if (interactiveLink) return;
     const card = event.target.closest(".property-card");
@@ -901,7 +958,7 @@ if (popupElements.form) {
 }
 
 const accountAccess=document.querySelector("#accountAccess"),accountMessage=document.querySelector("#accountMessage");
-function safeAuthReturn(){const destination=new URLSearchParams(location.search).get('return');return destination==='client-form.html'?destination:'';}
+function safeAuthReturn(){const destination=new URLSearchParams(location.search).get('return');return destination==='add-property.html'?destination:'';}
 function setAuthView(view){if(!accountAccess)return;accountAccess.dataset.view=view;accountAccess.querySelectorAll(".account-form").forEach(form=>form.classList.toggle("active",form.dataset.authForm===view));accountAccess.querySelectorAll(".account-tab").forEach(tab=>tab.classList.toggle("active",tab.dataset.authView===view));if(accountMessage){accountMessage.textContent="";accountMessage.classList.remove("success");}accountAccess.querySelector(`.account-form[data-auth-form="${view}"] input`)?.focus();}
 accountAccess?.addEventListener("click",event=>{const button=event.target.closest("[data-auth-view]");if(button)setAuthView(button.dataset.authView);});
 document.querySelector("#clientSignupForm")?.addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget,f=form.elements;if(f.password.value!==f.confirm_password.value){accountMessage.textContent="Passwords do not match.";return;}accountMessage.textContent="Creating account…";try{await apiRequest("client_signup",{full_name:f.full_name.value.trim(),email:f.email.value.trim(),phone:f.phone.value.trim(),password:f.password.value});form.reset();setAuthView("client-login");accountMessage.textContent="Account created. You can now sign in.";accountMessage.classList.add("success");}catch(error){accountMessage.textContent=error.message;}});
@@ -919,12 +976,35 @@ document.querySelectorAll("[data-listing]").forEach((link) => link.addEventListe
   applyFilters();
 }));
 
-document.querySelector("#contactForm").addEventListener("submit", (event) => {
+document.querySelector("#contactForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const firstName = form.elements.name.value.trim().split(" ")[0];
-  document.querySelector("#formSuccess").textContent = `Thank you, ${firstName}! We’ll be in touch shortly.`;
-  form.reset();
+  const status = document.querySelector("#formSuccess");
+  const firstName = form.elements.name.value.trim().split(" ")[0] || "there";
+  const params = new URLSearchParams(window.location.search);
+  status.textContent = "Sending your enquiry…";
+  try {
+    await apiRequest("crm_lead", {
+      name: form.elements.name.value.trim(),
+      email: form.elements.email.value.trim(),
+      phone: form.elements.phone.value.trim(),
+      interest: form.elements.interest.value,
+      budget_max: form.elements.budget_max.value,
+      preferred_location: form.elements.preferred_location.value.trim(),
+      message: form.elements.message.value.trim(),
+      website: form.elements.website.value,
+      source: "website_contact",
+      utm_source: params.get("utm_source") || "",
+      utm_medium: params.get("utm_medium") || "",
+      utm_campaign: params.get("utm_campaign") || "",
+      landing_page: window.location.href.slice(0, 500),
+      referrer: document.referrer.slice(0, 500)
+    });
+    status.textContent = `Thank you, ${firstName}! Your request is now in our CRM and an agent will follow up shortly.`;
+    form.reset();
+  } catch (error) {
+    status.textContent = error.message || "Your enquiry could not be sent. Please try again.";
+  }
 });
 
 document.querySelector("#year").textContent = new Date().getFullYear();

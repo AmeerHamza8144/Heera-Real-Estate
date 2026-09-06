@@ -111,6 +111,19 @@ function seo_ensure_schema(PDO $pdo): void {
     if (!seo_column_exists($pdo, 'properties', 'project_id')) {
         $pdo->exec('ALTER TABLE properties ADD COLUMN project_id INT UNSIGNED NULL AFTER property_id');
     }
+    if (!seo_column_exists($pdo, 'properties', 'sub_project_id')) {
+        $pdo->exec('ALTER TABLE properties ADD COLUMN sub_project_id INT UNSIGNED NULL AFTER project_id');
+    }
+    $pdo->exec("CREATE TABLE IF NOT EXISTS sub_projects (sub_project_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,project_id INT UNSIGNED NOT NULL,name VARCHAR(180) NOT NULL,slug VARCHAR(190) DEFAULT NULL,description TEXT DEFAULT NULL,status ENUM('published','draft','archived') NOT NULL DEFAULT 'published',sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY uq_sub_project_name(project_id,name),UNIQUE KEY uq_sub_project_slug(slug),INDEX idx_sub_project_project(project_id,status,sort_order)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    if (!seo_column_exists($pdo, 'properties', 'payment_plan_id')) {
+        $pdo->exec('ALTER TABLE properties ADD COLUMN payment_plan_id VARCHAR(80) NULL AFTER project_id');
+    }
+    try {
+        $listingTypeColumn = $pdo->query("SHOW COLUMNS FROM properties LIKE 'listing_type'")->fetch();
+        if ($listingTypeColumn && stripos((string)($listingTypeColumn['Type'] ?? ''), "'installment'") === false) {
+            $pdo->exec("ALTER TABLE properties MODIFY listing_type ENUM('sale','rent','installment') NOT NULL DEFAULT 'sale'");
+        }
+    } catch (Throwable $exception) { }
     if (!seo_index_exists($pdo, 'properties', 'idx_property_project')) {
         $pdo->exec('ALTER TABLE properties ADD INDEX idx_property_project (project_id)');
     }
@@ -149,6 +162,67 @@ function seo_ensure_schema(PDO $pdo): void {
     try{if(!seo_index_exists($pdo,'properties','uq_property_slug'))$pdo->exec('ALTER TABLE properties ADD UNIQUE INDEX uq_property_slug (slug)');}catch(Throwable $e){}
     try{if(!seo_index_exists($pdo,'projects','uq_project_slug'))$pdo->exec('ALTER TABLE projects ADD UNIQUE INDEX uq_project_slug (slug)');}catch(Throwable $e){}
     $completed[$key] = true;
+}
+
+function seo_normalize_payment_plans(array $plans): array {
+    $normalized = [];
+    foreach (array_values($plans) as $index => $plan) {
+        if (!is_array($plan)) continue;
+        $id = trim((string)($plan['plan_id'] ?? ''));
+        if (!preg_match('/^plan_[A-Za-z0-9_-]{8,72}$/', $id)) {
+            $copy = $plan;
+            unset($copy['plan_id']);
+            $encoded = json_encode($copy, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: (string)$index;
+            $id = 'plan_' . substr(hash('sha256', $encoded), 0, 20);
+        }
+        $plan['plan_id'] = $id;
+        $normalized[] = $plan;
+    }
+    return $normalized;
+}
+
+function seo_decode_payment_plans(?string $raw): array {
+    if ($raw === null || trim($raw) === '') return [];
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? seo_normalize_payment_plans($decoded) : [];
+}
+
+function seo_find_payment_plan(?string $raw, ?string $planId): ?array {
+    $planId = trim((string)$planId);
+    if ($planId === '') return null;
+    foreach (seo_decode_payment_plans($raw) as $plan) {
+        if (hash_equals((string)$plan['plan_id'], $planId)) return $plan;
+    }
+    return null;
+}
+
+function seo_payment_plan_record(PDO $pdo, ?string $planId): ?array {
+    $planId = trim((string)$planId);
+    if ($planId === '') return null;
+    try {
+        if (!seo_column_exists($pdo, 'payment_plans', 'sub_project_id')) {
+            try { $pdo->exec('ALTER TABLE payment_plans ADD COLUMN sub_project_id INT UNSIGNED NULL AFTER project_id'); } catch (Throwable $e) {}
+        }
+        $stmt=$pdo->prepare("SELECT pp.payment_plan_id AS plan_id,pp.project_id,pp.sub_project_id,pp.plan_name,pp.size_label,pp.booking_amount,pp.monthly_installment_count,pp.monthly_installment,pp.half_yearly_count,pp.half_yearly_installment,pp.balloting,pp.on_possession,pp.other_payment,pp.total_price,pp.full_payment_discount_percent,pp.half_payment_discount_percent,pp.preferred_location_charge_percent,sp.name AS sub_project_name FROM payment_plans pp LEFT JOIN sub_projects sp ON sp.sub_project_id=pp.sub_project_id WHERE pp.payment_plan_id=? AND pp.is_active=TRUE LIMIT 1");
+        $stmt->execute([$planId]);$row=$stmt->fetch();return $row?:null;
+    } catch (Throwable $e) { return null; }
+}
+
+function seo_project_sub_projects(PDO $pdo, int $projectId): array {
+    try{$stmt=$pdo->prepare("SELECT sub_project_id,project_id,name,slug,description,status,sort_order FROM sub_projects WHERE project_id=? AND status='published' ORDER BY sort_order,name");$stmt->execute([$projectId]);return $stmt->fetchAll();}catch(Throwable $e){return [];}
+}
+
+function seo_project_payment_plans(PDO $pdo, int $projectId): array {
+    try{$stmt=$pdo->prepare("SELECT pp.payment_plan_id AS plan_id,pp.project_id,pp.sub_project_id,pp.plan_name,pp.size_label,pp.booking_amount,pp.monthly_installment_count,pp.monthly_installment,pp.half_yearly_count,pp.half_yearly_installment,pp.balloting,pp.on_possession,pp.other_payment,pp.total_price,pp.full_payment_discount_percent,pp.half_payment_discount_percent,pp.preferred_location_charge_percent,sp.name AS sub_project_name FROM payment_plans pp LEFT JOIN sub_projects sp ON sp.sub_project_id=pp.sub_project_id WHERE pp.project_id=? AND pp.is_active=TRUE ORDER BY pp.sort_order,pp.payment_plan_id");$stmt->execute([$projectId]);return $stmt->fetchAll();}catch(Throwable $e){return [];}
+}
+
+function seo_listing_label(?string $type): string {
+    return match ((string)$type) {
+        'sale' => 'For sale',
+        'rent' => 'For rent',
+        'installment' => 'On Installments',
+        default => ucwords(str_replace(['_', '-'], ' ', (string)$type)),
+    };
 }
 
 function seo_description(?string $value, int $limit = 158): string {
@@ -217,13 +291,15 @@ function seo_fetch_property(PDO $pdo, ?string $slug, int $id = 0): ?array {
     $where = $slug !== null && $slug !== '' ? 'slug=?' : 'property_id=?';
     $value = $slug !== null && $slug !== '' ? $slug : $id;
     $qualifiedWhere = $slug !== null && $slug !== '' ? 'pr.slug=?' : 'pr.property_id=?';
-    $statement = $pdo->prepare("SELECT pr.property_id,pr.project_id,pr.slug,pr.listing_type,pr.property_type,pr.status,pr.title,pr.address_line1,pr.city,pr.state_region,pr.block_name,pr.postal_code,pr.price,pr.bedrooms,pr.bathrooms,pr.area_sqft,pr.description,pr.size_label,pr.property_facing,pr.price_pkr,pr.price_per_marla,pr.publish_start_date,pr.publish_end_date,pr.created_at,pr.updated_at,pj.title AS project_title,pj.plan_name AS project_plan_name,CASE WHEN pj.payment_plans IS NOT NULL AND TRIM(pj.payment_plans) NOT IN ('','[]','null') THEN 1 ELSE 0 END AS has_payment_plan FROM properties pr LEFT JOIN projects pj ON pj.project_id=pr.project_id WHERE {$qualifiedWhere} AND pr.status='available' AND (pr.publish_start_date IS NULL OR pr.publish_start_date<=CURRENT_DATE) AND (pr.publish_end_date IS NULL OR pr.publish_end_date>=CURRENT_DATE) LIMIT 1");
+    $statement = $pdo->prepare("SELECT pr.property_id,pr.project_id,pr.sub_project_id,pr.payment_plan_id,pr.slug,pr.listing_type,pr.property_type,pr.status,pr.title,pr.address_line1,pr.city,pr.state_region,pr.block_name,pr.postal_code,pr.price,pr.bedrooms,pr.bathrooms,pr.area_sqft,pr.description,pr.size_label,pr.property_facing,pr.price_pkr,pr.price_per_marla,pr.publish_start_date,pr.publish_end_date,pr.created_at,pr.updated_at,pj.title AS project_title,COALESCE(sp.name,pj.plan_name) AS project_plan_name,sp.name AS sub_project_name,pj.payment_plans AS project_payment_plans,CASE WHEN pj.payment_plans IS NOT NULL AND TRIM(pj.payment_plans) NOT IN ('','[]','null') THEN 1 ELSE 0 END AS has_payment_plan FROM properties pr LEFT JOIN projects pj ON pj.project_id=pr.project_id LEFT JOIN sub_projects sp ON sp.sub_project_id=pr.sub_project_id WHERE {$qualifiedWhere} AND pr.status='available' AND (pr.publish_start_date IS NULL OR pr.publish_start_date<=CURRENT_DATE) AND (pr.publish_end_date IS NULL OR pr.publish_end_date>=CURRENT_DATE) LIMIT 1");
     $statement->execute([$value]);
     $property = $statement->fetch();
     if (!$property) return null;
     $media = $pdo->prepare('SELECT media_id,media_type,file_path,is_cover,sort_order FROM property_media WHERE property_id=? ORDER BY media_type,is_cover DESC,sort_order,media_id');
     $media->execute([(int)$property['property_id']]);
     $property['media'] = $media->fetchAll();
+    $property['selected_payment_plan'] = seo_payment_plan_record($pdo, $property['payment_plan_id'] ?? null) ?: seo_find_payment_plan($property['project_payment_plans'] ?? null, $property['payment_plan_id'] ?? null);
+    if ($property['selected_payment_plan']) $property['has_payment_plan'] = 1;
     $property['payment_plans'] = [];
     return $property;
 }
@@ -239,8 +315,9 @@ function seo_fetch_project(PDO $pdo, ?string $slug, int $id = 0): ?array {
     $media = $pdo->prepare('SELECT media_id,media_type,file_path,caption,sort_order FROM project_media WHERE project_id=? ORDER BY media_type,sort_order,media_id');
     $media->execute([(int)$project['project_id']]);
     $project['media'] = $media->fetchAll();
-    $plans = json_decode((string)($project['payment_plans'] ?? ''), true);
-    $project['payment_plans'] = is_array($plans) ? $plans : [];
+    $normalizedPlans = seo_project_payment_plans($pdo,(int)$project['project_id']);
+    $project['payment_plans'] = $normalizedPlans ?: seo_decode_payment_plans((string)($project['payment_plans'] ?? ''));
+    $project['sub_projects'] = seo_project_sub_projects($pdo,(int)$project['project_id']);
     return $project;
 }
 

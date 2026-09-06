@@ -1,4 +1,4 @@
-const adminState = { properties: [], projects: [], homeGallery: [], submissions: [], officeAddresses: [], loginUsers: [], digitalMaps: [] };
+const adminState = { properties: [], projects: [], subProjects: [], roles: [], permissions: [], homeGallery: [], submissions: [], officeAddresses: [], loginUsers: [], digitalMaps: [] };
 let adminCsrfToken = "";
 const welcomeScreen = document.querySelector("#welcomeScreen");
 const loginModal = document.querySelector("#loginModal");
@@ -77,15 +77,19 @@ function showDashboard(user) {
   const adminName = document.querySelector("#adminName");
   if (adminName) adminName.textContent = user?.name || user?.email || "Admin";
   saveAdminSession(user);
-  loadProperties();
-  loadProjects();
-  loadHomeGallery();
-  loadAdminPopups();
-  loadAgents();
-  loadOfficeAddresses();
-  loadLoginUsers();
-  loadSubmissions();
-  loadDigitalMaps();
+  const permissions = new Set(user?.permissions || []);
+  const can = (permission) => user?.role === "super_admin" || permissions.has(permission);
+  if (can("projects.view")) loadProjects();
+  if (can("subprojects.view")) loadSubProjects();
+  if (can("properties.view")) loadProperties();
+  if (can("gallery.manage")) loadHomeGallery();
+  if (can("popups.manage")) loadAdminPopups();
+  if (can("agents.view")) loadAgents();
+  if (can("offices.manage")) loadOfficeAddresses();
+  if (can("users.manage")) loadLoginUsers();
+  if (can("roles.manage")) loadRoles();
+  if (can("submissions.view")) loadSubmissions();
+  if (can("maps.view")) loadDigitalMaps();
 }
 
 async function loadSubmissions() {
@@ -163,13 +167,19 @@ document.querySelector('#approveSubmission').addEventListener('click', async () 
 });
 
 async function api(action, data = null, isUpload = false) {
+  if (window.HeeraAdminAPI?.request) {
+    const result = await window.HeeraAdminAPI.request(action, data, isUpload);
+    adminCsrfToken = window.HeeraAdminAPI.getCsrfToken?.() || adminCsrfToken;
+    return result;
+  }
+  // Compatibility fallback for servers that have not deployed Admin API v1 yet.
   if (data && !adminCsrfToken) {
     const tokenResponse = await fetch("api.php?action=csrf", { credentials: "same-origin", headers: { Accept: "application/json" } });
     const tokenResult = await tokenResponse.json().catch(() => ({}));
     if (!tokenResponse.ok || !tokenResult.csrf_token) throw new Error("Could not create a secure session. Refresh the page and try again.");
     adminCsrfToken = tokenResult.csrf_token;
   }
-  const options = { method: data ? "POST" : "GET", headers: { Accept: "application/json" }, credentials: 'same-origin' };
+  const options = { method: data ? "POST" : "GET", headers: { Accept: "application/json" }, credentials: 'same-origin', cache: 'no-store' };
   if (data) options.headers["X-CSRF-Token"] = adminCsrfToken;
   if (data && !isUpload) {
     options.headers["Content-Type"] = "application/json";
@@ -180,6 +190,15 @@ async function api(action, data = null, isUpload = false) {
   const result = await response.json().catch(() => ({ error: "The server returned an invalid response." }));
   if (!response.ok) throw new Error(result.error || "Something went wrong.");
   if (result.csrf_token) adminCsrfToken = result.csrf_token;
+  return result;
+}
+
+async function apiGet(action, params = {}) {
+  if (window.HeeraAdminAPI?.get) return window.HeeraAdminAPI.get(action, params);
+  const query = new URLSearchParams({ action, ...params }).toString();
+  const response = await fetch(`api.php?${query}`, { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
+  const result = await response.json().catch(() => ({ error: "The server returned an invalid response." }));
+  if (!response.ok) throw new Error(result.error || "Something went wrong.");
   return result;
 }
 
@@ -219,17 +238,19 @@ function renderPropertyList() {
     container.innerHTML = '<p class="empty-list">No properties yet. Add your first one using the form.</p>';
     return;
   }
+  const statusClass = (status) => status === "available" ? "badge--success" : status === "pending" ? "badge--warning" : status === "sold" || status === "rented" ? "badge--danger" : "badge--neutral";
   container.innerHTML = adminState.properties.map((property) => {
-    const image = (property.media || []).find((item) => item.media_type === "image")?.file_path || "https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=300&q=80";
+    const image = (property.media || []).find((item) => item.media_type === "image")?.file_path || "images/home-logo.jpg";
     const priceDisplay = formatPricePkr(property);
-    return `<article class="admin-property">
-      <img src="${escapeHtml(image)}" alt="" />
-      <div><h3>${escapeHtml(property.title)}</h3><p>${escapeHtml(property.city)} · ${escapeHtml(property.listing_type)}${property.project_title ? ` · ${escapeHtml(property.project_title)}` : ""}</p><strong>${escapeHtml(priceDisplay)}</strong></div>
+    const filterPrice = Number(property.price_pkr || property.price || 0);
+    const searchText = [property.title, property.city, property.block_name, property.size_label, property.property_type, property.property_facing, property.project_title, property.status].filter(Boolean).join(" ").toLowerCase();
+    return `<article class="admin-property" data-property-id="${Number(property.property_id)}" data-project="${escapeHtml(property.project_title || "")}" data-block="${escapeHtml(property.block_name || "")}" data-size="${escapeHtml(property.size_label || "")}" data-type="${escapeHtml(property.property_type || "")}" data-facing="${escapeHtml(property.property_facing || "")}" data-price="${filterPrice}" data-search="${escapeHtml(searchText)}" tabindex="0" role="button" aria-label="Edit ${escapeHtml(property.title)}">
+      <img src="${escapeHtml(image)}" alt="" loading="lazy" />
+      <div><h3>${escapeHtml(property.title)}</h3><p>${escapeHtml(property.city)}${property.block_name ? ` · ${escapeHtml(property.block_name)}` : ""}${property.project_title ? ` · ${escapeHtml(property.project_title)}` : ""}</p><strong>${escapeHtml(priceDisplay)}</strong> <span class="badge ${statusClass(property.status)}">${escapeHtml(property.status || "")}</span></div>
       <div class="admin-row-actions"><button type="button" class="edit-listing" data-id="${property.property_id}">Edit</button><button type="button" class="delete-listing" data-id="${property.property_id}">Delete</button></div>
     </article>`;
   }).join("");
 }
-
 function updateBedsBathsVisibility() {
   const typeSelect = document.querySelector("#propertyTypeSelect");
   const isLand = typeSelect && typeSelect.value === "Land";
@@ -239,15 +260,19 @@ function updateBedsBathsVisibility() {
   if (bathsField) bathsField.classList.toggle("hidden", isLand);
 }
 
-// Payment plans removed from the admin UI and submission.
+// Property-level payment plans are linked only for On Installments listings.
 
 function populateEditor(property) {
   setAdminSubview("propertiesWorkspace", "form");
   syncPropertyProjectOptions();
   const fields = propertyForm.elements;
-  ["property_id", "project_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
+  ["property_id", "project_id", "sub_project_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
     fields[field].value = property[field] ?? "";
   });
+  const subProjectSelect = document.querySelector("#propertySubProjectSelect");
+  if (subProjectSelect) subProjectSelect.dataset.preferredSubProjectId = String(property.sub_project_id || "");
+  syncPropertySubProjectOptions(property.sub_project_id || "");
+  syncPropertyPaymentPlanOptions(property.payment_plan_id || "");
   fields.images.value = mediaLines(property, "image");
   fields.videos.value = mediaLines(property, "video");
   fields.links.value = mediaLines(property, "link");
@@ -257,7 +282,7 @@ function populateEditor(property) {
   document.querySelector("#cancelEdit").hidden = false;
   propertyMessage.textContent = "";
   updateBedsBathsVisibility();
-  // Payment plans removed
+  // Payment plan linkage is synchronized above.
   document.querySelector(".editor-panel").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -266,6 +291,8 @@ function populateEditor(property) {
 function resetEditor() {
   propertyForm.reset();
   propertyForm.elements.property_id.value = "";
+  syncPropertySubProjectOptions("");
+  syncPropertyPaymentPlanOptions("");
   document.querySelector("#editorEyebrow").textContent = "New listing";
   document.querySelector("#editorTitle").textContent = "Add a property";
   document.querySelector("#saveButton").innerHTML = 'Publish listing <span>→</span>';
@@ -303,11 +330,12 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
 });
 
 document.querySelector("#adminPropertyList").addEventListener("click", async (event) => {
-  const id = Number(event.target.dataset.id);
+  const row = event.target.closest(".admin-property[data-property-id]");
+  const id = Number(event.target.dataset.id || row?.dataset.propertyId);
   if (!id) return;
   const property = adminState.properties.find((item) => Number(item.property_id) === id);
-  if (event.target.classList.contains("edit-listing") && property) populateEditor(property);
-  if (event.target.classList.contains("delete-listing") && property) {
+  if (!property) return;
+  if (event.target.classList.contains("delete-listing")) {
     if (!window.confirm(`Delete “${property.title}”? This cannot be undone.`)) return;
     try {
       await api("delete_property", { property_id: id });
@@ -316,7 +344,16 @@ document.querySelector("#adminPropertyList").addEventListener("click", async (ev
     } catch (error) {
       window.alert(error.message);
     }
+    return;
   }
+  if (event.target.classList.contains("edit-listing") || (row && !event.target.closest("button,a,select,input"))) populateEditor(property);
+});
+
+document.querySelector("#adminPropertyList").addEventListener("keydown", (event) => {
+  if (!['Enter', ' '].includes(event.key) || event.target.closest('button,a,select,input')) return;
+  const row = event.target.closest(".admin-property[data-property-id]");
+  const property = adminState.properties.find((item) => Number(item.property_id) === Number(row?.dataset.propertyId));
+  if (property) { event.preventDefault(); populateEditor(property); }
 });
 
 document.querySelector("#cancelEdit").addEventListener("click", () => { resetEditor(); setAdminSubview("propertiesWorkspace", "list"); });
@@ -324,17 +361,23 @@ document.querySelector("#cancelEdit").addEventListener("click", () => { resetEdi
 // Verify session with server on load. If not authenticated, redirect to main page where login resides.
 ;(async function initAdmin() {
   try {
-    const session = await api('session');
+    const session = window.HeeraAdminAPI?.bootstrap ? await window.HeeraAdminAPI.bootstrap() : await api('session');
+    if (session?.csrf_token) {
+      adminCsrfToken = session.csrf_token;
+      window.HeeraAdminAPI?.setCsrfToken?.(session.csrf_token);
+    }
     if (session && session.authenticated && session.user) {
       showDashboard(session.user);
+      window.__HEERA_ADMIN_BOOTSTRAP__ = session;
+      window.dispatchEvent(new CustomEvent('heera:admin-ready', { detail: session }));
     } else {
-      // not authenticated — send user to main page where login UI is available
       window.location.href = 'index.html#admin-login';
       return;
     }
   } catch (err) {
     const msgEl = document.querySelector('#propertyMessage');
-    if (msgEl) msgEl.textContent = 'Unable to verify session: ' + (err.message || err);
+    if (msgEl) msgEl.textContent = 'Unable to connect to the Admin API: ' + (err.message || err);
+    window.dispatchEvent(new CustomEvent('heera:admin-api-error', { detail: { message: err.message || String(err) } }));
     return;
   }
 })();
@@ -346,6 +389,7 @@ propertyForm.addEventListener("submit", async (event) => {
   ["property_id", "project_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
     body[field] = fields[field] ? fields[field].value.trim() : "";
   });
+  body.payment_plan_id = fields.payment_plan_id ? fields.payment_plan_id.value.trim() : "";
   body.media = { images: splitUrls(fields.images.value), videos: splitUrls(fields.videos.value), links: splitUrls(fields.links.value) };
   propertyMessage.classList.remove("error");
   propertyMessage.textContent = "Saving listing…";
@@ -388,8 +432,12 @@ document.querySelector("#mediaUpload").addEventListener("change", async (event) 
 async function loadProjects() {
   try {
     adminState.projects = await api("admin_projects");
+    propertyPlanCache.clear();
     renderProjectList();
     syncPropertyProjectOptions();
+    syncSubProjectProjectOptions();
+    syncPropertySubProjectOptions(null);
+    syncPropertyPaymentPlanOptions(null);
   } catch (error) {
     document.querySelector("#projectMessage").textContent = error.message;
     document.querySelector("#projectMessage").classList.add("error");
@@ -401,31 +449,203 @@ function syncPropertyProjectOptions() {
   if (!select) return;
   const selected = select.value;
   const options = adminState.projects.map((project) => {
-    const label = `${project.title}${project.plan_name ? ` — ${project.plan_name}` : ""}${project.status !== "published" ? " (Draft)" : ""}`;
+    const label = `${project.title}${project.status !== "published" ? " (Draft)" : ""}`;
     return `<option value="${Number(project.project_id)}">${escapeHtml(label)}</option>`;
   }).join("");
   select.innerHTML = `<option value="">No linked project</option>${options}`;
   if ([...select.options].some((option) => option.value === selected)) select.value = selected;
 }
 
+async function loadSubProjects(projectId = "") {
+  try {
+    const params = projectId ? { project_id: String(projectId) } : {};
+    adminState.subProjects = await apiGet("admin_sub_projects", params);
+    renderSubProjects();
+    syncSubProjectProjectOptions();
+    syncPropertySubProjectOptions(null);
+  } catch (error) {
+    const message = document.querySelector("#subProjectMessage");
+    if (message) { message.textContent = error.message; message.classList.add("error"); }
+  }
+}
+
+function subProjectsForProject(projectId) {
+  return (adminState.subProjects || []).filter(item => Number(item.project_id) === Number(projectId));
+}
+
+function syncSubProjectProjectOptions() {
+  const selects = [document.querySelector("#subProjectParentProject"), document.querySelector("#subProjectProjectFilter")].filter(Boolean);
+  selects.forEach(select => {
+    const selected = select.value;
+    const first = select.id === "subProjectProjectFilter" ? '<option value="">All projects</option>' : '<option value="">Choose project</option>';
+    select.innerHTML = first + adminState.projects.map(project => `<option value="${Number(project.project_id)}">${escapeHtml(project.title)}${project.status !== "published" ? " (Draft)" : ""}</option>`).join("");
+    if ([...select.options].some(option => option.value === selected)) select.value = selected;
+  });
+}
+
+function renderSubProjects() {
+  const list = document.querySelector("#adminSubProjectList");
+  if (!list) return;
+  const filter = document.querySelector("#subProjectProjectFilter")?.value || "";
+  const items = filter ? adminState.subProjects.filter(item => String(item.project_id) === filter) : adminState.subProjects;
+  const count = document.querySelector("#subProjectCount");
+  if (count) count.textContent = `${items.length} sub-project${items.length === 1 ? "" : "s"}`;
+  if (!items.length) { list.innerHTML = '<p class="empty-list">No sub-projects found. Create phases, blocks or plans under a parent project.</p>'; return; }
+  list.innerHTML = items.map(item => `<article class="admin-property" data-sub-project-id="${Number(item.sub_project_id)}"><span class="login-user-avatar">SP</span><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(item.project_title || "Project")} · ${escapeHtml(item.status)}</p><strong>${Number(item.property_count || 0)} properties · ${Number(item.payment_plan_count || 0)} payment plans</strong></div><div class="admin-row-actions"><button class="edit-sub-project" data-id="${Number(item.sub_project_id)}" type="button">Edit</button><button class="delete-sub-project" data-id="${Number(item.sub_project_id)}" type="button">Delete</button></div></article>`).join("");
+}
+
+function resetSubProjectEditor() {
+  const form = document.querySelector("#subProjectForm"); if (!form) return;
+  form.reset(); form.elements.sub_project_id.value = ""; form.elements.sort_order.value = "0";
+  document.querySelector("#subProjectEditorTitle").textContent = "Add a sub-project";
+  document.querySelector("#cancelSubProjectEdit").hidden = true;
+  document.querySelector("#subProjectMessage").textContent = "";
+}
+
+function populateSubProjectEditor(item) {
+  setAdminSubview("subProjectsWorkspace", "form");
+  const form = document.querySelector("#subProjectForm");
+  ["sub_project_id","project_id","name","status","sort_order","description"].forEach(name => { form.elements[name].value = item[name] ?? ""; });
+  document.querySelector("#subProjectEditorTitle").textContent = `Edit: ${item.name}`;
+  document.querySelector("#cancelSubProjectEdit").hidden = false;
+  document.querySelector("#subProjectMessage").textContent = "";
+}
+
+function syncPropertySubProjectOptions(preferredSubProjectId = null) {
+  const projectSelect = document.querySelector("#propertyProjectSelect");
+  const select = document.querySelector("#propertySubProjectSelect");
+  const hint = document.querySelector("#propertySubProjectHint");
+  if (!projectSelect || !select) return;
+  const projectId = projectSelect.value;
+  const preferred = preferredSubProjectId !== null ? String(preferredSubProjectId || "") : (select.dataset.preferredSubProjectId || select.value);
+  if (!projectId) {
+    select.innerHTML = '<option value="">No sub-project</option>'; select.disabled = true;
+    if (hint) hint.textContent = "Choose a linked project first.";
+    return;
+  }
+  const items = subProjectsForProject(projectId);
+  select.disabled = false;
+  select.innerHTML = `<option value="">No sub-project</option>${items.map(item => `<option value="${Number(item.sub_project_id)}">${escapeHtml(item.name)}${item.status !== "published" ? " (" + escapeHtml(item.status) + ")" : ""}</option>`).join("")}`;
+  if ([...select.options].some(option => option.value === preferred)) { select.value = preferred; delete select.dataset.preferredSubProjectId; }
+  if (hint) hint.textContent = items.length ? "Optional: link this property directly to a phase, block or plan." : "No sub-projects exist for this project yet. Add one from More → Sub-Projects.";
+}
+
+function propertyPaymentPlanLabel(plan) {
+  const parts = [plan?.plan_name || "Payment Plan", plan?.size_label || ""].filter(Boolean);
+  if (plan?.total_price) parts.push(`PKR ${Number(plan.total_price).toLocaleString("en-PK")}`);
+  return parts.join(" — ");
+}
+
+const propertyPlanCache = new Map();
+function renderPropertyPaymentPlanPreview(plan) {
+  const preview = document.querySelector("#propertyPaymentPlanPreview");
+  if (!preview) return;
+  if (!plan) { preview.hidden = true; preview.innerHTML = ""; return; }
+  const pkr = (value) => value ? `PKR ${Number(value).toLocaleString("en-PK")}` : "—";
+  preview.hidden = false;
+  preview.innerHTML = `
+    <div><span>Total price</span><strong>${escapeHtml(pkr(plan.total_price))}</strong></div>
+    <div><span>Booking</span><strong>${escapeHtml(pkr(plan.booking_amount))}</strong></div>
+    <div><span>Monthly</span><strong>${escapeHtml(plan.monthly_installment_count || "0")} × ${escapeHtml(pkr(plan.monthly_installment))}</strong></div>
+    <div><span>Half-yearly</span><strong>${escapeHtml(plan.half_yearly_count || "0")} × ${escapeHtml(pkr(plan.half_yearly_installment))}</strong></div>
+    <div><span>Possession</span><strong>${escapeHtml(pkr(plan.on_possession))}</strong></div>
+    <div><span>Plan</span><strong>${escapeHtml(plan.plan_name || "Payment Plan")}${plan.size_label ? ` · ${escapeHtml(plan.size_label)}` : ""}</strong></div>`;
+}
+
+async function fetchPropertyPaymentPlans(projectId, subProjectId = "") {
+  const key = `${String(projectId || "")}:${String(subProjectId || "")}`;
+  if (!projectId) return [];
+  if (propertyPlanCache.has(key)) return propertyPlanCache.get(key);
+  let result;
+  if (window.HeeraAdminAPI?.get) {
+    result = await window.HeeraAdminAPI.get("admin_payment_plans", { project_id: String(projectId), ...(subProjectId ? { sub_project_id: String(subProjectId) } : {}) });
+  } else {
+    const response = await fetch(`api.php?action=admin_payment_plans&project_id=${encodeURIComponent(String(projectId))}${subProjectId ? `&sub_project_id=${encodeURIComponent(String(subProjectId))}` : ""}`, { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
+    result = await response.json().catch(() => ({ error: "Invalid payment plan response." }));
+    if (!response.ok) throw new Error(result.error || "Payment plans could not be loaded.");
+  }
+  const plans = Array.isArray(result) ? result : [];
+  propertyPlanCache.set(key, plans);
+  return plans;
+}
+
+async function syncPropertyPaymentPlanOptions(preferredPlanId = null) {
+  const typeSelect = document.querySelector("#propertyListingType");
+  const projectSelect = document.querySelector("#propertyProjectSelect");
+  const planSelect = document.querySelector("#propertyPaymentPlanSelect");
+  const wrapper = document.querySelector("#propertyPaymentPlanLink");
+  const hint = document.querySelector("#propertyPaymentPlanHint");
+  if (!typeSelect || !projectSelect || !planSelect || !wrapper) return;
+  const isInstallment = typeSelect.value === "installment";
+  wrapper.hidden = !isInstallment;
+  renderPropertyPaymentPlanPreview(null);
+  if (!isInstallment) {
+    planSelect.innerHTML = '<option value="">No payment plan connected</option>';
+    planSelect.value = "";
+    planSelect.disabled = true;
+    return;
+  }
+  const currentValue = preferredPlanId !== null ? String(preferredPlanId || "") : planSelect.value;
+  const projectId = projectSelect.value;
+  const subProjectId = document.querySelector("#propertySubProjectSelect")?.value || "";
+  if (!projectId) {
+    planSelect.innerHTML = '<option value="">Choose a project first</option>';
+    planSelect.disabled = true;
+    if (hint) hint.textContent = "Step 1: choose the linked project above. Step 2: select a payment plan here (optional).";
+    return;
+  }
+  planSelect.innerHTML = '<option value="">Loading payment plans…</option>';
+  planSelect.disabled = true;
+  if (hint) hint.textContent = "Loading saved payment plans from the API…";
+  try {
+    const plans = await fetchPropertyPaymentPlans(projectId, subProjectId);
+    if (!plans.length) {
+      planSelect.innerHTML = '<option value="">No payment plans added to this project</option>';
+      if (hint) hint.textContent = "This project has no structured payment plans yet. Add one in Projects → Edit Project.";
+      return;
+    }
+    planSelect.disabled = false;
+    planSelect.innerHTML = `<option value="">No payment plan connected (optional)</option>${plans.map((plan) => `<option value="${escapeHtml(plan.plan_id || "")}">${escapeHtml(propertyPaymentPlanLabel(plan))}</option>`).join("")}`;
+    if ([...planSelect.options].some((option) => option.value === currentValue)) planSelect.value = currentValue;
+    if (hint) hint.textContent = "Choose a saved plan if this property should advertise a specific installment schedule.";
+    renderPropertyPaymentPlanPreview(plans.find((plan) => String(plan.plan_id) === planSelect.value) || null);
+    planSelect.onchange = () => renderPropertyPaymentPlanPreview(plans.find((plan) => String(plan.plan_id) === planSelect.value) || null);
+  } catch (error) {
+    planSelect.innerHTML = '<option value="">Payment plans unavailable</option>';
+    if (hint) hint.textContent = error.message;
+  }
+}
+
+document.querySelector("#propertyListingType")?.addEventListener("change", () => syncPropertyPaymentPlanOptions(null));
+document.querySelector("#propertyProjectSelect")?.addEventListener("change", () => { const s=document.querySelector("#propertySubProjectSelect"); if(s) delete s.dataset.preferredSubProjectId; syncPropertySubProjectOptions(null); syncPropertyPaymentPlanOptions(null); });
+document.querySelector("#propertySubProjectSelect")?.addEventListener("change", () => syncPropertyPaymentPlanOptions(null));
+
 function projectMediaLines(project, type) {
   return (project.media || []).filter((media) => media.media_type === type).map((media) => media.file_path).join("\n");
 }
 
 // Project payment plans UI
+function newPaymentPlanId() {
+  if (window.crypto?.randomUUID) return `plan_${window.crypto.randomUUID().replace(/-/g, "")}`;
+  return `plan_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+}
+
 function createProjectPlanRow(planData) {
   const container = document.querySelector("#projectPaymentPlansContainer");
   const index = container.children.length;
   const row = document.createElement("div");
   row.className = "plan-row";
   row.dataset.index = index;
+  const planId = String(planData?.plan_id || newPaymentPlanId());
   row.innerHTML = `
+    <input type="hidden" name="project_plan_id_${index}" value="${escapeHtml(planId)}" />
     <div class="plan-row-header">
       <strong>Plan ${index + 1}</strong>
       <button type="button" class="remove-plan-btn" title="Remove this plan">×</button>
     </div>
     <div class="plan-fields">
       <label class="plan-name-field">Payment Plan Name<input name="project_plan_name_${index}" value="${escapeHtml(planData?.plan_name || "")}" placeholder="e.g. Executive Block Plan" required /></label>
+      <label>Sub-Project (optional)<select name="project_plan_sub_project_${index}"><option value="">Project-level plan</option>${subProjectsForProject(document.querySelector("#projectForm")?.elements?.project_id?.value || 0).map(item => `<option value="${Number(item.sub_project_id)}"${String(planData?.sub_project_id || "") === String(item.sub_project_id) ? " selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}</select></label>
       <label>Size / Type<input name="project_plan_size_label_${index}" value="${escapeHtml(planData?.size_label || "")}" placeholder="3 Marla" /></label>
       <label>Booking<input name="project_plan_booking_${index}" type="number" min="0" value="${escapeHtml(planData?.booking_amount || "")}" placeholder="1000000" /></label>
       <label>Total Monthly Installments<input name="project_plan_monthly_count_${index}" type="number" min="0" step="1" value="${escapeHtml(planData?.monthly_installment_count || "")}" placeholder="42" /></label>
@@ -452,8 +672,8 @@ function reindexProjectPlanRows() {
     row.dataset.index = i;
     const header = row.querySelector(".plan-row-header strong");
     if (header) header.textContent = `Plan ${i + 1}`;
-    const inputs = row.querySelectorAll("input");
-    inputs.forEach((input) => { input.name = input.name.replace(/_\d+$/, `_${i}`); });
+    const controls = row.querySelectorAll("input,select");
+    controls.forEach((control) => { control.name = control.name.replace(/_\d+$/, `_${i}`); });
   });
 }
 
@@ -467,7 +687,9 @@ function getProjectPaymentPlansData() {
     const sizeLabel = row.querySelector(`[name="project_plan_size_label_${i}"]`)?.value?.trim() || "";
     if (!sizeLabel) return;
     plans.push({
+      plan_id: row.querySelector(`[name="project_plan_id_${i}"]`)?.value?.trim() || newPaymentPlanId(),
       plan_name: row.querySelector(`[name="project_plan_name_${i}"]`)?.value?.trim() || "Payment Plans",
+      sub_project_id: row.querySelector(`[name="project_plan_sub_project_${i}"]`)?.value?.trim() || "",
       size_label: sizeLabel,
       booking_amount: row.querySelector(`[name="project_plan_booking_${i}"]`)?.value?.trim() || "",
       monthly_installment_count: row.querySelector(`[name="project_plan_monthly_count_${i}"]`)?.value?.trim() || "",
@@ -498,7 +720,7 @@ function renderProjectList() {
     const image = project.hero_image_url || (project.media || []).find((media) => media.media_type === "gallery")?.file_path || "https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=300&q=80";
     return `<article class="admin-property">
       <img src="${escapeHtml(image)}" alt="" />
-      <div><h3>${escapeHtml(project.title)}</h3><p>${project.plan_name ? `Plan: ${escapeHtml(project.plan_name)} · ` : ""}${escapeHtml(project.location)} · ${escapeHtml(project.status)}</p><strong>${escapeHtml(project.category)}</strong></div>
+      <div><h3>${escapeHtml(project.title)}</h3><p>${escapeHtml(project.location)} · ${escapeHtml(project.status)}</p><strong>${escapeHtml(project.category)} · ${Number(project.sub_projects?.length || 0)} sub-projects</strong></div>
       <div class="admin-row-actions"><button type="button" class="edit-project" data-id="${project.project_id}">Edit</button><button type="button" class="delete-project" data-id="${project.project_id}">Delete</button></div>
     </article>`;
   }).join("");
@@ -903,23 +1125,86 @@ document.querySelector("#officeAddressForm").addEventListener("submit", async (e
   } catch (error) { message.textContent = error.message; message.classList.add("error"); }
 });
 
+document.querySelector("#subProjectProjectFilter")?.addEventListener("change", renderSubProjects);
+document.querySelector("#cancelSubProjectEdit")?.addEventListener("click", () => { resetSubProjectEditor(); setAdminSubview("subProjectsWorkspace", "list"); });
+document.querySelector("#adminSubProjectList")?.addEventListener("click", async event => {
+  const id = Number(event.target.dataset.id || event.target.closest("[data-sub-project-id]")?.dataset.subProjectId);
+  const item = adminState.subProjects.find(entry => Number(entry.sub_project_id) === id);
+  if (!item) return;
+  if (event.target.classList.contains("edit-sub-project")) populateSubProjectEditor(item);
+  if (event.target.classList.contains("delete-sub-project")) {
+    if (!confirm(`Delete sub-project “${item.name}”? Linked properties/payment plans will be kept but unlinked.`)) return;
+    try { await api("delete_sub_project", { sub_project_id: id }); await loadSubProjects(); propertyPlanCache.clear(); resetSubProjectEditor(); }
+    catch (error) { alert(error.message); }
+  }
+});
+document.querySelector("#subProjectForm")?.addEventListener("submit", async event => {
+  event.preventDefault(); const f=event.currentTarget.elements, message=document.querySelector("#subProjectMessage");
+  message.classList.remove("error"); message.textContent="Saving sub-project…";
+  try { await api("save_sub_project", { sub_project_id:f.sub_project_id.value, project_id:f.project_id.value, name:f.name.value.trim(), status:f.status.value, sort_order:f.sort_order.value, description:f.description.value.trim() }); await loadSubProjects(); await loadProjects(); propertyPlanCache.clear(); resetSubProjectEditor(); message.textContent="Sub-project saved."; }
+  catch(error){ message.textContent=error.message; message.classList.add("error"); }
+});
+
+async function loadRoles() {
+  try {
+    const result = await api("admin_roles");
+    adminState.roles = Array.isArray(result?.roles) ? result.roles : [];
+    adminState.permissions = Array.isArray(result?.permissions) ? result.permissions : [];
+    renderRoles(); syncLoginRoleOptions(); renderRolePermissionGrid([]);
+  } catch (error) {
+    const message=document.querySelector("#roleMessage"); if(message){message.textContent=error.message;message.classList.add("error");}
+  }
+}
+function syncLoginRoleOptions(preferred = null) {
+  const select=document.querySelector("#loginUserRoleSelect"); if(!select)return;
+  const selected=preferred!==null?String(preferred||""):select.value;
+  select.innerHTML='<option value="">Choose role</option>'+adminState.roles.map(role=>`<option value="${Number(role.role_id)}">${escapeHtml(role.name)}</option>`).join("");
+  if([...select.options].some(option=>option.value===selected))select.value=selected;
+}
+function renderRoles(){
+  const list=document.querySelector("#adminRoleList");if(!list)return;
+  document.querySelector("#roleCount").textContent=`${adminState.roles.length} role${adminState.roles.length===1?"":"s"}`;
+  if(!adminState.roles.length){list.innerHTML='<p class="empty-list">No roles found.</p>';return;}
+  list.innerHTML=adminState.roles.map(role=>`<article class="admin-property"><span class="login-user-avatar"><i class="ti ti-lock-access"></i></span><div><h3>${escapeHtml(role.name)}</h3><p>${escapeHtml(role.description||role.role_key)}</p><strong>${Number(role.user_count||0)} users · ${role.permissions?.length||0} permissions</strong><div class="role-permission-summary">${(role.permissions||[]).slice(0,6).map(p=>`<span class="role-permission-chip">${escapeHtml(p)}</span>`).join("")}${(role.permissions||[]).length>6?`<span class="role-permission-chip">+${(role.permissions||[]).length-6}</span>`:""}</div></div><div class="admin-row-actions"><button class="edit-role" data-id="${Number(role.role_id)}" type="button">Edit</button>${Number(role.is_system)?"":`<button class="delete-role" data-id="${Number(role.role_id)}" type="button">Delete</button>`}</div></article>`).join("");
+}
+function renderRolePermissionGrid(selected=[]){
+  const grid=document.querySelector("#rolePermissionGrid");if(!grid)return;const chosen=new Set(selected||[]);const groups={};
+  adminState.permissions.forEach(permission=>{(groups[permission.module_name]??=[]).push(permission);});
+  grid.innerHTML=Object.entries(groups).map(([module,permissions])=>`<section class="permission-module"><h4>${escapeHtml(module)}</h4>${permissions.map(permission=>`<label class="permission-check"><input type="checkbox" name="permissions" value="${escapeHtml(permission.permission_key)}"${chosen.has(permission.permission_key)?" checked":""}><span><strong>${escapeHtml(permission.label)}</strong><br><small>${escapeHtml(permission.permission_key)}</small></span></label>`).join("")}</section>`).join("");
+}
+function resetRoleEditor(){const form=document.querySelector("#roleForm");if(!form)return;form.reset();form.elements.role_id.value="";document.querySelector("#roleEditorTitle").textContent="Create a role";document.querySelector("#cancelRoleEdit").hidden=true;renderRolePermissionGrid([]);document.querySelector("#roleMessage").textContent="";}
+function populateRoleEditor(role){const form=document.querySelector("#roleForm");form.elements.role_id.value=role.role_id;form.elements.name.value=role.name||"";form.elements.role_key.value=role.role_key||"";form.elements.description.value=role.description||"";document.querySelector("#roleEditorTitle").textContent=`Edit: ${role.name}`;document.querySelector("#cancelRoleEdit").hidden=false;renderRolePermissionGrid(role.permissions||[]);}
+document.querySelector("#cancelRoleEdit")?.addEventListener("click",resetRoleEditor);
+document.querySelector("#adminRoleList")?.addEventListener("click",async event=>{const id=Number(event.target.dataset.id),role=adminState.roles.find(r=>Number(r.role_id)===id);if(!role)return;if(event.target.classList.contains("edit-role"))populateRoleEditor(role);if(event.target.classList.contains("delete-role")){if(!confirm(`Delete role “${role.name}”?`))return;try{await api("delete_role",{role_id:id});await loadRoles();resetRoleEditor();}catch(error){alert(error.message);}}});
+document.querySelector("#roleForm")?.addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements,message=document.querySelector("#roleMessage");const permissions=[...event.currentTarget.querySelectorAll('input[name="permissions"]:checked')].map(input=>input.value);message.classList.remove("error");message.textContent="Saving role…";try{await api("save_role",{role_id:f.role_id.value,name:f.name.value.trim(),role_key:f.role_key.value.trim(),description:f.description.value.trim(),permissions});await loadRoles();resetRoleEditor();message.textContent="Role permissions saved.";}catch(error){message.textContent=error.message;message.classList.add("error");}});
+
 async function loadLoginUsers() {
-  try { adminState.loginUsers = await api("admin_login_users"); renderLoginUsers(); }
+  try {
+    adminState.loginUsers = await api("admin_login_users");
+    try {
+      const options = await api("admin_role_options");
+      if (Array.isArray(options) && options.length) {
+        const fullRoles = new Map((adminState.roles || []).map(role => [String(role.role_id), role]));
+        adminState.roles = options.map(role => fullRoles.get(String(role.role_id)) || role);
+      }
+    } catch (_) { /* role options are convenience data; user list can still render */ }
+    renderLoginUsers(); syncLoginRoleOptions();
+  }
   catch (error) { document.querySelector("#loginUserMessage").textContent = error.message; }
 }
 function renderLoginUsers() {
   const list=document.querySelector("#adminLoginUserList"), items=adminState.loginUsers||[];
   document.querySelector("#loginUserCount").textContent=`${items.length} user${items.length===1?"":"s"}`;
   if(!items.length){list.innerHTML='<p class="empty-list">No login users found.</p>';return;}
-  list.innerHTML=items.map(item=>`<article class="admin-property login-user-item"><span class="login-user-avatar">${escapeHtml((item.full_name||"U").charAt(0).toUpperCase())}</span><div><h3>${escapeHtml(item.full_name)}</h3><p>${escapeHtml(item.email||item.phone||item.username||"")}</p><strong>${escapeHtml(item.user_type)} · ${Number(item.is_active)?"Active":"Disabled"}</strong></div><div class="admin-row-actions"><button class="edit-login-user" data-type="${item.user_type}" data-id="${item.user_id}" type="button">Edit / Reset</button><button class="delete-login-user" data-type="${item.user_type}" data-id="${item.user_id}" type="button">Delete</button></div></article>`).join("");
+  list.innerHTML=items.map(item=>`<article class="admin-property login-user-item"><span class="login-user-avatar">${escapeHtml((item.full_name||"U").charAt(0).toUpperCase())}</span><div><h3>${escapeHtml(item.full_name)}</h3><p>${escapeHtml(item.email||item.phone||item.username||"")}</p><strong>${escapeHtml(item.user_type === "admin" ? (item.role_name || "Admin") : "Client")} · ${Number(item.is_active)?"Active":"Disabled"}</strong></div><div class="admin-row-actions"><button class="edit-login-user" data-type="${item.user_type}" data-id="${item.user_id}" type="button">Edit / Reset</button><button class="delete-login-user" data-type="${item.user_type}" data-id="${item.user_id}" type="button">Delete</button></div></article>`).join("");
 }
-function syncLoginUserType(){const form=document.querySelector("#loginUserForm");form.querySelector(".admin-username-field").hidden=form.elements.user_type.value!=="admin";}
+function syncLoginUserType(){const form=document.querySelector("#loginUserForm");const admin=form.elements.user_type.value==="admin";form.querySelector(".admin-username-field").hidden=!admin;form.querySelector(".admin-role-field").hidden=!admin;if(admin)syncLoginRoleOptions(form.elements.role_id?.value||"");}
 function resetLoginUserEditor(){const form=document.querySelector("#loginUserForm");form.reset();form.elements.user_id.value="";form.elements.is_active.checked=true;form.elements.user_type.disabled=false;document.querySelector("#loginUserEditorTitle").textContent="Add a login user";document.querySelector("#saveLoginUserButton").innerHTML='Save user <span>→</span>';document.querySelector("#cancelLoginUserEdit").hidden=true;syncLoginUserType();}
-function populateLoginUserEditor(item){setAdminSubview("loginUsersWorkspace","form");const form=document.querySelector("#loginUserForm");["user_id","user_type","full_name","email","phone","username"].forEach(name=>{form.elements[name].value=item[name]??"";});form.elements.new_password.value="";form.elements.is_active.checked=!!Number(item.is_active);form.elements.user_type.disabled=true;document.querySelector("#loginUserEditorTitle").textContent=`Edit: ${item.full_name}`;document.querySelector("#saveLoginUserButton").innerHTML='Save / reset password <span>→</span>';document.querySelector("#cancelLoginUserEdit").hidden=false;syncLoginUserType();}
+function populateLoginUserEditor(item){setAdminSubview("loginUsersWorkspace","form");const form=document.querySelector("#loginUserForm");["user_id","user_type","full_name","email","phone","username"].forEach(name=>{form.elements[name].value=item[name]??"";});syncLoginRoleOptions(item.role_id||"");form.elements.new_password.value="";form.elements.is_active.checked=!!Number(item.is_active);form.elements.user_type.disabled=true;document.querySelector("#loginUserEditorTitle").textContent=`Edit: ${item.full_name}`;document.querySelector("#saveLoginUserButton").innerHTML='Save / reset password <span>→</span>';document.querySelector("#cancelLoginUserEdit").hidden=false;syncLoginUserType();}
 document.querySelector("#loginUserForm").elements.user_type.addEventListener("change",syncLoginUserType);
 document.querySelector("#cancelLoginUserEdit").addEventListener("click",()=>{resetLoginUserEditor();setAdminSubview("loginUsersWorkspace","list");});
 document.querySelector("#adminLoginUserList").addEventListener("click",async event=>{const id=Number(event.target.dataset.id),type=event.target.dataset.type,item=adminState.loginUsers.find(user=>Number(user.user_id)===id&&user.user_type===type);if(event.target.classList.contains("edit-login-user")&&item)populateLoginUserEditor(item);if(event.target.classList.contains("delete-login-user")&&item){if(!confirm(`Delete login account for “${item.full_name}”?`))return;try{await api("delete_login_user",{user_id:id,user_type:type});await loadLoginUsers();resetLoginUserEditor();}catch(error){alert(error.message);}}});
-document.querySelector("#loginUserForm").addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements,message=document.querySelector("#loginUserMessage");message.classList.remove("error");message.textContent="Saving user…";try{await api("save_login_user",{user_id:f.user_id.value,user_type:f.user_type.value,full_name:f.full_name.value.trim(),email:f.email.value.trim(),phone:f.phone.value.trim(),username:f.username.value.trim(),new_password:f.new_password.value,is_active:f.is_active.checked?1:0});await loadLoginUsers();resetLoginUserEditor();message.textContent="Login user saved securely.";}catch(error){message.textContent=error.message;message.classList.add("error");}});
+document.querySelector("#loginUserForm").addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements,message=document.querySelector("#loginUserMessage");message.classList.remove("error");message.textContent="Saving user…";try{await api("save_login_user",{user_id:f.user_id.value,user_type:f.user_type.value,full_name:f.full_name.value.trim(),email:f.email.value.trim(),phone:f.phone.value.trim(),username:f.username.value.trim(),role_id:f.role_id?.value||"",new_password:f.new_password.value,is_active:f.is_active.checked?1:0});await loadLoginUsers();resetLoginUserEditor();message.textContent="Login user saved securely.";}catch(error){message.textContent=error.message;message.classList.add("error");}});
 
 function renderAdminHomeGallery() {
   const container = document.querySelector("#adminHomeGallery");
@@ -994,6 +1279,6 @@ document.querySelectorAll(".admin-tab").forEach((tab) => tab.addEventListener("c
   const label=tab.childNodes[0]?.textContent?.trim()||tab.textContent.trim();document.querySelector(".dashboard-topbar h1").textContent=label;
 }));
 
-document.querySelectorAll(".admin-submenu button").forEach(button=>button.addEventListener("click",()=>{const tab=[...document.querySelectorAll(".admin-tab")].find(item=>item.dataset.workspace===button.dataset.workspace);tab?.click();document.querySelectorAll(".admin-submenu button").forEach(item=>item.classList.toggle("active",item===button));setAdminSubview(button.dataset.workspace,button.dataset.subview);const reset={property:resetEditor,project:resetProjectEditor,map:resetDigitalMapEditor,agent:resetAgentEditor,address:resetOfficeAddressEditor,user:resetLoginUserEditor}[button.dataset.reset];reset?.();setTimeout(()=>document.getElementById(button.dataset.target)?.scrollIntoView({behavior:"smooth",block:"start"}),80);}));
+document.querySelectorAll(".admin-submenu button").forEach(button=>button.addEventListener("click",()=>{const tab=[...document.querySelectorAll(".admin-tab")].find(item=>item.dataset.workspace===button.dataset.workspace);tab?.click();document.querySelectorAll(".admin-submenu button").forEach(item=>item.classList.toggle("active",item===button));setAdminSubview(button.dataset.workspace,button.dataset.subview);const reset={property:resetEditor,project:resetProjectEditor,map:resetDigitalMapEditor,agent:resetAgentEditor,address:resetOfficeAddressEditor,user:resetLoginUserEditor,subproject:resetSubProjectEditor}[button.dataset.reset];reset?.();setTimeout(()=>document.getElementById(button.dataset.target)?.scrollIntoView({behavior:"smooth",block:"start"}),80);}));
 
 [["listingCount","dashPropertyCount"],["projectCount","dashProjectCount"],["submissionCount","dashSubmissionCount"],["loginUserCount","dashUserCount"]].forEach(([sourceId,targetId])=>{const source=document.getElementById(sourceId),target=document.getElementById(targetId);if(!source||!target)return;const sync=()=>{target.textContent=(source.textContent.match(/\d+/)||["0"])[0];};new MutationObserver(sync).observe(source,{childList:true,characterData:true,subtree:true});sync();});

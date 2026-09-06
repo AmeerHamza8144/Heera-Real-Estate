@@ -14,6 +14,9 @@
   <link rel="stylesheet" href="submission-media.css" />
   <link rel="stylesheet" href="admin-modern.css" />
   <link rel="stylesheet" href="admin-submenus.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <link rel="stylesheet" href="admin-app.css" />
+  <link rel="stylesheet" href="ai-property-advisor.css" />
 </head>
 <body class="admin-body">
   <header class="admin-header">
@@ -26,23 +29,66 @@
 
     <section class="dashboard" id="dashboard" hidden>
       <div class="dashboard-topbar">
-        <div><p class="eyebrow">Admin dashboard</p><h1>Your listings</h1></div>
-        <div class="dashboard-actions"><span id="adminName"></span><button class="button button-dark" id="logoutButton">Log out</button></div>
+        <div class="app-title-group"><p class="eyebrow" id="appTopEyebrow">Admin dashboard</p><h1 id="appPageTitle">Home</h1></div>
+        <div class="dashboard-actions">
+          <span id="adminName"></span>
+          <button class="app-icon-button" id="appGlobalSearch" type="button" aria-label="Search admin"><i class="ti ti-search" aria-hidden="true"></i></button>
+          <button class="app-icon-button" id="appNotifications" type="button" aria-label="Notifications"><i class="ti ti-bell" aria-hidden="true"></i><span class="notification-count" id="appNotificationBadge" hidden>0</span></button>
+          <button class="button button-dark" id="logoutButton">Log out</button>
+        </div>
       </div>
       <div class="admin-tabs" role="tablist" aria-label="Content manager">
         <div class="admin-sidebar-title"><span>HE</span><div><strong>Heera Estate</strong><small>Content management</small></div></div>
         <div class="admin-menu-group open"><button class="admin-tab active" type="button" data-workspace="propertiesWorkspace" data-default-subview="list" role="tab" aria-selected="true">Properties <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="propertiesWorkspace" data-target="adminPropertyList" data-subview="list">View Properties</button><button type="button" data-workspace="propertiesWorkspace" data-target="propertyForm" data-reset="property" data-subview="form">Add Property</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="projectsWorkspace" data-default-subview="list" role="tab" aria-selected="false">Projects <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="projectsWorkspace" data-target="adminProjectList" data-subview="list">View Projects</button><button type="button" data-workspace="projectsWorkspace" data-target="projectForm" data-reset="project" data-subview="form">Add Project</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="subProjectsWorkspace" data-default-subview="list" role="tab" aria-selected="false">Sub-Projects <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="subProjectsWorkspace" data-target="adminSubProjectList" data-subview="list">View Sub-Projects</button><button type="button" data-workspace="subProjectsWorkspace" data-target="subProjectForm" data-reset="subproject" data-subview="form">Add Sub-Project</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="digitalMapsWorkspace" role="tab" aria-selected="false">Digital Maps <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="digitalMapsWorkspace" data-target="adminDigitalMapList">View Maps</button><button type="button" data-workspace="digitalMapsWorkspace" data-target="digitalMapForm" data-reset="map">Add Map</button><button type="button" data-workspace="digitalMapsWorkspace" data-target="digitalMapBlocksPanel">Manage Blocks</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="galleryWorkspace" role="tab" aria-selected="false">Home Gallery <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="galleryWorkspace" data-target="adminHomeGallery">View Gallery</button><button type="button" data-workspace="galleryWorkspace" data-target="homeGalleryForm">Add Image</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="popupsWorkspace" role="tab" aria-selected="false">Popups <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="popupsWorkspace" data-target="adminPopupList">View Popups</button><button type="button" data-workspace="popupsWorkspace" data-target="homePopupForm">Add Popup</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="agentsWorkspace" data-default-subview="list" role="tab" aria-selected="false">Agents <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="agentsWorkspace" data-target="adminAgentList" data-subview="list">View Agents</button><button type="button" data-workspace="agentsWorkspace" data-target="agentForm" data-reset="agent" data-subview="form">Add Agent</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="aiAdvisorWorkspace" role="tab" aria-selected="false">AI Property Advisor</button></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="addressesWorkspace" data-default-subview="list" role="tab" aria-selected="false">Office Addresses <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="addressesWorkspace" data-target="adminOfficeAddressList" data-subview="list">View Addresses</button><button type="button" data-workspace="addressesWorkspace" data-target="officeAddressForm" data-reset="address" data-subview="form">Add Address</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="loginUsersWorkspace" data-default-subview="list" role="tab" aria-selected="false">Login Users <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="loginUsersWorkspace" data-target="adminLoginUserList" data-subview="list">View Users</button><button type="button" data-workspace="loginUsersWorkspace" data-target="loginUserForm" data-reset="user" data-subview="form">Add User</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="rolesWorkspace" role="tab" aria-selected="false">Roles & Permissions</button></div>
         <div class="admin-menu-group"><button class="admin-tab client-review-tab" type="button" data-workspace="submissionsWorkspace" role="tab" aria-selected="false">Client Submissions <span id="pendingSubmissionBadge"></span><span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="submissionsWorkspace" data-target="adminSubmissionList">View Submissions</button><button type="button" data-workspace="submissionsWorkspace" data-target="submissionForm">Review Selected</button></div></div>
       </div>
       <div class="dashboard-overview" aria-label="Dashboard overview"><article><span>Properties</span><strong id="dashPropertyCount">0</strong><small>Managed listings</small></article><article><span>Projects</span><strong id="dashProjectCount">0</strong><small>Development plans</small></article><article><span>Submissions</span><strong id="dashSubmissionCount">0</strong><small>Client requests</small></article><article><span>Users</span><strong id="dashUserCount">0</strong><small>Login accounts</small></article></div>
-      <div id="propertiesWorkspace" class="admin-workspace" data-subview="list">
+
+      <section id="appHomeWorkspace" class="admin-workspace app-screen">
+        <div class="app-screen-heading"><div><h2>Welcome back</h2><p>Live business snapshot and shortcuts.</p></div><a class="app-link" href="index.html">View website</a></div>
+        <div class="app-stat-strip" aria-label="Key metrics">
+          <article class="stat-card stat-card--lead"><span class="stat-card__icon"><i class="ti ti-phone-incoming" aria-hidden="true"></i></span><span>New leads</span><strong id="appNewLeadCount">0</strong><small>Needs follow-up</small></article>
+          <article class="stat-card stat-card--submission"><span class="stat-card__icon"><i class="ti ti-inbox" aria-hidden="true"></i></span><span>Pending submissions</span><strong id="appPendingSubmissionCount">0</strong><small>Waiting for review</small></article>
+          <article class="stat-card stat-card--project"><span class="stat-card__icon"><i class="ti ti-building-community" aria-hidden="true"></i></span><span>Active projects</span><strong id="appActiveProjectCount">0</strong><small>Currently published</small></article>
+        </div>
+        <div class="app-screen-heading"><div><h2>Quick actions</h2><p>Jump directly to common tasks.</p></div></div>
+        <div class="quick-actions-grid">
+          <a class="quick-tile" href="#propertiesWorkspace" data-app-action="add-property"><i class="ti ti-home-plus" aria-hidden="true"></i><span>Add property</span></a>
+          <a class="quick-tile" href="#projectsWorkspace" data-app-action="add-project"><i class="ti ti-building-plus" aria-hidden="true"></i><span>Add project</span></a>
+          <a class="quick-tile" href="#appLeadsWorkspace" data-app-target="appLeadsWorkspace" data-app-tab="leads"><i class="ti ti-phone" aria-hidden="true"></i><span>Leads</span></a>
+          <a class="quick-tile" href="#submissionsWorkspace" data-app-target="submissionsWorkspace" data-app-tab="leads"><i class="ti ti-clipboard-check" aria-hidden="true"></i><span>Submissions</span></a>
+          <a class="quick-tile" href="#digitalMapsWorkspace" data-app-action="add-map"><i class="ti ti-map-plus" aria-hidden="true"></i><span>Add map</span></a>
+          <a class="quick-tile" href="plot-finder.html"><i class="ti ti-map-search" aria-hidden="true"></i><span>Plot finder</span></a>
+          <a class="quick-tile" href="#agentsWorkspace" data-app-action="add-agent"><i class="ti ti-user-plus" aria-hidden="true"></i><span>Add agent</span></a>
+          <a class="quick-tile advisor-quick-tile" href="#aiAdvisorWorkspace" data-app-target="aiAdvisorWorkspace" data-app-tab="more"><i class="ti ti-sparkles" aria-hidden="true"></i><span>AI Advisor</span></a>
+          <a class="quick-tile" href="property-comparison.html" target="_blank" rel="noopener"><i class="ti ti-arrows-diff" aria-hidden="true"></i><span>Compare</span></a>
+          <a class="quick-tile" href="installment-calculator.html"><i class="ti ti-calculator" aria-hidden="true"></i><span>Calculator</span></a>
+        </div>
+        <div class="app-screen-heading"><div><h2>Recent activity</h2><p>Latest 10 updates across your business.</p></div></div>
+        <div class="app-panel"><ul class="activity-feed" id="recentActivityFeed"><li class="app-empty">Loading recent activity…</li></ul></div>
+      </section>
+
+      <div id="propertiesWorkspace" class="admin-workspace" data-subview="list" hidden>
+      <div class="property-app-filter" id="propertyAppFilter" aria-label="Property filters">
+        <input id="appPropertySearch" type="search" placeholder="Search property" aria-label="Search properties" />
+        <select id="appPropertyProject" data-label="All projects" aria-label="Project filter"><option value="">All projects</option></select>
+        <select id="appPropertyBlock" data-label="All blocks" aria-label="Block filter"><option value="">All blocks</option></select>
+        <select id="appPropertySize" data-label="All sizes" aria-label="Size filter"><option value="">All sizes</option></select>
+        <select id="appPropertyPrice" aria-label="Price filter"><option value="">Any price</option><option value="under1">Under 1M</option><option value="1to3">1M–3M</option><option value="3to10">3M–10M</option><option value="over10">10M+</option></select>
+        <select id="appPropertyType" data-label="All types" aria-label="Property type filter"><option value="">All types</option></select>
+        <select id="appPropertyFacing" data-label="All facing" aria-label="Facing filter"><option value="">All facing</option></select>
+        <button class="filter-clear" id="appPropertyFilterClear" type="button">Clear</button>
+      </div>
       <div class="dashboard-layout">
         <section class="listing-manager">
           <div class="manager-heading"><h2>Published properties</h2><span id="listingCount">0 listings</span></div>
@@ -57,11 +103,20 @@
               <label>Price (USD)<input name="price" type="number" placeholder="850000" /><span class="field-hint">Optional — leave empty if using PKR</span></label>
             </div>
             <div class="three-column">
-              <label>Listing type<select name="listing_type"><option value="sale">For sale</option><option value="rent">For rent</option></select></label>
+              <label>Listing type<select name="listing_type" id="propertyListingType"><option value="sale">For sale</option><option value="rent">For rent</option><option value="installment">On Installments</option></select></label>
               <label>Property type<select name="property_type" id="propertyTypeSelect"><option>House</option><option>Apartment</option><option>Villa</option><option>Condo</option><option>Land</option></select></label>
               <label>Status<select name="status"><option value="available">Available</option><option value="pending">Pending</option><option value="sold">Sold</option><option value="rented">Rented</option></select></label>
             </div>
-            <label>Linked project / payment plan<select name="project_id" id="propertyProjectSelect"><option value="">No linked project</option></select><span class="field-hint">Linking a project enables Project and Payment Plan filters on the public website.</span></label>
+            <label>Linked project<select name="project_id" id="propertyProjectSelect"><option value="">No linked project</option></select><span class="field-hint">Choose the project this property belongs to.</span></label>
+            <label>Sub-Project / Block Plan<select name="sub_project_id" id="propertySubProjectSelect" disabled><option value="">No sub-project</option></select><span class="field-hint" id="propertySubProjectHint">Choose a linked project first. This is the normalized project → sub-project relationship.</span></label>
+            <section class="installment-plan-link" id="propertyPaymentPlanLink" hidden aria-live="polite">
+              <div class="installment-plan-link__heading">
+                <div><span class="installment-plan-link__badge">On Installments</span><strong>Connect a payment plan</strong></div>
+                <small>Optional — select one of the payment plans already added to the linked project.</small>
+              </div>
+              <label>Payment Plan (optional)<select name="payment_plan_id" id="propertyPaymentPlanSelect" disabled><option value="">No payment plan connected</option></select><span class="field-hint" id="propertyPaymentPlanHint">Choose a linked project first.</span></label>
+              <div class="installment-plan-preview" id="propertyPaymentPlanPreview" hidden></div>
+            </section>
             <label>Street address<input name="address_line1" required placeholder="4236 Mornington Road" /></label>
             <div class="three-column">
               <label>City<input name="city" required placeholder="Austin" /></label>
@@ -102,6 +157,41 @@
         </section>
       </div>
       </div>
+      <section id="appLeadsWorkspace" class="admin-workspace app-screen" hidden>
+        <div class="app-screen-heading"><div><h2>CRM Leads</h2><p>Website, chatbot, campaign and agent-generated opportunities in one pipeline.</p></div><span id="appLeadTotal" class="more-status">0 leads</span></div>
+        <div class="crm-stat-strip" aria-label="CRM metrics">
+          <article><span>New</span><strong id="crmNewCount">0</strong></article>
+          <article><span>Hot</span><strong id="crmHotCount">0</strong></article>
+          <article><span>Qualified</span><strong id="crmQualifiedCount">0</strong></article>
+          <article><span>Won</span><strong id="crmWonCount">0</strong></article>
+        </div>
+        <details class="crm-create-panel">
+          <summary><i class="ti ti-user-plus"></i> Add lead manually</summary>
+          <form id="crmCreateLeadForm" class="crm-create-form">
+            <label>Name<input name="name" required maxlength="160" placeholder="Customer name"></label>
+            <label>Phone<input name="phone" maxlength="30" inputmode="tel" placeholder="03xx xxxxxxx"></label>
+            <label>Email<input name="email" type="email" maxlength="255" placeholder="customer@example.com"></label>
+            <label>Interest<select name="interest"><option value="buying">Buying</option><option value="selling">Selling</option><option value="renting">Renting</option><option value="agent">Agent / consultation</option></select></label>
+            <label>Budget max (PKR)<input name="budget_max" type="number" min="0" step="1" placeholder="6000000"></label>
+            <label>Preferred location<input name="preferred_location" maxlength="180" placeholder="Al Rehman Garden"></label>
+            <label>Priority<select name="priority"><option value="">Auto score</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="hot">Hot</option></select></label>
+            <label class="wide">Notes<textarea name="message" rows="2" maxlength="1500" placeholder="Customer requirements / follow-up notes"></textarea></label>
+            <button class="button button-primary" type="submit">Create CRM lead</button>
+            <p id="crmCreateLeadStatus" role="status"></p>
+          </form>
+        </details>
+        <div class="app-lead-toolbar" role="group" aria-label="Filter CRM leads by pipeline stage">
+          <button class="app-lead-filter active" type="button" data-stage="all">All</button>
+          <button class="app-lead-filter" type="button" data-stage="new">New</button>
+          <button class="app-lead-filter" type="button" data-stage="qualified">Qualified</button>
+          <button class="app-lead-filter" type="button" data-stage="nurturing">Nurturing</button>
+          <button class="app-lead-filter" type="button" data-stage="negotiation">Negotiation</button>
+          <button class="app-lead-filter" type="button" data-stage="won">Won</button>
+          <a class="app-lead-filter" href="#submissionsWorkspace" data-app-target="submissionsWorkspace" data-app-tab="leads">Client submissions</a>
+        </div>
+        <div class="app-list" id="appLeadList"><p class="app-empty">Loading leads…</p></div>
+      </section>
+
       <div id="projectsWorkspace" class="admin-workspace" data-subview="list" hidden>
         <div class="dashboard-layout">
           <section class="listing-manager">
@@ -112,7 +202,7 @@
             <div class="editor-heading"><div><p class="eyebrow" id="projectEditorEyebrow">New project</p><h2 id="projectEditorTitle">Add a project</h2></div><button class="cancel-edit" id="cancelProjectEdit" type="button" hidden>Cancel</button></div>
             <form id="projectForm" class="property-form">
               <input type="hidden" name="project_id" />
-              <div class="two-column"><label>Project name<input name="title" required placeholder="e.g. Al Rehman Garden" /></label><label>Plan (Sub Project) <span class="field-hint">Optional</span><input name="plan_name" placeholder="e.g. Executive Block" /></label></div>
+              <input type="hidden" name="plan_name" /><div class="two-column"><label>Project name<input name="title" required placeholder="e.g. Al Rehman Garden" /></label><div class="architecture-note"><strong>Sub-Projects are separate records</strong><span>Create phases, blocks or plans from the Sub-Projects module after saving the parent project.</span></div></div>
               <div class="two-column"><label>Project category<input name="category" required placeholder="Residential" /></label><label>Location<input name="location" required placeholder="City or neighborhood" /></label></div>
               <label>Status<select name="status"><option value="published">Published</option><option value="draft">Draft</option></select></label>
               <label>Hero image URL<input name="hero_image_url" placeholder="https://.../project-hero.jpg" /></label>
@@ -139,7 +229,33 @@
           </section>
         </div>
       </div>
+      <div id="subProjectsWorkspace" class="admin-workspace" data-subview="list" hidden>
+        <div class="dashboard-layout">
+          <section class="listing-manager">
+            <div class="manager-heading"><h2>Sub-Projects</h2><span id="subProjectCount">0 sub-projects</span></div>
+            <label class="admin-inline-filter">Project filter<select id="subProjectProjectFilter"><option value="">All projects</option></select></label>
+            <div class="admin-property-list" id="adminSubProjectList"></div>
+          </section>
+          <section class="editor-panel">
+            <div class="editor-heading"><div><p class="eyebrow">Normalized structure</p><h2 id="subProjectEditorTitle">Add a sub-project</h2></div><button class="cancel-edit" id="cancelSubProjectEdit" type="button" hidden>Cancel</button></div>
+            <p class="field-help">Use this for phases, blocks, sectors, extensions or plans that belong to one parent project. Payment plans and properties can link directly to the selected sub-project.</p>
+            <form id="subProjectForm" class="property-form">
+              <input type="hidden" name="sub_project_id" />
+              <label>Parent project<select name="project_id" id="subProjectParentProject" required><option value="">Choose project</option></select></label>
+              <label>Sub-project name<input name="name" maxlength="180" required placeholder="e.g. Executive Block / Phase 2 / Overseas Block" /></label>
+              <div class="two-column"><label>Status<select name="status"><option value="published">Published</option><option value="draft">Draft</option><option value="archived">Archived</option></select></label><label>Sort order<input name="sort_order" type="number" min="0" max="65535" value="0" /></label></div>
+              <label>Description<textarea name="description" rows="4" maxlength="5000" placeholder="Optional notes about this phase, block or plan."></textarea></label>
+              <div class="form-actions"><button class="button button-primary" type="submit" id="saveSubProjectButton">Save sub-project <span>→</span></button><p id="subProjectMessage" class="property-message" role="status"></p></div>
+            </form>
+          </section>
+        </div>
+      </div>
       <div id="digitalMapsWorkspace" class="admin-workspace" hidden>
+        <form class="app-map-finder" id="appMapFinderForm">
+          <input id="appPlotNumber" inputmode="numeric" pattern="[1-9][0-9]{0,3}" placeholder="Plot number" aria-label="Plot number" />
+          <input id="appPlotBlock" placeholder="Block (optional)" aria-label="Block" />
+          <button type="submit" aria-label="Open Plot Finder"><i class="ti ti-search" aria-hidden="true"></i></button>
+        </form>
         <div class="dashboard-layout digital-map-layout">
           <section class="listing-manager">
             <div class="manager-heading"><h2>Digital maps</h2><span id="digitalMapCount">0 maps</span></div>
@@ -259,9 +375,25 @@
               <label>Full name<input name="full_name" maxlength="160" required></label>
               <div class="two-column"><label>Email<input name="email" type="email" maxlength="255"></label><label>Phone<input name="phone" maxlength="30"></label></div>
               <label class="admin-username-field" hidden>Admin username<input name="username" maxlength="100"></label>
+              <label class="admin-role-field" hidden>Admin role<select name="role_id" id="loginUserRoleSelect"><option value="">Choose role</option></select><span class="field-hint">Role permissions are enforced by both the Admin API and legacy API compatibility routes.</span></label>
               <label>New password<input name="new_password" type="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep current password"></label>
               <label class="checkbox-label"><input name="is_active" type="checkbox" checked> Account active</label>
               <div class="form-actions"><button class="button button-primary" id="saveLoginUserButton" type="submit">Save user <span>→</span></button><p id="loginUserMessage" class="property-message" role="status"></p></div>
+            </form>
+          </section>
+        </div>
+      </div>
+      <div id="rolesWorkspace" class="admin-workspace" hidden>
+        <div class="dashboard-layout">
+          <section class="listing-manager"><div class="manager-heading"><h2>Roles & Permissions</h2><span id="roleCount">0 roles</span></div><div class="admin-property-list" id="adminRoleList"></div></section>
+          <section class="editor-panel">
+            <div class="editor-heading"><div><p class="eyebrow">Access control</p><h2 id="roleEditorTitle">Create a role</h2></div><button class="cancel-edit" id="cancelRoleEdit" type="button" hidden>Cancel</button></div>
+            <form id="roleForm" class="property-form">
+              <input type="hidden" name="role_id" />
+              <div class="two-column"><label>Role name<input name="name" maxlength="100" required placeholder="e.g. Sales Manager" /></label><label>Role key<input name="role_key" maxlength="60" pattern="[a-z][a-z0-9_]{2,59}" placeholder="sales_manager" /></label></div>
+              <label>Description<textarea name="description" rows="2" maxlength="500"></textarea></label>
+              <fieldset><legend>Permissions</legend><div id="rolePermissionGrid" class="permission-grid"><p class="field-help">Loading permissions…</p></div></fieldset>
+              <div class="form-actions"><button class="button button-primary" id="saveRoleButton" type="submit">Save role <span>→</span></button><p id="roleMessage" class="property-message" role="status"></p></div>
             </form>
           </section>
         </div>
@@ -274,16 +406,113 @@
             <form id="submissionForm" class="property-form" hidden>
               <input type="hidden" name="submission_id"><input type="hidden" name="status">
               <fieldset><legend>Seller details</legend><div class="two-column"><label>Seller name<input name="seller_name" required></label><label>Phone / WhatsApp<input name="seller_phone" required></label></div><div class="two-column"><label>Email<input name="seller_email" type="email"></label><label>CNIC<input name="seller_cnic"></label></div></fieldset>
-              <fieldset><legend>Property details</legend><div class="three-column"><label>Listing type<select name="listing_type"><option value="sale">For sale</option><option value="rent">For rent</option></select></label><label>Property type<select name="property_type"><option>Land</option><option>House</option><option>Apartment</option><option>Villa</option><option>Condo</option></select></label><label>Price PKR<input name="price_pkr" type="number" min="0"></label></div><label>Title<input name="title" required></label><label>Address<input name="address_line1" required></label><div class="three-column"><label>City<input name="city" required></label><label>Region<input name="state_region"></label><label>Block<input name="block_name" maxlength="120" placeholder="Write any block name"></label></div><div class="three-column"><label>Size<input name="size_label"></label><label>Facing / Type<input name="property_facing" maxlength="60" placeholder="Write anything"></label><label>Bedrooms<input name="bedrooms" type="number" step=".5"></label></div><label>Bathrooms<input name="bathrooms" type="number" step=".5"></label><div class="two-column"><label>Publication start<input name="publish_start_date" type="date" required></label><label>Automatic removal date<input name="publish_end_date" type="date" required></label></div><label>Area sqft<input name="area_sqft" type="number"></label><label>Description<textarea name="description" rows="4"></textarea></label><label>Private admin notes<textarea name="admin_notes" rows="2"></textarea></label><div id="submissionImages" class="submission-images"></div><div id="submissionVideo" class="submission-video"></div></fieldset>
+              <fieldset><legend>Property details</legend><div class="three-column"><label>Listing type<select name="listing_type"><option value="sale">For sale</option><option value="rent">For rent</option><option value="installment">On Installments</option></select></label><label>Property type<select name="property_type"><option>Land</option><option>House</option><option>Apartment</option><option>Villa</option><option>Condo</option></select></label><label>Price PKR<input name="price_pkr" type="number" min="0"></label></div><label>Title<input name="title" required></label><label>Address<input name="address_line1" required></label><div class="three-column"><label>City<input name="city" required></label><label>Region<input name="state_region"></label><label>Block<input name="block_name" maxlength="120" placeholder="Write any block name"></label></div><div class="three-column"><label>Size<input name="size_label"></label><label>Facing / Type<input name="property_facing" maxlength="60" placeholder="Write anything"></label><label>Bedrooms<input name="bedrooms" type="number" step=".5"></label></div><label>Bathrooms<input name="bathrooms" type="number" step=".5"></label><div class="two-column"><label>Publication start<input name="publish_start_date" type="date" required></label><label>Automatic removal date<input name="publish_end_date" type="date" required></label></div><label>Area sqft<input name="area_sqft" type="number"></label><label>Description<textarea name="description" rows="4"></textarea></label><label>Private admin notes<textarea name="admin_notes" rows="2"></textarea></label><div id="submissionImages" class="submission-images"></div><div id="submissionVideo" class="submission-video"></div></fieldset>
               <div class="submission-actions"><button class="button button-dark" type="submit">Save edits</button><button class="button submission-reject" id="rejectSubmission" type="button">Reject</button><button class="button button-primary" id="approveSubmission" type="button">Approve & publish <span>→</span></button></div><p id="submissionMessage" class="property-message" role="status"></p>
             </form>
             <p id="submissionEmptyEditor" class="empty-list">Choose a client submission to review and edit.</p>
           </section>
         </div>
       </div>
+
+      <section id="aiAdvisorWorkspace" class="admin-workspace app-screen" hidden>
+        <div class="app-screen-heading"><div><h2>AI Property Advisor</h2><p>Match a client with the strongest properties in your live inventory.</p></div><span class="more-status">Agent tool</span></div>
+        <div class="ai-advisor-shell">
+          <form id="aiAdvisorForm" class="ai-advisor-form">
+            <h3>Client requirements</h3><p>Use as many filters as you know. The advisor ranks only currently available properties.</p>
+            <div class="ai-advisor-grid">
+              <label>Agent<select name="agent_id" id="advisorAgent"><option value="">Any / current agent</option></select></label>
+              <label>Client / reference<input name="client_name" maxlength="160" placeholder="e.g. Mr. Ali / Lead 104"></label>
+              <label>Listing need<select name="listing_type"><option value="">Any</option><option value="sale">For Sale</option><option value="rent">For Rent</option><option value="installment">On Installments</option></select></label>
+              <label>Project<select name="project_id" id="advisorProject"><option value="">Any project</option></select></label>
+              <label>Budget from (PKR)<input name="budget_min" type="number" min="0" step="1" inputmode="numeric" placeholder="3000000"></label>
+              <label>Budget up to (PKR)<input name="budget_max" type="number" min="0" step="1" inputmode="numeric" placeholder="8000000"></label>
+              <label>Location / city<input name="location" maxlength="160" placeholder="Lahore"></label>
+              <label>Block<input name="block" maxlength="120" placeholder="J Block"></label>
+              <label>Property type<select name="property_type"><option value="">Any type</option><option>Land</option><option>House</option><option>Apartment</option><option>Villa</option><option>Condo</option></select></label>
+              <label>Size<input name="size" maxlength="80" placeholder="5 Marla"></label>
+              <label>Minimum bedrooms<input name="bedrooms" type="number" min="0" step="1" inputmode="numeric" placeholder="3"></label>
+              <label>Facing / preference<input name="facing" maxlength="80" placeholder="Corner / Boulevard"></label>
+              <label class="wide">Max monthly installment (PKR)<input name="monthly_max" type="number" min="0" step="1" inputmode="numeric" placeholder="100000"></label>
+              <label class="wide">Agent notes<textarea name="notes" maxlength="1000" placeholder="Family wants a corner plot near the main boulevard; can stretch budget slightly for the right option."></textarea></label>
+            </div>
+            <div class="ai-advisor-actions"><button class="button button-primary" id="advisorFindButton" type="submit"><i class="ti ti-sparkles"></i> Find best properties</button><button class="button button-outline" id="advisorResetButton" type="button">Reset</button></div>
+            <p class="ai-advisor-privacy"><i class="ti ti-shield-lock"></i><span>Matching always happens against your database. Client names are kept out of the external AI prompt.</span></p>
+          </form>
+          <section class="ai-advisor-output" aria-live="polite">
+            <div class="ai-advisor-state" id="aiAdvisorState"><strong>Ready to advise</strong><span class="ai-advisor-provider">Smart Match</span></div>
+            <div class="ai-advisor-brief" id="aiAdvisorBrief"></div>
+            <div class="ai-advisor-actions"><button class="button button-outline" id="advisorCopyBrief" type="button"><i class="ti ti-copy"></i> Copy agent brief</button><button class="button button-outline" id="advisorWhatsApp" type="button"><i class="ti ti-brand-whatsapp"></i> Share to WhatsApp</button></div>
+            <div class="ai-advisor-result-list" id="aiAdvisorMatches"><div class="ai-advisor-empty"><div><i class="ti ti-sparkles" aria-hidden="true"></i><strong>Tell me what your client needs</strong><p>The advisor will rank only properties currently in your database.</p></div></div></div>
+            <div class="ai-advisor-history"><h3>Recent advisor searches</h3><div class="ai-history-list" id="aiAdvisorHistoryList"><span class="ai-history-chip">Loading…</span></div></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="appMoreWorkspace" class="admin-workspace app-screen" hidden>
+        <div class="app-screen-heading"><div><h2>More</h2><p>Projects, engagement tools and settings.</p></div></div>
+        <div class="more-group"><h3>Projects</h3><div class="more-list">
+          <a class="more-row" href="#projectsWorkspace" data-app-target="projectsWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-building-community"></i></span><span><strong>Projects</strong><small>Projects, sub-project plans and media</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#subProjectsWorkspace" data-app-target="subProjectsWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-sitemap"></i></span><span><strong>Sub-Projects</strong><small>Manage normalized phases, blocks and plans under parent projects</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#projectsWorkspace" data-app-target="projectsWorkspace" data-app-tab="more" data-subview="form" data-scroll="#enableProjectPaymentPlans"><span class="more-row__icon"><i class="ti ti-cash-banknote"></i></span><span><strong>Payment Plans</strong><small>Structured booking and installment pricing</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="installment-calculator.html"><span class="more-row__icon"><i class="ti ti-calculator"></i></span><span><strong>Installment Calculator</strong><small>Open the public payment estimator</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#agentsWorkspace" data-app-target="agentsWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-users"></i></span><span><strong>Agents</strong><small>Team profiles and contact information</small></span><i class="ti ti-chevron-right"></i></a>
+        </div></div>
+        <div class="more-group"><h3>Agent Tools</h3><div class="more-list">
+          <a class="more-row" href="#aiAdvisorWorkspace" data-app-target="aiAdvisorWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-sparkles"></i></span><span><strong>AI Property Advisor</strong><small>Rank live inventory for a buyer and prepare an agent brief</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="property-comparison.html" target="_blank" rel="noopener"><span class="more-row__icon"><i class="ti ti-arrows-diff"></i></span><span><strong>AI Property Comparison</strong><small>Compare two website or customer-entered properties side by side</small></span><i class="ti ti-chevron-right"></i></a>
+        </div></div>
+        <div class="more-group"><h3>Engagement</h3><div class="more-list">
+          <a class="more-row" href="#galleryWorkspace" data-app-target="galleryWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-photo"></i></span><span><strong>Home Gallery</strong><small>Homepage images</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#popupsWorkspace" data-app-target="popupsWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-speakerphone"></i></span><span><strong>Popups</strong><small>Promotional content and announcements</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#submissionsWorkspace" data-app-target="submissionsWorkspace" data-app-tab="leads"><span class="more-row__icon"><i class="ti ti-clipboard-check"></i></span><span><strong>Client Submissions</strong><small>Review customer property requests</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row is-planned" href="#appMoreWorkspace" data-app-action="planned" data-message="Chatbot configuration is planned; chatbot lead capture already works."><span class="more-row__icon"><i class="ti ti-message-chatbot"></i></span><span><strong>Chatbot Config</strong><small>Conversation and lead settings</small></span><span class="more-status">Planned</span></a>
+        </div></div>
+        <div class="more-group"><h3>Settings</h3><div class="more-list">
+          <a class="more-row" href="#addressesWorkspace" data-app-target="addressesWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-map-pin"></i></span><span><strong>Office Addresses</strong><small>Branches, phones and map links</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#loginUsersWorkspace" data-app-target="loginUsersWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-user-shield"></i></span><span><strong>Authentication / Login Users</strong><small>Admin and client accounts</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#rolesWorkspace" data-app-target="rolesWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-lock-access"></i></span><span><strong>Roles & Permissions</strong><small>Control module access for admins, managers, agents, accountants and editors</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#appMoreWorkspace" data-app-action="toggle-theme"><span class="more-row__icon"><i class="ti ti-moon-stars"></i></span><span><strong>Theme / UI</strong><small>Toggle light and dark mode</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#appMoreWorkspace" data-app-action="api-health"><span class="more-row__icon"><i class="ti ti-api"></i></span><span><strong>API &amp; Database</strong><small id="appApiHealthText">Admin API v1 connectivity and schema health</small></span><span class="more-status" id="appApiHealthStatus">Check</span></a>
+          <a class="more-row is-planned" href="#appMoreWorkspace" data-app-action="planned" data-message="SEO is active in the site backend; a dedicated settings screen can be added later."><span class="more-row__icon"><i class="ti ti-world-search"></i></span><span><strong>SEO Settings</strong><small>SEO engine is active; settings UI planned</small></span><span class="more-status">Built-in</span></a>
+          <a class="more-row is-planned" href="#appMoreWorkspace" data-app-action="planned" data-message="Advanced Search is active on the public site; its admin configuration screen is planned."><span class="more-row__icon"><i class="ti ti-adjustments-search"></i></span><span><strong>Advanced Search Config</strong><small>Public filters are already active</small></span><span class="more-status">Built-in</span></a>
+        </div></div>
+      </section>
+
+      <nav class="admin-app-nav" aria-label="Admin navigation">
+        <a class="bottom-nav__item" href="#appHomeWorkspace" data-app-workspace="appHomeWorkspace" data-app-tab="home" aria-current="page"><i class="ti ti-home" aria-hidden="true"></i><span>Home</span></a>
+        <a class="bottom-nav__item" href="#propertiesWorkspace" data-app-workspace="propertiesWorkspace" data-app-tab="properties"><i class="ti ti-building" aria-hidden="true"></i><span>Properties</span></a>
+        <a class="bottom-nav__item" href="#appLeadsWorkspace" data-app-workspace="appLeadsWorkspace" data-app-tab="leads"><i class="ti ti-phone" aria-hidden="true"></i><span>CRM</span><span class="nav-dot" id="appLeadsDot" hidden></span></a>
+        <a class="bottom-nav__item" href="#digitalMapsWorkspace" data-app-workspace="digitalMapsWorkspace" data-app-tab="maps"><i class="ti ti-map" aria-hidden="true"></i><span>Maps</span></a>
+        <a class="bottom-nav__item" href="#appMoreWorkspace" data-app-workspace="appMoreWorkspace" data-app-tab="more"><i class="ti ti-dots" aria-hidden="true"></i><span>More</span></a>
+      </nav>
     </section>
+
+    <div class="command-sheet" id="adminCommandSheet" hidden>
+      <div class="command-sheet__panel" role="dialog" aria-modal="true" aria-label="Admin search">
+        <div class="command-sheet__header"><input id="adminCommandSearch" type="search" placeholder="Search modules and actions" aria-label="Search modules and actions" /><button class="command-sheet__close" id="commandSheetClose" type="button" aria-label="Close search">×</button></div>
+        <div class="command-list">
+          <a class="command-item" href="#propertiesWorkspace" data-app-target="propertiesWorkspace" data-app-tab="properties"><i class="ti ti-building"></i>Properties</a>
+          <a class="command-item" href="#propertiesWorkspace" data-app-action="add-property"><i class="ti ti-home-plus"></i>Add property</a>
+          <a class="command-item" href="#appLeadsWorkspace" data-app-target="appLeadsWorkspace" data-app-tab="leads"><i class="ti ti-phone"></i>CRM Leads</a>
+          <a class="command-item" href="#aiAdvisorWorkspace" data-app-target="aiAdvisorWorkspace" data-app-tab="more"><i class="ti ti-sparkles"></i>AI Property Advisor</a>
+          <a class="command-item" href="#projectsWorkspace" data-app-target="projectsWorkspace" data-app-tab="more"><i class="ti ti-building-community"></i>Projects & payment plans</a>
+          <a class="command-item" href="#subProjectsWorkspace" data-app-target="subProjectsWorkspace" data-app-tab="more"><i class="ti ti-sitemap"></i>Sub-Projects</a>
+          <a class="command-item" href="#digitalMapsWorkspace" data-app-target="digitalMapsWorkspace" data-app-tab="maps"><i class="ti ti-map"></i>Digital maps</a>
+          <a class="command-item" href="plot-finder.html"><i class="ti ti-map-search"></i>Plot Finder</a>
+          <a class="command-item" href="#submissionsWorkspace" data-app-target="submissionsWorkspace" data-app-tab="leads"><i class="ti ti-clipboard-check"></i>Client submissions</a>
+          <a class="command-item" href="#agentsWorkspace" data-app-target="agentsWorkspace" data-app-tab="more"><i class="ti ti-users"></i>Agents</a>
+          <a class="command-item" href="#loginUsersWorkspace" data-app-target="loginUsersWorkspace" data-app-tab="more"><i class="ti ti-user-shield"></i>Login users</a>
+          <a class="command-item" href="#rolesWorkspace" data-app-target="rolesWorkspace" data-app-tab="more"><i class="ti ti-lock-access"></i>Roles & permissions</a>
+          <a class="command-item" href="installment-calculator.html"><i class="ti ti-calculator"></i>Installment calculator</a>
+        </div>
+      </div>
+    </div>
+    <div class="app-toast" id="appToast" hidden role="status"></div>
   </main>
+  <script src="admin-api.js"></script>
   <script src="admin.js"></script>
+  <script src="ai-property-advisor.js"></script>
+  <script src="admin-app.js"></script>
   <script src="theme.js" defer></script>
 </body>
 </html>

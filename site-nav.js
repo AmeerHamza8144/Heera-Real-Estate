@@ -6,8 +6,8 @@
   const menuToggle = header.querySelector(".menu-toggle");
   const projectsToggle = header.querySelector(".projects-toggle");
   const projectsMenu = header.querySelector("#projectsMenu");
-  const headerActions = header.querySelector(".header-actions");
-  const loginControl = headerActions?.querySelector(".login-button");
+  const accountHost = navigation;
+  const loginControl = navigation?.querySelector(".login-button");
   let accountProfile = null;
   let profileToggle = null;
   let profileMenu = null;
@@ -24,7 +24,7 @@
 
     const features = document.createElement("div");
     features.className = "projects-nav utility-nav features-nav";
-    features.innerHTML = `<button class="projects-toggle utility-toggle" type="button" aria-expanded="false">Features <span>⌄</span></button><div class="projects-menu utility-menu"><a href="plot-finder.html">Plot Finder</a><a href="installment-calculator.html">Installment Calculator</a></div>`;
+    features.innerHTML = `<button class="projects-toggle utility-toggle" type="button" aria-expanded="false">Features <span>⌄</span></button><div class="projects-menu utility-menu"><a href="plot-finder.html">Plot Finder</a><a href="installment-calculator.html">Installment Calculator</a><a href="property-comparison.html">AI Property Comparison</a></div>`;
 
     const contact = document.createElement("div");
     contact.className = "projects-nav utility-nav contact-nav";
@@ -101,7 +101,7 @@
   }
 
   async function refreshAccountState() {
-    if (!headerActions || !accountProfile) return;
+    if (!accountHost || !accountProfile) return;
     header.classList.add("account-state-loading");
     try {
       const response = await fetch("api.php?action=account_session", { credentials: "same-origin", headers: { Accept: "application/json" } });
@@ -117,12 +117,12 @@
   }
 
   function initializeAccountProfile() {
-    if (!headerActions || !loginControl) return;
+    if (!accountHost || !loginControl) return;
     accountProfile = document.createElement("div");
     accountProfile.className = "header-profile";
     accountProfile.hidden = true;
-    accountProfile.innerHTML = `<button class="profile-toggle" type="button" aria-expanded="false" aria-haspopup="menu"><span class="profile-initial" aria-hidden="true">U</span><span class="profile-button-name">Profile</span><span class="profile-chevron" aria-hidden="true">⌄</span></button><div class="profile-menu" role="menu"><div class="profile-menu-identity"><strong class="profile-menu-name">My account</strong><small class="profile-menu-role">Client account</small></div><a class="profile-dashboard-link" href="admin.html" role="menuitem" hidden>Open dashboard</a><a href="client-form.html" role="menuitem">Client Form</a><button class="profile-logout" type="button" role="menuitem">Log out</button></div>`;
-    headerActions.appendChild(accountProfile);
+    accountProfile.innerHTML = `<button class="profile-toggle" type="button" aria-expanded="false" aria-haspopup="menu"><span class="profile-initial" aria-hidden="true">U</span><span class="profile-button-name">Profile</span><span class="profile-chevron" aria-hidden="true">⌄</span></button><div class="profile-menu" role="menu"><div class="profile-menu-identity"><strong class="profile-menu-name">My account</strong><small class="profile-menu-role">Client account</small></div><a class="profile-dashboard-link" href="admin.html" role="menuitem" hidden>Open dashboard</a><a href="add-property.html" role="menuitem">Add Property</a><button class="profile-logout" type="button" role="menuitem">Log out</button></div>`;
+    loginControl.insertAdjacentElement("afterend", accountProfile);
     profileToggle = accountProfile.querySelector(".profile-toggle");
     profileMenu = accountProfile.querySelector(".profile-menu");
     profileToggle.addEventListener("click", (event) => {
@@ -143,7 +143,7 @@
         button.disabled = false;
         button.textContent = "Log out";
         window.dispatchEvent(new CustomEvent("heera:auth-changed", { detail: { authenticated: false } }));
-        if ((window.location.pathname.split("/").pop() || "") === "client-form.html") window.location.href = "index.html";
+        if ((window.location.pathname.split("/").pop() || "") === "add-property.html") window.location.href = "index.html";
       }
     });
     refreshAccountState();
@@ -239,7 +239,7 @@
       groupToggle.setAttribute("aria-expanded", String(isOpen));
       return;
     }
-    if (event.target.closest("a")) {
+    if (event.target.closest("a, .login-button")) {
       closeMobileMenu();
       closeProjectsMenu();
       closeUtilityMenus();

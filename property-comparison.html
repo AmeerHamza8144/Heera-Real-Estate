@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Compare two properties side by side with Heera Estate. Select current listings or manually enter an outside property and get an AI-assisted comparison." />
+  <title>AI Property Comparison | Heera Estate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="property-comparison.css" />
+  <link rel="stylesheet" href="chatbot.css" />
+  <link rel="stylesheet" href="liquid-glass.css" />
+  <link rel="stylesheet" href="navigation-fixes.css" />
+  <link rel="stylesheet" href="footer-compact.css" />
+  <link rel="stylesheet" href="hero-background.css" />
+</head>
+<body class="comparison-page">
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Heera Estate home"><span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span><span>Heera Estate</span></a>
+    <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <nav class="main-nav" aria-label="Main navigation">
+      <a href="index.html">Home</a>
+      <a href="index.html?listing=sale#listings">Buy</a>
+      <a href="index.html?listing=rent#listings">Rent</a>
+      <a href="index.html?listing=installment#listings">Installments</a>
+      <a href="index.html#agents">Agents</a>
+      <div class="projects-nav"><button class="projects-toggle" type="button" aria-expanded="false">Projects <span>⌄</span></button><div class="projects-menu" id="projectsMenu"><span class="projects-loading">Loading projects…</span></div></div>
+      <a href="plot-finder.html">PLOT FINDER</a>
+      <a href="index.html#contact">Contact</a>
+      <a class="nav-add-property" href="add-property.html">Add Property</a>
+      <a class="login-button nav-login-item" href="index.html#admin-login">Login</a>
+    </nav>
+  </header>
+
+  <main class="comparison-main">
+    <section class="comparison-hero">
+      <div class="comparison-hero-copy">
+        <p class="eyebrow light">Decision support</p>
+        <h1>AI Property Comparison</h1>
+        <p>Compare two Heera Estate listings, an outside property, or two properties you enter yourself. The system uses the facts you provide and never invents missing prices or payment terms.</p>
+      </div>
+      <div class="comparison-hero-badge"><strong>2</strong><span>properties side by side</span></div>
+    </section>
+
+    <section class="comparison-builder section" aria-labelledby="comparisonBuilderTitle">
+      <div class="comparison-section-heading"><div><p class="eyebrow">Build your comparison</p><h2 id="comparisonBuilderTitle">Choose where each property comes from</h2></div><p>You can mix your website inventory with a customer-entered external property.</p></div>
+
+      <div class="comparison-property-grid">
+        <article class="compare-side" data-side="a">
+          <div class="compare-side-head"><span class="compare-side-letter">A</span><div><p class="eyebrow">Property A</p><h3>First property</h3></div></div>
+          <div class="source-switch" role="group" aria-label="Property A source">
+            <button type="button" class="source-switch__button active" data-source="inventory">My website listings</button>
+            <button type="button" class="source-switch__button" data-source="manual">Add property manually</button>
+          </div>
+          <div class="inventory-source" data-source-panel="inventory">
+            <label>Choose property
+              <select data-inventory-select><option value="">Loading available properties…</option></select>
+            </label>
+            <div class="inventory-preview" data-inventory-preview><p>Select a property to preview its key facts.</p></div>
+          </div>
+          <div class="manual-source" data-source-panel="manual" hidden>
+            <div class="manual-grid">
+              <label class="wide">Property name / reference<input name="title" maxlength="180" placeholder="e.g. 5 Marla plot offered by another dealer" /></label>
+              <label>Listing type<select name="listing_type"><option value="sale">For sale</option><option value="rent">For rent</option><option value="installment">On installments</option></select></label>
+              <label>Property type<input name="property_type" maxlength="80" placeholder="Land / House / Apartment" /></label>
+              <label class="wide">Project / society<input name="project" maxlength="180" placeholder="Project name, if any" /></label>
+              <label class="wide">Location<input name="location" maxlength="255" placeholder="Area / city / address" /></label>
+              <label>Block<input name="block" maxlength="120" placeholder="J Block" /></label>
+              <label>Facing / type<input name="facing" maxlength="80" placeholder="Corner / Boulevard" /></label>
+              <label>Size label<input name="size_label" maxlength="80" placeholder="5 Marla" /></label>
+              <label>Area (sqft)<input name="area_sqft" type="number" min="0" step="1" inputmode="decimal" /></label>
+              <label>Bedrooms<input name="bedrooms" type="number" min="0" step="0.5" inputmode="decimal" /></label>
+              <label>Bathrooms<input name="bathrooms" type="number" min="0" step="0.5" inputmode="decimal" /></label>
+              <label>Currency<select name="currency"><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
+              <label>Price<input name="price" type="number" min="0" step="1" inputmode="decimal" /></label>
+            </div>
+            <details class="manual-installment-details">
+              <summary>Optional installment/payment-plan details</summary>
+              <div class="manual-grid payment-grid">
+                <label class="wide">Plan name<input name="plan_name" maxlength="120" placeholder="Dealer payment plan" /></label>
+                <label>Booking amount<input name="booking_amount" type="number" min="0" step="1" /></label>
+                <label>Monthly installments<input name="monthly_installment_count" type="number" min="0" step="1" /></label>
+                <label>One monthly installment<input name="monthly_installment" type="number" min="0" step="1" /></label>
+                <label>Half-yearly payments<input name="half_yearly_count" type="number" min="0" step="1" /></label>
+                <label>One half-yearly payment<input name="half_yearly_installment" type="number" min="0" step="1" /></label>
+                <label>Balloting<input name="balloting" type="number" min="0" step="1" /></label>
+                <label>On possession<input name="on_possession" type="number" min="0" step="1" /></label>
+                <label>Other payment<input name="other_payment" type="number" min="0" step="1" /></label>
+              </div>
+            </details>
+            <label class="manual-notes">Notes / features<textarea name="notes" rows="3" maxlength="1200" placeholder="Any facts the customer wants considered. Do not enter passwords, CNICs or private account information."></textarea></label>
+          </div>
+        </article>
+
+        <div class="comparison-vs" aria-hidden="true">VS</div>
+
+        <article class="compare-side" data-side="b">
+          <div class="compare-side-head"><span class="compare-side-letter">B</span><div><p class="eyebrow">Property B</p><h3>Second property</h3></div></div>
+          <div class="source-switch" role="group" aria-label="Property B source">
+            <button type="button" class="source-switch__button active" data-source="inventory">My website listings</button>
+            <button type="button" class="source-switch__button" data-source="manual">Add property manually</button>
+          </div>
+          <div class="inventory-source" data-source-panel="inventory">
+            <label>Choose property
+              <select data-inventory-select><option value="">Loading available properties…</option></select>
+            </label>
+            <div class="inventory-preview" data-inventory-preview><p>Select a property to preview its key facts.</p></div>
+          </div>
+          <div class="manual-source" data-source-panel="manual" hidden>
+            <div class="manual-grid">
+              <label class="wide">Property name / reference<input name="title" maxlength="180" placeholder="e.g. 8 Marla house from another website" /></label>
+              <label>Listing type<select name="listing_type"><option value="sale">For sale</option><option value="rent">For rent</option><option value="installment">On installments</option></select></label>
+              <label>Property type<input name="property_type" maxlength="80" placeholder="Land / House / Apartment" /></label>
+              <label class="wide">Project / society<input name="project" maxlength="180" placeholder="Project name, if any" /></label>
+              <label class="wide">Location<input name="location" maxlength="255" placeholder="Area / city / address" /></label>
+              <label>Block<input name="block" maxlength="120" placeholder="J Block" /></label>
+              <label>Facing / type<input name="facing" maxlength="80" placeholder="Corner / Boulevard" /></label>
+              <label>Size label<input name="size_label" maxlength="80" placeholder="8 Marla" /></label>
+              <label>Area (sqft)<input name="area_sqft" type="number" min="0" step="1" inputmode="decimal" /></label>
+              <label>Bedrooms<input name="bedrooms" type="number" min="0" step="0.5" inputmode="decimal" /></label>
+              <label>Bathrooms<input name="bathrooms" type="number" min="0" step="0.5" inputmode="decimal" /></label>
+              <label>Currency<select name="currency"><option value="PKR">PKR</option><option value="USD">USD</option></select></label>
+              <label>Price<input name="price" type="number" min="0" step="1" inputmode="decimal" /></label>
+            </div>
+            <details class="manual-installment-details">
+              <summary>Optional installment/payment-plan details</summary>
+              <div class="manual-grid payment-grid">
+                <label class="wide">Plan name<input name="plan_name" maxlength="120" placeholder="Dealer payment plan" /></label>
+                <label>Booking amount<input name="booking_amount" type="number" min="0" step="1" /></label>
+                <label>Monthly installments<input name="monthly_installment_count" type="number" min="0" step="1" /></label>
+                <label>One monthly installment<input name="monthly_installment" type="number" min="0" step="1" /></label>
+                <label>Half-yearly payments<input name="half_yearly_count" type="number" min="0" step="1" /></label>
+                <label>One half-yearly payment<input name="half_yearly_installment" type="number" min="0" step="1" /></label>
+                <label>Balloting<input name="balloting" type="number" min="0" step="1" /></label>
+                <label>On possession<input name="on_possession" type="number" min="0" step="1" /></label>
+                <label>Other payment<input name="other_payment" type="number" min="0" step="1" /></label>
+              </div>
+            </details>
+            <label class="manual-notes">Notes / features<textarea name="notes" rows="3" maxlength="1200" placeholder="Any facts the customer wants considered."></textarea></label>
+          </div>
+        </article>
+      </div>
+
+      <article class="comparison-priorities">
+        <div><p class="eyebrow">Optional customer priorities</p><h3>What matters most?</h3><p>These preferences change the fit score; they do not change the underlying property facts.</p></div>
+        <div class="priority-grid">
+          <label>Maximum budget (PKR)<input id="compareBudgetMax" type="number" min="0" step="1" inputmode="decimal" placeholder="6000000" /></label>
+          <label>Maximum monthly installment (PKR)<input id="compareMonthlyMax" type="number" min="0" step="1" inputmode="decimal" placeholder="100000" /></label>
+          <label>Preferred location<input id="comparePreferredLocation" maxlength="160" placeholder="Al Rehman Garden" /></label>
+          <label>Main priority<select id="comparePriority"><option value="balanced">Balanced comparison</option><option value="price">Lowest price</option><option value="space">More space</option><option value="installments">Installment affordability</option><option value="location">Preferred location</option></select></label>
+        </div>
+        <label>Other priorities<textarea id="compareNotes" rows="2" maxlength="1000" placeholder="e.g. Customer prefers a corner plot and wants lower monthly payments."></textarea></label>
+      </article>
+
+      <div class="comparison-actions">
+        <button class="button button-primary comparison-run" id="runComparison" type="button">Compare properties <span>→</span></button>
+        <button class="button button-outline" id="resetComparison" type="button">Reset</button>
+        <p id="comparisonStatus" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <section class="comparison-results section" id="comparisonResults" hidden aria-live="polite">
+      <div class="comparison-section-heading"><div><p class="eyebrow">Comparison result</p><h2>Side-by-side decision view</h2></div><div class="result-provider" id="comparisonProvider"></div></div>
+      <div class="comparison-score-grid">
+        <article class="score-card" data-result-side="a"><span class="score-letter">A</span><div><small>Fit score</small><strong id="scoreA">—</strong><h3 id="scoreTitleA">Property A</h3></div></article>
+        <article class="recommendation-card"><small>Recommendation</small><strong id="comparisonWinner">Reviewing…</strong><p>Scores reflect the information and customer priorities supplied to this comparison.</p></article>
+        <article class="score-card" data-result-side="b"><span class="score-letter">B</span><div><small>Fit score</small><strong id="scoreB">—</strong><h3 id="scoreTitleB">Property B</h3></div></article>
+      </div>
+
+      <div class="comparison-table-wrap">
+        <table class="comparison-table">
+          <thead><tr><th>Criteria</th><th id="tableTitleA">Property A</th><th id="tableTitleB">Property B</th></tr></thead>
+          <tbody id="comparisonTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="comparison-insights-grid">
+        <article class="insight-card"><p class="eyebrow">Property A</p><h3>Strengths & checks</h3><div id="insightsA"></div></article>
+        <article class="ai-comparison-card"><div class="ai-card-heading"><div><p class="eyebrow">Advisor brief</p><h3>AI-assisted comparison</h3></div><span id="aiProviderBadge">Local analysis</span></div><div class="ai-comparison-text" id="comparisonBrief"></div><div class="ai-comparison-actions"><button type="button" class="button button-outline" id="copyComparison">Copy comparison</button></div></article>
+        <article class="insight-card"><p class="eyebrow">Property B</p><h3>Strengths & checks</h3><div id="insightsB"></div></article>
+      </div>
+      <p class="comparison-disclaimer" id="comparisonDisclaimer"></p>
+    </section>
+  </main>
+
+  <footer class="site-footer"><a class="brand footer-brand" href="index.html"><span class="brand-logo"><img src="images/home-logo.jpg" alt="Heera Estate logo" /></span><span>Heera Estate</span></a><p>Homes that feel like home.</p><span>© <span id="year"></span> Heera Estate</span></footer>
+  <script src="site-nav.js"></script>
+  <script src="property-comparison.js"></script>
+  <script src="chatbot.js" defer></script>
+  <script src="theme.js" defer></script>
+</body>
+</html>

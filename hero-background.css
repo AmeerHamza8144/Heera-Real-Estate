@@ -1,19 +1,155 @@
-.hero {
-  background-color: #071b2b !important;
-  background-image:
-    linear-gradient(90deg, rgba(5, 24, 38, .58), rgba(5, 24, 38, .10)),
-    url("images/al-rehman-garden-hero.png") !important;
-  background-position: center center, center center !important;
-  background-repeat: no-repeat, no-repeat !important;
-  background-size: 100% 100%, contain !important;
+/*
+ * Heera Estate continuous public homepage background.
+ * The header, hero and all homepage content share ONE 3-colour gradient.
+ * The footer is intentionally excluded and keeps its own dark surface.
+ */
+:root {
+  --heera-gradient-top: #0b2d4d;
+  --heera-gradient-mid: #1f6f78;
+  --heera-gradient-bottom: #d5a84e;
 }
 
-@media (max-width: 700px) {
-  .hero {
-    background-image:
-      linear-gradient(90deg, rgba(5, 24, 38, .70), rgba(5, 24, 38, .22)),
-      url("images/al-rehman-garden-hero.png") !important;
-    background-position: center center, center center !important;
-    background-size: 100% 100%, contain !important;
+html {
+  min-height: 100%;
+  background: var(--heera-gradient-top);
+}
+
+body {
+  min-height: 100%;
+  background-color: var(--heera-gradient-top) !important;
+  background-image: linear-gradient(
+    145deg,
+    var(--heera-gradient-top) 0%,
+    #124967 24%,
+    var(--heera-gradient-mid) 52%,
+    #8e8b62 76%,
+    var(--heera-gradient-bottom) 100%
+  ) !important;
+  background-repeat: no-repeat !important;
+  background-position: top center !important;
+  background-size: 100% 100% !important;
+}
+
+/* The menu is part of the same page background, not a separate colored band. */
+.site-header {
+  background: transparent !important;
+  border-color: rgba(255,255,255,.18) !important;
+  box-shadow: 0 10px 30px rgba(3,22,35,.14), inset 0 -1px rgba(255,255,255,.08) !important;
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+}
+.site-header::before {
+  background: transparent !important;
+  opacity: 0 !important;
+}
+.site-header .brand,
+.site-header .main-nav > a,
+.site-header .projects-toggle,
+.site-header .utility-toggle,
+.site-header .login-button,
+.site-header .saved-button {
+  color: #fff !important;
+}
+.menu-toggle span { background:#fff !important; }
+
+/* Completely remove the previous hero photograph and section colors. */
+.hero,
+main,
+main > section,
+.featured,
+.neighborhoods,
+.home-gallery,
+.agents,
+.office-locations,
+.why-us,
+.contact,
+.seo-home-locations,
+.section {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+.hero {
+  background: transparent !important;
+  background-image: none !important;
+  color:#fff;
+}
+
+/* Dark mode must not re-introduce opaque section backgrounds. */
+html[data-theme="dark"] body,
+html[data-theme="dark"] main,
+html[data-theme="dark"] .section,
+html[data-theme="dark"] .featured,
+html[data-theme="dark"] .home-gallery,
+html[data-theme="dark"] .agents,
+html[data-theme="dark"] .office-locations,
+html[data-theme="dark"] .why-us,
+html[data-theme="dark"] .contact,
+html[data-theme="dark"] .seo-home-locations {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Readable section copy on the shared gradient. */
+.section-heading h2,
+.section-heading .eyebrow,
+.section-note,
+.results-message,
+.office-locations .section-heading h2,
+.agents .section-heading h2,
+.home-gallery .section-heading h2,
+.seo-home-locations h2,
+.contact h2,
+.contact p:not(.eyebrow) {
+  color:#fff !important;
+}
+.section-note,
+.results-message,
+.contact p:not(.eyebrow) { color:rgba(255,255,255,.82) !important; }
+.section-heading .text-link,
+.seo-location-links a { color:#fff !important; }
+
+/* Content cards remain bright/glass for contrast. */
+.property-card,
+.agent-card,
+.office-address-card,
+.search-panel,
+.contact-form {
+  background: rgba(255,255,255,.92) !important;
+  border-color: rgba(255,255,255,.32) !important;
+  box-shadow: 0 18px 42px rgba(6,31,46,.16);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+}
+.contact-form {
+  padding:22px;
+  border-radius:18px;
+  color:#17384d;
+}
+.contact-form label,
+.contact-form input,
+.contact-form select,
+.contact-form textarea { color:#17384d !important; }
+.contact-form input,
+.contact-form select,
+.contact-form textarea { border-bottom-color:rgba(23,56,77,.22) !important; }
+
+/* The footer is the only major area that does NOT use the page gradient. */
+.site-footer {
+  background: linear-gradient(120deg,#082227,#113e39) !important;
+  color:#e1f0eb !important;
+}
+
+@media (max-width:1050px) {
+  .site-header .main-nav {
+    background: linear-gradient(145deg,rgba(11,45,77,.98),rgba(31,111,120,.96),rgba(142,139,98,.94)) !important;
+    border-color:rgba(255,255,255,.18) !important;
   }
+  .site-header .main-nav a,
+  .site-header .projects-toggle,
+  .site-header .utility-toggle,
+  .site-header .project-group-toggle { color:#fff !important; }
+}
+@media (max-width:570px) {
+  .hero { min-height:auto !important; }
+  .contact-form { padding:16px; }
 }

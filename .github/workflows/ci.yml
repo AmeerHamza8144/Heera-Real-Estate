@@ -1,0 +1,55 @@
+name: Heera Estate CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: havenly_real_estate
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      HAVENLY_DB_HOST: 127.0.0.1
+      HAVENLY_DB_NAME: havenly_real_estate
+      HAVENLY_DB_USER: root
+      HAVENLY_DB_PASSWORD: root
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, mbstring
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install MySQL client
+        run: sudo apt-get update && sudo apt-get install -y mysql-client
+      - name: Static tests
+        run: ./tests/run-static.sh
+      - name: Import fresh schema
+        run: mysql -h127.0.0.1 -uroot -proot < database.sql
+      - name: Run structural migration idempotently
+        run: mysql -h127.0.0.1 -uroot -proot < structural-upgrade-v2.sql
+      - name: Database relationship smoke test
+        run: php tests/schema-smoke.php
+      - name: Start PHP test server
+        run: php -S 127.0.0.1:8080 -t . >/tmp/heera-php.log 2>&1 &
+      - name: Admin API + RBAC smoke tests
+        run: |
+          sleep 2
+          ./tests/api-smoke.sh
+      - name: Show PHP server log on failure
+        if: failure()
+        run: cat /tmp/heera-php.log || true

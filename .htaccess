@@ -1,6 +1,12 @@
 DirectoryIndex index.php index.html
 Options -Indexes
 RewriteEngine On
+RewriteRule ^api/v1/crm/leads/?$ api.php?action=crm_lead [QSA,L,NC]
+RewriteRule ^api/v1/property-comparison/?$ api.php?action=compare_properties [QSA,L,NC]
+RewriteRule ^api/v1/payment-plans/?$ api.php?action=payment_plans [QSA,L,NC]
+RewriteRule ^api/v1/sub-projects/?$ api.php?action=sub_projects [QSA,L,NC]
+RewriteRule ^api/v1/admin/?$ admin-api.php?route=bootstrap [QSA,L,NC]
+RewriteRule ^api/v1/admin/(.+?)/?$ admin-api.php?route=$1 [QSA,L,NC]
 RewriteRule ^property/([a-z0-9-]+)/?$ property.php?slug=$1 [QSA,L,NC]
 RewriteRule ^project/([a-z0-9-]+)/?$ project.php?slug=$1 [QSA,L,NC]
 RewriteRule ^location/([a-z0-9-]+)/?$ location.php?slug=$1 [QSA,L,NC]
@@ -15,6 +21,9 @@ Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
 Header always set X-Permitted-Cross-Domain-Policies "none"
 </IfModule>
 <FilesMatch "(?i)^(\.env.*|.*\.(sql|log|ini|md))$">
+Require all denied
+</FilesMatch>
+<FilesMatch "^(api-core|structural-v2|ai-property-advisor|ai-property-comparison)\.php$">
 Require all denied
 </FilesMatch>
 AddType application/javascript .mjs

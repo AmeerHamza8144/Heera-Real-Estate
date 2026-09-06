@@ -128,3 +128,31 @@
 @media (max-width: 720px) { .login-screen { grid-template-columns: 1fr; } .login-intro { padding: 70px 25px 45px; } .login-card { margin: 0 20px 50px; max-width: none; padding: 30px; } .dashboard { padding: 38px 18px 60px; } .dashboard-topbar { align-items: start; gap: 20px; } .dashboard-topbar h1 { font-size: 38px; } .dashboard-actions { align-items: end; flex-direction: column; gap: 8px; } .listing-manager,.editor-panel,.gallery-manager-panel { padding: 20px; } .admin-home-gallery { grid-template-columns: repeat(2,1fr); } .plan-fields { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 500px) { .admin-header { height: 67px; padding: 0 20px; } .login-screen { min-height: calc(100vh - 67px); } .two-column,.three-column,.plan-fields { grid-template-columns: 1fr; } .plan-fields .plan-name-field { grid-column: auto; } .form-actions { align-items: start; flex-direction: column; } .form-actions .button { width: 100%; } }
 .client-review-tab{background:#fff2f0!important;color:#b42318!important}.client-review-tab.active{background:#b42318!important;color:#fff!important}.client-review-tab span:not(:empty){display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:5px;border-radius:999px;background:#d92d20;color:#fff;font-size:11px}.client-review-tab.active span{background:#fff;color:#b42318}.submission-images{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.submission-images img{width:92px;height:72px;border-radius:9px;object-fit:cover}.submission-actions{display:flex;gap:10px;flex-wrap:wrap}.submission-reject{background:#fff0ee!important;color:#b42318!important}.submission-status{display:inline-block;margin-top:5px;padding:3px 7px;border-radius:999px;background:#f2f4f3;font-size:11px;text-transform:capitalize}.submission-status.pending{background:#fff4d5;color:#865900}.submission-status.approved{background:#def5e8;color:#176b43}.submission-status.rejected{background:#ffe5e1;color:#a4251a}
+
+
+/* On-installments property linkage */
+.installment-plan-link {
+  margin: 4px 0 18px;
+  padding: 18px;
+  border: 1px solid rgba(24,95,165,.28);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(230,241,251,.92), rgba(255,255,255,.96));
+  box-shadow: 0 10px 28px rgba(20,73,116,.08);
+}
+.installment-plan-link[hidden] { display: none !important; }
+.installment-plan-link__heading { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:14px; }
+.installment-plan-link__heading > div { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.installment-plan-link__heading strong { font-size:15px; color:#163b59; }
+.installment-plan-link__heading small { max-width:390px; color:#667782; line-height:1.45; }
+.installment-plan-link__badge { display:inline-flex; align-items:center; min-height:26px; padding:4px 9px; border-radius:999px; background:#185fa5; color:white; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.installment-plan-link select { background:#fff; border-color:rgba(24,95,165,.32) !important; }
+.installment-plan-preview { margin-top:12px; padding:12px 14px; border-radius:10px; background:rgba(255,255,255,.78); border:1px solid rgba(24,95,165,.14); display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.installment-plan-preview[hidden] { display:none !important; }
+.installment-plan-preview span { display:block; font-size:10px; color:#6b6a64; margin-bottom:3px; }
+.installment-plan-preview strong { display:block; color:#1a1a18; font-size:12px; overflow-wrap:anywhere; }
+@media (max-width:760px) {
+  .installment-plan-link { padding:14px; margin-bottom:14px; }
+  .installment-plan-link__heading { display:block; }
+  .installment-plan-link__heading small { display:block; margin-top:8px; }
+  .installment-plan-preview { grid-template-columns:1fr 1fr; }
+}

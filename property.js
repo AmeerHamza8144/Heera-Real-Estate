@@ -48,6 +48,13 @@ function labelValue(value) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function listingTypeLabel(value) {
+  if (value === "rent") return "For rent";
+  if (value === "installment") return "On Installments";
+  if (value === "sale") return "For sale";
+  return labelValue(value || "Listing");
+}
+
 function propertyAddress(property) {
   return [property.address_line1, property.city, property.state_region, property.postal_code]
     .map((part) => String(part || "").trim())
@@ -183,8 +190,9 @@ function renderLinks(media) {
 }
 
 function renderProperty(property) {
+  propertyPage.id = Number(property.property_id || propertyPage.id || 0);
   const title = String(property.title || "Property details");
-  const listingType = labelValue(property.listing_type || "listing");
+  const listingType = listingTypeLabel(property.listing_type);
   const status = labelValue(property.status || "available");
   const address = propertyAddress(property);
   const pkrPrice = formatPkr(property.price_pkr, property.listing_type);
@@ -197,7 +205,7 @@ function renderProperty(property) {
   if (descriptionMeta && property.description) descriptionMeta.content = String(property.description).replace(/\s+/g, " ").slice(0, 158);
   if (property.slug && !/\/property\//.test(window.location.pathname)) history.replaceState(null, "", `property/${encodeURIComponent(property.slug)}`);
   element("propertyTitle").textContent = title;
-  element("propertyListingType").textContent = property.listing_type === "rent" ? "For rent" : "For sale";
+  element("propertyListingType").textContent = listingType;
   element("propertyType").textContent = labelValue(property.property_type || "Property");
   element("propertyStatus").textContent = status;
   element("propertyLocation").textContent = address || "Location available on request";
@@ -207,13 +215,21 @@ function renderProperty(property) {
     element("propertySecondaryPrice").hidden = false;
   }
   element("propertyReference").textContent = `#${property.property_id}`;
+  updatePropertyCompareButton();
 
   const facts = element("propertyFacts");
   facts.replaceChildren();
   addFact(facts, "Listing", listingType);
   addFact(facts, "Property type", labelValue(property.property_type));
   addFact(facts, "Project", [property.project_title, property.project_plan_name].filter(Boolean).join(" — "));
-  addFact(facts, "Payment plan", Number(property.has_payment_plan || 0) === 1 ? "Available" : "Not listed");
+  const selectedPlan = property.selected_payment_plan || null;
+  const selectedPlanLabel = selectedPlan ? [selectedPlan.plan_name || "Payment Plan", selectedPlan.size_label || ""].filter(Boolean).join(" — ") : "";
+  addFact(facts, "Payment plan", selectedPlanLabel || (property.listing_type === "installment" ? "Not connected — ask for current plan" : (Number(property.has_payment_plan || 0) === 1 ? "Available" : "Not listed")));
+  if (selectedPlan) {
+    addFact(facts, "Booking", selectedPlan.booking_amount ? `PKR ${formatNumber(selectedPlan.booking_amount)}` : "");
+    addFact(facts, "Monthly", selectedPlan.monthly_installment ? `${selectedPlan.monthly_installment_count || ""} × PKR ${formatNumber(selectedPlan.monthly_installment)}`.trim() : "");
+    addFact(facts, "On possession", selectedPlan.on_possession ? `PKR ${formatNumber(selectedPlan.on_possession)}` : "");
+  }
   addFact(facts, "Status", status);
   addFact(facts, "Size", property.size_label);
   addFact(facts, "Block", property.block_name);
@@ -241,6 +257,35 @@ function renderProperty(property) {
   element("whatsAppEnquiry").href = `https://wa.me/923000660446?text=${enquiryText}`;
   element("propertyLoading").hidden = true;
   element("propertyContent").hidden = false;
+}
+
+
+function propertyCompareIds() {
+  try { return JSON.parse(localStorage.getItem("heeraCompare") || "[]").map(Number).filter(Number.isFinite).slice(0, 2); }
+  catch { return []; }
+}
+
+function updatePropertyCompareButton() {
+  const button = element("propertyCompareButton");
+  if (!button || !propertyPage.id) return;
+  const active = propertyCompareIds().includes(Number(propertyPage.id));
+  button.classList.toggle("active", active);
+  button.setAttribute("aria-pressed", String(active));
+  button.textContent = active ? "✓ Added to comparison" : "＋ Add to comparison";
+}
+
+function togglePropertyComparison() {
+  if (!propertyPage.id) return;
+  let ids = propertyCompareIds();
+  const id = Number(propertyPage.id);
+  if (ids.includes(id)) ids = ids.filter(item => item !== id);
+  else if (ids.length < 2) ids.push(id);
+  else {
+    alert("You can compare two properties at a time. Open Property Comparison or remove one of the selected properties first.");
+    return;
+  }
+  localStorage.setItem("heeraCompare", JSON.stringify(ids));
+  updatePropertyCompareButton();
 }
 
 function showPropertyError(title, message) {
@@ -275,6 +320,7 @@ async function loadProperty() {
   }
 }
 
+element("propertyCompareButton")?.addEventListener("click", togglePropertyComparison);
 element("previousMedia").addEventListener("click", () => showImage(propertyPage.currentImage - 1));
 element("nextMedia").addEventListener("click", () => showImage(propertyPage.currentImage + 1));
 document.addEventListener("keydown", (event) => {

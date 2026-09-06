@@ -276,3 +276,4 @@
 @media (max-width: 420px) {
   .property-facts { grid-template-columns: 1fr; }
 }
+.property-compare-detail{background:transparent;cursor:pointer;font-family:inherit;width:100%;text-align:left}.property-compare-detail.active{color:#185fa5;font-weight:800}

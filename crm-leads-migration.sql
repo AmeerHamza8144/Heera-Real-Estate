@@ -1,0 +1,21 @@
+-- Heera Estate CRM lead generation upgrade
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS assigned_agent_id INT UNSIGNED NULL AFTER property_id;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS source VARCHAR(60) NOT NULL DEFAULT 'website' AFTER status;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS lead_stage VARCHAR(30) NOT NULL DEFAULT 'new' AFTER source;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS priority VARCHAR(20) NOT NULL DEFAULT 'medium' AFTER lead_stage;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS lead_score TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER priority;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS budget_min DECIMAL(15,2) NULL AFTER lead_score;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS budget_max DECIMAL(15,2) NULL AFTER budget_min;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS preferred_project VARCHAR(180) NULL AFTER budget_max;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS preferred_location VARCHAR(180) NULL AFTER preferred_project;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS preferred_property_type VARCHAR(80) NULL AFTER preferred_location;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS preferred_size VARCHAR(80) NULL AFTER preferred_property_type;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS preferred_listing_type VARCHAR(20) NULL AFTER preferred_size;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS next_follow_up DATETIME NULL AFTER preferred_listing_type;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS crm_notes TEXT NULL AFTER next_follow_up;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS utm_source VARCHAR(120) NULL AFTER crm_notes;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS utm_medium VARCHAR(120) NULL AFTER utm_source;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS utm_campaign VARCHAR(180) NULL AFTER utm_medium;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS landing_page VARCHAR(500) NULL AFTER utm_campaign;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS referrer VARCHAR(500) NULL AFTER landing_page;
+ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at;

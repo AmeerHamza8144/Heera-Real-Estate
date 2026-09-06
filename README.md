@@ -60,13 +60,13 @@ OCR results are location candidates, not legal survey data. Repeated plot number
 
 ## Property Block field
 
-Properties and client submissions have an optional free-text **Block** field (`block_name`). It is editable in Admin and the Client Form, displayed on property details, copied when a client submission is approved, and used when matching a property to a Plot Finder result. Existing databases receive the column automatically.
+Properties and client submissions have an optional free-text **Block** field (`block_name`). It is editable in Admin and the Add Property form, displayed on property details, copied when a client submission is approved, and used when matching a property to a Plot Finder result. Existing databases receive the column automatically.
 
 ## Compact login and modern Admin
 
 `auth-compact.css` removes unnecessary vertical space from the unified login popup while keeping sign-in, sign-up, password recovery and Admin Login responsive. `admin-modern.css` provides a sticky desktop sidebar, overview cards, modern form panels and a touch-friendly mobile tab bar without replacing the existing session or CRUD functionality.
 
-After a client or administrator signs in, the shared public header hides Login and displays a Profile button. Its dropdown identifies the current account, opens the Client Form, provides an Admin Dashboard link for administrators, and securely logs out through the PHP session API.
+After a client or administrator signs in, the shared public header hides Login and displays a Profile button. Its dropdown identifies the current account, opens Add Property, provides an Admin Dashboard link for administrators, and securely logs out through the PHP session API.
 
 `admin-submenus.css` adds View/Add submenus for Properties, Projects, Digital Maps, Gallery, Popups, Agents, Office Addresses, Login Users and Client Submissions. The layout remains usable as a touch-friendly menu on mobile.
 
@@ -84,7 +84,7 @@ The public pages include a free built-in chatbot (`chatbot.js` and `chatbot.css`
 
 ## Client property submissions
 
-The red **Client Form** button opens `client-form.html`, where sellers can submit contact details, property information, and up to five images. Submissions remain private in the **Client submissions** admin tab. An administrator can edit or reject a submission, or approve it to create an available property that appears on the main website. Existing installations do not require a manual migration because the API creates the submissions table when first used; `database.sql` also includes it for new installations.
+The red **Add Property** button opens `add-property.html`, where sellers can submit contact details, property information, and up to five images. Submissions remain private in the **Client submissions** admin tab. An administrator can edit or reject a submission, or approve it to create an available property that appears on the main website. Existing installations do not require a manual migration because the API creates the submissions table when first used; `database.sql` also includes it for new installations.
 
 ## Liquid glass theme
 
@@ -108,7 +108,7 @@ Projects can optionally have a **Plan (Sub Project)** name. Admins may create mu
 
 On screens up to 720px wide, structured payment-plan tables automatically become labeled cards for easier reading without horizontal scrolling. Payment-plan headings and values use DM Sans for clear mobile typography.
 
-The property **Facing / Type** field is a free-text input in both Admin and the Client Form, allowing custom values such as Corner, Park Facing, Main Boulevard, or any other description.
+The property **Facing / Type** field is a free-text input in both Admin and the Add Property form, allowing custom values such as Corner, Park Facing, Main Boulevard, or any other description.
 
 The chatbot includes a persistent WhatsApp button that opens a pre-filled conversation with Heera Estate. Its label and message automatically follow the selected English, Urdu, or Roman Urdu chatbot language.
 
@@ -118,6 +118,27 @@ The homepage Contact Us section uses reduced vertical padding, smaller gaps, and
 
 The homepage login modal combines Client Sign In, Client Sign Up, Forgot Password, and Admin Login. Client accounts are stored in `client_users`; administrators manage both client and admin accounts from the **Login users** Admin tab. Passwords are never returned or displayed: they are stored using PHP password hashes and can only be replaced with a new password. The original `admin@havenly.local` account and password remain valid, and the same account can also sign in with username `admin` after the automatic schema upgrade.
 
-The Client Form requires an authenticated client or admin session. Unauthenticated visitors are redirected to the unified login form and returned to `client-form.html` after signing in. Client submissions accept up to five images and one MP4/WebM video smaller than 100 MB. `.user.ini` raises PHP's upload/post limits; if XAMPP ignores per-folder settings, set `upload_max_filesize=110M`, `post_max_size=190M`, and `max_execution_time=300` in the active `php.ini`, then restart Apache.
+The Add Property form requires an authenticated client or admin session. Unauthenticated visitors are redirected to the unified login form and returned to `add-property.html` after signing in. Client submissions accept up to five images and one MP4/WebM video smaller than 100 MB. `.user.ini` raises PHP's upload/post limits; if XAMPP ignores per-folder settings, set `upload_max_filesize=110M`, `post_max_size=190M`, and `max_execution_time=300` in the active `php.ini`, then restart Apache.
 
 Client submissions require publication start and end dates. After approval, those dates are copied to the published property. Public listing and property queries automatically hide the property before its start date and after its end date, while the Admin portal retains it for editing and records.
+
+
+### Agent AI Property Advisor
+
+Admin users can open **AI Property Advisor** to rank live available properties against a buyer's budget, location, project, type, size, bedrooms, facing and installment preferences. Matching is database-first and works without an external AI service; when `OPENAI_API_KEY` is configured, the server can also generate a concise agent brief through the OpenAI Responses API. Client identity is not sent to the model.
+
+
+### AI Property Comparison
+Customers and agents can compare two properties at `property-comparison.html`. Either side may be selected from live website inventory or entered manually for an outside property. The public endpoint is `POST /api/v1/property-comparison`; it always produces a local fact-based comparison and can optionally add an AI explanation when `OPENAI_API_KEY` is configured.
+
+## Structural v2 upgrade
+
+The current architecture uses normalized **Projects → Sub-Projects → Payment Plans → Properties** relationships and role-based admin permissions. Existing installations should import `structural-upgrade-v2.sql`; the Admin API then completes legacy payment-plan JSON migration automatically.
+
+Run local static checks with:
+
+```bash
+./tests/run-static.sh
+```
+
+The repository also includes `.github/workflows/ci.yml`, which runs PHP/JavaScript syntax checks, structural contract tests, a fresh MySQL schema import, relational-integrity tests, and authenticated Admin API smoke tests.

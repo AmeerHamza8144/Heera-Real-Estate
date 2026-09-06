@@ -33,3 +33,12 @@ Plot Finder requires these files:
 - `maps/phase2-plot-index.json`
 - `maps/plot-index-example.json`
 - `plot-finder.html`, `plot-finder.css`, `plot-finder.js`, `image-map.js`
+
+
+## Optional Agent AI Property Advisor
+
+The advisor always ranks properties locally from your MySQL inventory. To add AI-generated agent briefs, configure `OPENAI_API_KEY` on the server and optionally set `HEERA_AI_ADVISOR_MODEL` (the project defaults to `gpt-5.6-luna`). Do not expose the API key in JavaScript or HTML. If you are upgrading an existing database, import `ai-property-advisor-migration.sql`; the Admin API also creates the history table automatically when permitted.
+
+## Existing database upgrade (Structural v2)
+
+After backing up your database, import `structural-upgrade-v2.sql` in phpMyAdmin. Then log in as Super Admin and open **More → API & Database** to confirm all tables and foreign keys are healthy. Existing `projects.plan_name` values are migrated into `sub_projects`; legacy `projects.payment_plans` JSON is copied into the normalized `payment_plans` table by the runtime compatibility migrator.

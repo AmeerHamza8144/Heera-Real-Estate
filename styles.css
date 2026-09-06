@@ -32,8 +32,8 @@ a { color: inherit; text-decoration: none; }
 /* Use exact 1cm size for footer as well */
 .footer-brand .brand-logo { height: 1cm; width: 1cm; }
 .main-nav { display: flex; gap: 34px; margin-left: 100px; }
-.main-nav a { color: #37423e; font-size: 14px; font-weight: 600; }
-.main-nav a:hover { color: var(--orange); }
+.main-nav a, .main-nav .nav-login-item { background: transparent; border: 0; color: #37423e; cursor: pointer; font: 600 14px "DM Sans", sans-serif; padding: 0; text-decoration: none; }
+.main-nav a:hover, .main-nav .nav-login-item:hover { color: var(--orange); }
 .projects-nav { position: relative; }
 .projects-toggle { background: transparent; border: 0; color: #37423e; font-size: 14px; font-weight: 600; padding: 0; }
 .projects-toggle span { display: inline-block; font-size: 15px; margin-left: 3px; transition: transform .2s; }
@@ -79,8 +79,6 @@ select { cursor: pointer; }
 .button-primary { background: linear-gradient(135deg, #2f8dff, #0f6bd3); color: white; }
 .button-primary:hover { background: linear-gradient(135deg, #0f6bd3, #0b4f96); }
 .button-dark { background: var(--ink); color: white; margin-top: 35px; }
-.hero-credit { bottom: 34px; font-size: 11px; letter-spacing: .9px; position: absolute; right: clamp(24px,5vw,80px); }
-.hero-credit strong { font-size: 11px; margin-left: 7px; }
 
 .section { padding: 110px clamp(24px,8vw,130px); }
 .section-heading { align-items: end; display: flex; justify-content: space-between; margin-bottom: 42px; }
@@ -267,7 +265,7 @@ blockquote { font-family: var(--serif); font-size: clamp(28px,3.3vw,46px); line-
 @media (max-width: 820px) {
   .main-nav { background: var(--cream); display: none; left: 0; margin: 0; padding: 16px 24px 22px; position: absolute; top: 78px; width: 100%; z-index: 10; }
   .main-nav.open { display: grid; gap: 18px; }
-  .main-nav a, .projects-toggle { color: #37423e; }
+  .main-nav a, .main-nav .nav-login-item, .projects-toggle { color: #37423e; }
   .projects-menu { box-shadow: none; left: 0; margin-top: 8px; position: static; }
   .menu-toggle { background: transparent; border: 0; display: grid; gap: 4px; margin-left: auto; margin-right: 18px; padding: 5px; }
   .admin-login-icon { margin-left: 0; }
@@ -306,8 +304,6 @@ blockquote { font-family: var(--serif); font-size: clamp(28px,3.3vw,46px); line-
   .search-panel label,.search-panel label:nth-child(2) { border-bottom: 1px solid var(--line); border-right: 0; padding: 10px 10px; }
   .search-panel label:nth-child(3) { margin-top: 0; }
   .search-panel .button { margin-top: 5px; padding: 14px; }
-  .hero-credit { bottom: 20px; font-size: 9px; right: 20px; }
-  .hero-credit strong { font-size: 9px; }
   .section { padding: 75px 20px; }
   .section-heading { align-items: start; display: block; margin-bottom: 32px; }
   .section-heading .text-link { margin-top: 18px; }
@@ -502,3 +498,5 @@ blockquote { font-family: var(--serif); font-size: clamp(28px,3.3vw,46px); line-
   .front-popup-panel .popup-content { padding: 20px; }
   .popup-scroll-top { bottom: 12px; right: 12px; }
 }
+
+.crm-honeypot{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}

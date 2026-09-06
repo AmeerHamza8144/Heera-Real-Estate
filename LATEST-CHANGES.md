@@ -1,3 +1,16 @@
+# 2026-08-29 — Mobile app-style admin shell
+
+- Added one responsive five-tab admin navigation shell: Home, Properties, Leads, Maps, More.
+- Mobile uses a fixed bottom navigation bar with iOS safe-area spacing; desktop reflows the same markup into a left sidebar.
+- Added live dashboard counts for new leads, pending client submissions, and published projects.
+- Added a recent activity feed generated from real enquiries, submissions, projects, and property updates.
+- Added a Leads screen with status filters, tap-to-call links, real status updates, notification badges, and chatbot/property source notes.
+- Added sticky property filters for project, block, size, price, type, facing, and text search.
+- Added a Plot Finder launcher inside the Maps screen and query-prefill support in Plot Finder.
+- Added grouped More screen for projects/payment plans, engagement modules, accounts, Theme/UI and planned configuration screens.
+- Added an admin command/search sheet for fast module navigation.
+- Added dark-mode-aware app design tokens and accessible navigation/button labels.
+
 # Latest update
 
 ## Installment calculator and navigation
@@ -62,3 +75,57 @@
 - `.user.ini`, `README.md`, `INSTALLATION.md`, `PLOT-FINDER-TESTS.md`
 - `popup-type-migration.sql`
 - `maps/plot-index-example.json`
+
+## On Installments property listings
+- Added `On Installments` beside For Sale and For Rent.
+- Installment properties can optionally connect to one saved structured payment plan from the linked project.
+- Payment plans now receive stable `plan_id` values, so property connections survive plan reordering.
+- Public listing/detail screens show the installment label and selected plan summary.
+- Added `installment-listing-migration.sql` for existing databases.
+
+## 2026-08-29 — Installment listings + API v1
+- Added `On Installments` as a first-class property listing type.
+- Admin property editor now reveals a dedicated optional payment-plan selector for installment listings.
+- Added normalized `payment_plans` table while retaining the existing project JSON field for backwards compatibility.
+- Added versioned endpoints: `/api/v1/payment-plans` and `/api/v1/admin/payment-plans`.
+- Added live payment-plan preview in the property editor.
+- Reduced mobile property cards substantially (2-column, compact media/content/actions).
+- Removed the Architectural Digest promotional credit from the home hero.
+
+## 2026-08-29 — Admin API v1 rebuild
+- Split shared PHP business/database logic into `api-core.php` so the public API and the new admin API use one source of truth.
+- Added `admin-api.php` with versioned admin routes under `/api/v1/admin/*` and compatibility aliases for all previous admin action names.
+- Added `admin-api.js` with CSRF handling, no-cache requests, pretty-route support, and automatic fallback when Apache rewrites are unavailable.
+- Admin app waits for authenticated API bootstrap before opening workspaces.
+- Every admin workspace refreshes its own server data when opened; legacy sidebar and app navigation states are synchronized.
+- Added automatic admin schema checks/bootstrapping for core tables and a Settings → API & Database health check.
+- Preserved the original `api.php?action=...` interface for the public website and backward compatibility.
+
+## 2026-08-29 — Header menu integration
+- Moved **Add Property** into the main public navigation on all public pages.
+- Moved **Login** into the same main navigation; the homepage control still opens the existing login modal.
+- Signed-in account/profile state now occupies the Login position inside the navigation.
+- Removed use of the standalone `header-actions` area and dedicated Add Property button stylesheet from public templates.
+- Unified Add Property/Login hover, spacing, typography and mobile menu behavior with other navigation items.
+- Added compact desktop navigation spacing between 1051px and 1250px to prevent header crowding.
+
+## Agent AI Property Advisor
+
+- Added an admin-only AI Property Advisor for agents.
+- Database-first ranking across live available properties using budget, location, project, block, property type, size, bedrooms, facing, listing type, and installment targets.
+- Added optional agent/client reference fields and recent advisor search history.
+- Added `/api/v1/admin/advisor/recommend` and `/api/v1/admin/advisor/history`.
+- Added `ai_advisor_sessions` table plus `ai-property-advisor-migration.sql`.
+- Optional server-side OpenAI Responses API brief with local fallback when no API key is configured.
+- Client name is never included in the external AI prompt; email/phone-like text in notes is redacted before an external AI request.
+- Added copy/share actions for agent briefs and property recommendations.
+
+## AI Property Comparison
+
+- Added public `property-comparison.html` for side-by-side comparison of two properties.
+- Each side can use a live Heera Estate listing or a customer-entered external/manual property.
+- Added compare buttons to homepage listing cards, property details, and AI Advisor results.
+- Added a two-property comparison basket stored locally in the browser.
+- Added deterministic price/space/installment/customer-priority scoring with an optional AI explanation layer.
+- Added `POST /api/v1/property-comparison` with fallback to `api.php?action=compare_properties`.
+- Manual external properties are clearly marked unverified and are not written into the property inventory database.

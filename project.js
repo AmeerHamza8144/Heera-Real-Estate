@@ -202,8 +202,15 @@ function renderProject(project) {
   document.querySelector("#projectDescription").textContent = project.description || "Project information will be added shortly.";
   const heroImage = safeUrl(project.hero_image_url) || safeUrl((project.media || []).find((item) => item.media_type === "gallery")?.file_path);
   if (heroImage) document.querySelector("#projectHero").style.backgroundImage = `linear-gradient(90deg,rgba(23,38,33,.72),rgba(23,38,33,.2)), url("${heroImage}")`;
-  const facts = [["Plan", project.plan_name], ["Location", project.location], ["Status", project.status], ["Project type", project.category]].filter(([, value]) => value);
+  const subProjects = Array.isArray(project.sub_projects) ? project.sub_projects : [];
+  const facts = [["Location", project.location], ["Status", project.status], ["Project type", project.category], ["Sub-projects", subProjects.length ? String(subProjects.length) : ""]].filter(([, value]) => value);
   document.querySelector("#projectFacts").innerHTML = facts.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  const subSection = document.querySelector("#subProjectsSection");
+  const subGrid = document.querySelector("#projectSubProjects");
+  if (subSection && subGrid && subProjects.length) {
+    subSection.hidden = false;
+    subGrid.innerHTML = subProjects.map(item => `<article class="sub-project-public-card"><p class="eyebrow">${escapeHtml(item.status || "Published")}</p><h3>${escapeHtml(item.name)}</h3>${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}</article>`).join("");
+  }
   renderProjectPlans(document.querySelector("#projectPlans"), project);
   renderMedia(document.querySelector("#projectGallery"), project.media || [], "gallery", "Project images will be available soon.");
 }

@@ -17,18 +17,17 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="chatbot.css" />
-  <link rel="stylesheet" href="client-button.css" />
   <link rel="stylesheet" href="liquid-glass.css" />
   <link rel="stylesheet" href="navigation-fixes.css" />
   <link rel="stylesheet" href="footer-compact.css" />
   <link rel="stylesheet" href="gallery-compact.css" />
   <link rel="stylesheet" href="property-slider.css" />
-  <link rel="stylesheet" href="hero-background.css" />
   <link rel="stylesheet" href="auth-portal.css" />
   <link rel="stylesheet" href="auth-compact.css" />
   <link rel="stylesheet" href="seo.css" />
   <link rel="stylesheet" href="seo-home.css" />
   <link rel="stylesheet" href="advanced-search.css" />
+  <link rel="stylesheet" href="hero-background.css?v=20260829-3" />
 </head>
 <body>
   <header class="site-header" id="top">
@@ -42,6 +41,7 @@
     <nav class="main-nav" aria-label="Main navigation">
       <a href="#listings" data-listing="sale">Buy</a>
       <a href="#listings" data-listing="rent">Rent</a>
+      <a href="#listings" data-listing="installment">Installments</a>
       <a href="#agents">Agents</a>
       <div class="projects-nav">
         <button class="projects-toggle" type="button" aria-expanded="false">Projects <span>⌄</span></button>
@@ -49,11 +49,10 @@
       </div>
       <a href="plot-finder.html">PLOT FINDER</a>
       <a href="#contact">Contact</a>
+    
+      <a class="nav-add-property" href="add-property.html">Add Property</a>
+      <button class="login-button nav-login-item" id="openIndexLogin" type="button">Login</button>
     </nav>
-    <div class="header-actions">
-      <a class="client-form-button" href="client-form.html">Client Form <span>＋</span></a>
-      <button class="admin-login-icon login-button" id="openIndexLogin" type="button">Login</button>
-    </div>
   </header>
 
   <main>
@@ -74,13 +73,12 @@
             <label><span>Minimum price (PKR)</span><input id="minPriceFilter" type="number" min="0" step="1000" placeholder="No minimum" /></label>
             <label><span>Maximum price (PKR)</span><input id="maxPriceFilter" type="number" min="0" step="1000" placeholder="No maximum" /></label>
             <label><span>Facing / type</span><input id="facingFilter" type="search" list="propertyFacingOptions" placeholder="Corner, Park Facing…" /><datalist id="propertyFacingOptions"></datalist></label>
-            <label><span>Availability</span><select id="availabilityFilter"><option value="all">Any availability</option><option value="available">Available now</option><option value="sale">For sale</option><option value="rent">For rent</option></select></label>
+            <label><span>Availability</span><select id="availabilityFilter"><option value="all">Any availability</option><option value="available">Available now</option><option value="sale">For sale</option><option value="rent">For rent</option><option value="installment">On Installments</option></select></label>
             <label><span>Payment plan</span><select id="paymentPlanFilter"><option value="all">Any payment option</option><option value="yes">Any payment plan</option><option value="no">Full payment / no plan</option></select></label>
             <button class="advanced-search-reset" id="resetAdvancedSearch" type="button">Reset all filters</button>
           </div>
         </form>
       </div>
-      <div class="hero-credit">Featured in <strong>ARCHITECTURAL DIGEST</strong></div>
     </section>
 
     <section class="featured section" id="listings">
@@ -156,10 +154,18 @@
       <form class="contact-form" id="contactForm">
         <div class="form-row">
           <label>Full name<input name="name" required placeholder="Your name" /></label>
-          <label>Email address<input name="email" required type="email" placeholder="you@example.com" /></label>
+          <label>Email address<input name="email" type="email" placeholder="you@example.com" /></label>
         </div>
-        <label>I'm interested in<select name="interest"><option>Buying a home</option><option>Selling a home</option><option>Renting a home</option><option>Speaking to an agent</option></select></label>
+        <div class="form-row">
+          <label>Phone number<input name="phone" required inputmode="tel" placeholder="03xx xxxxxxx" /></label>
+          <label>I'm interested in<select name="interest"><option value="buying">Buying a home</option><option value="selling">Selling a home</option><option value="renting">Renting a home</option><option value="agent">Speaking to an agent</option></select></label>
+        </div>
+        <div class="form-row">
+          <label>Maximum budget (PKR)<input name="budget_max" type="number" min="0" step="1" inputmode="decimal" placeholder="Optional" /></label>
+          <label>Preferred location<input name="preferred_location" placeholder="Project / area" /></label>
+        </div>
         <label>Message<textarea name="message" rows="2" placeholder="Tell us a little about your plans"></textarea></label>
+        <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="crm-honeypot" />
         <button class="button button-primary" type="submit">Send enquiry <span>→</span></button>
         <p class="form-success" id="formSuccess" role="status"></p>
       </form>
