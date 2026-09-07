@@ -37,7 +37,7 @@ jobs:
       - name: Install MySQL client
         run: sudo apt-get update && sudo apt-get install -y mysql-client
       - name: Static tests
-        run: ./tests/run-static.sh
+        run: bash tests/run-static.sh
       - name: Import fresh schema
         run: mysql -h127.0.0.1 -uroot -proot < database.sql
       - name: Run structural migration idempotently
@@ -49,7 +49,7 @@ jobs:
       - name: Admin API + RBAC smoke tests
         run: |
           sleep 2
-          ./tests/api-smoke.sh
+          bash tests/api-smoke.sh
       - name: Show PHP server log on failure
         if: failure()
         run: cat /tmp/heera-php.log || true
