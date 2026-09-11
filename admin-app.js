@@ -20,6 +20,7 @@
     aiAdvisorWorkspace: ['Agent tools', 'AI Property Advisor'],
     projectsWorkspace: ['Projects', 'Projects'],
     subProjectsWorkspace: ['Projects & structure', 'Sub-Projects'],
+    masterDataWorkspace: ['Configuration', 'Master Data'],
     galleryWorkspace: ['Website content', 'Home Gallery'],
     popupsWorkspace: ['Website content', 'Popups'],
     agentsWorkspace: ['Team management', 'Agents'],
@@ -35,6 +36,7 @@
   let adminAppStarted = false;
   let adminAppReady = false;
   const workspaceRefreshes = new Map();
+  const workspaceLoadedAt = new Map();
 
   function safe(value = '') {
     return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -89,13 +91,13 @@
     if (workspaceId === 'addressesWorkspace' && typeof setAdminSubview === 'function' && !options.keepSubview) setAdminSubview('addressesWorkspace', options.subview || 'list');
     if (workspaceId === 'loginUsersWorkspace' && typeof setAdminSubview === 'function' && !options.keepSubview) setAdminSubview('loginUsersWorkspace', options.subview || 'list');
 
-    if (adminAppReady && !options.noRefresh) refreshWorkspaceData(workspaceId);
+    if (adminAppReady && !options.noRefresh) requestAnimationFrame(() => refreshWorkspaceData(workspaceId, !!options.forceRefresh).catch(() => {}));
     if (workspaceId === 'propertiesWorkspace') setTimeout(syncPropertyFilters, 0);
-    if (!options.noScroll) window.scrollTo({top: 0, behavior: 'smooth'});
+    if (!options.noScroll) window.scrollTo({top: 0, behavior: 'auto'});
     if (history.replaceState) history.replaceState(null, '', `#${workspaceId}`);
   }
 
-  async function refreshWorkspaceData(workspaceId) {
+  async function refreshWorkspaceData(workspaceId, force = false) {
     const loaders = {
       appHomeWorkspace: loadDashboard,
       propertiesWorkspace: window.loadProperties,
@@ -103,6 +105,7 @@
       digitalMapsWorkspace: window.loadDigitalMaps,
       projectsWorkspace: window.loadProjects,
       subProjectsWorkspace: window.loadSubProjects,
+      masterDataWorkspace: window.loadMasterData,
       galleryWorkspace: window.loadHomeGallery,
       popupsWorkspace: window.loadAdminPopups,
       agentsWorkspace: window.loadAgents,
@@ -114,8 +117,16 @@
     };
     const loader = loaders[workspaceId];
     if (typeof loader !== 'function') return;
+    const cacheMs = workspaceId === 'appHomeWorkspace' ? 8000 : 15000;
+    if (!force && Date.now() - Number(workspaceLoadedAt.get(workspaceId) || 0) < cacheMs) return;
     if (workspaceRefreshes.has(workspaceId)) return workspaceRefreshes.get(workspaceId);
-    const task = Promise.resolve().then(() => loader()).catch(error => {
+    if (['propertiesWorkspace','projectsWorkspace','subProjectsWorkspace','digitalMapsWorkspace'].includes(workspaceId) && typeof window.loadMasterData === 'function') {
+      Promise.resolve(window.loadMasterData()).catch(() => {});
+    }
+    const task = Promise.resolve().then(() => loader()).then((result) => {
+      workspaceLoadedAt.set(workspaceId, Date.now());
+      return result;
+    }).catch(error => {
       toast(error?.message || 'This module could not be refreshed.');
       throw error;
     }).finally(() => workspaceRefreshes.delete(workspaceId));
@@ -149,6 +160,21 @@
       badge.textContent = total > 99 ? '99+' : String(total);
     }
     if (dot) dot.hidden = newLeads < 1;
+  }
+
+  function setHealthItem(statusId, dotId, label, ok) {
+    const status=$(`#${statusId}`),dot=$(`#${dotId}`);
+    if(status)status.textContent=label;
+    if(dot){dot.classList.toggle('is-ok',!!ok);dot.classList.toggle('is-error',ok===false);}
+  }
+
+  function updateHomeHealth(health) {
+    const relations=Object.values(health?.foreign_keys||{}),routines=Object.values(health?.stored_procedures||{});
+    const relationsOk=relations.length>0 ? relations.every(Boolean) : !!health?.schema_ready;
+    const routinesOk=routines.length>0&&routines.every(Boolean);
+    setHealthItem('homeDbStatus','homeDbDot',health?.database==='connected'?'Connected':'Needs attention',health?.database==='connected');
+    setHealthItem('homeRelationStatus','homeRelationDot',relationsOk?`${relations.length} links ready`:'Repair required',relationsOk);
+    setHealthItem('homeRoutineStatus','homeRoutineDot',routinesOk?`${routines.length} routines ready`:routines.length?`${routines.filter(Boolean).length}/${routines.length} ready`:'Not installed',routinesOk);
   }
 
   function renderActivity(items) {
@@ -339,12 +365,21 @@
       try {
         const health = await window.HeeraAdminAPI?.health?.();
         const relations = Object.values(health?.foreign_keys || {});
+        const routines = Object.values(health?.stored_procedures || {});
         const relationsReady = !relations.length || relations.every(Boolean);
-        const ready = health?.database === 'connected' && health?.schema_ready && relationsReady;
+        const routinesReady = routines.length > 0 && routines.every(Boolean);
+        const missingPropertyColumns = Object.entries(health?.property_columns || {}).filter(([,present]) => !present).map(([name]) => name);
+        const ready = health?.database === 'connected' && health?.schema_ready && relationsReady && routinesReady;
+        updateHomeHealth(health);
         if (status) status.textContent = ready ? 'Online' : 'Needs attention';
-        if (text) text.textContent = ready ? `Admin API ${health.api_version || 'v1'} · database connected · schema + ${relations.length} core relationships ready` : 'API connected, but one or more database tables/relationships need attention';
-        toast(ready ? 'Admin API and database are healthy.' : 'API is online, but the database schema needs attention.');
+        if (text) text.textContent = ready
+          ? `Admin API ${health.api_version || 'v2'} · database connected · ${relations.length} relationships + ${routines.length} stored procedures ready`
+          : missingPropertyColumns.length
+            ? `Missing property columns: ${missingPropertyColumns.join(', ')}. Import project-schema-repair.sql.`
+            : 'API connected, but one or more database tables/relationships need attention';
+        toast(ready ? 'Admin API and database are healthy.' : missingPropertyColumns.length ? 'Property schema is incomplete. Import project-schema-repair.sql.' : 'API is online, but the database schema needs attention.');
       } catch (error) {
+        updateHomeHealth({database:'error',schema_ready:false,foreign_keys:{},stored_procedures:{}});
         if (status) status.textContent = 'Offline';
         if (text) text.textContent = error.message || 'Admin API connection failed';
         toast(error.message || 'Admin API connection failed.');
@@ -359,14 +394,28 @@
       showWorkspace(item.dataset.appWorkspace, {tab:item.dataset.appTab});
     }));
 
-    $$('.admin-tab').forEach(tab => tab.addEventListener('click', () => {
+    $$('.admin-tab').forEach(tab => tab.addEventListener('click', event => {
+      event.preventDefault();
       const workspaceId = tab.dataset.workspace;
-      setTopbar(workspaceId);
-      setActiveNav(coreWorkspaceTabs[workspaceId] || 'more');
-      if (adminAppReady) setTimeout(() => refreshWorkspaceData(workspaceId), 0);
+      showWorkspace(workspaceId, {tab:coreWorkspaceTabs[workspaceId] || 'more', subview:tab.dataset.defaultSubview || 'list'});
     }));
 
     document.addEventListener('click', event => {
+      const submenu = event.target.closest('.admin-submenu button[data-workspace]');
+      if (submenu) {
+        event.preventDefault();
+        event.stopPropagation();
+        const workspace = submenu.dataset.workspace;
+        const subview = submenu.dataset.subview;
+        showWorkspace(workspace, {tab:coreWorkspaceTabs[workspace] || 'more', keepSubview:!!subview});
+        $$('.admin-submenu button').forEach(item => item.classList.toggle('active', item === submenu));
+        if (subview && typeof setAdminSubview === 'function') setAdminSubview(workspace, subview);
+        const resetters = {property:window.resetEditor,project:window.resetProjectEditor,map:window.resetDigitalMapEditor,agent:window.resetAgentEditor,address:window.resetOfficeAddressEditor,user:window.resetLoginUserEditor,subproject:window.resetSubProjectEditor};
+        const reset = resetters[submenu.dataset.reset];
+        if (typeof reset === 'function') reset();
+        requestAnimationFrame(() => document.getElementById(submenu.dataset.target)?.scrollIntoView({behavior:'auto',block:'start'}));
+        return;
+      }
       const targetLink = event.target.closest('[data-app-target]');
       if (targetLink) {
         event.preventDefault();
@@ -433,6 +482,15 @@
       else toast('You are all caught up.');
     });
 
+    $('#dashboardDensityToggle')?.addEventListener('click', event => {
+      const compact=document.body.dataset.dashboardDensity!=='compact';
+      document.body.dataset.dashboardDensity=compact?'compact':'comfortable';
+      event.currentTarget.setAttribute('aria-pressed',String(compact));
+      event.currentTarget.setAttribute('aria-label',compact?'Use comfortable dashboard layout':'Use compact dashboard layout');
+      try{localStorage.setItem('heera-dashboard-density',compact?'compact':'comfortable');}catch(_){ }
+      toast(compact?'Compact dashboard enabled':'Comfortable dashboard enabled');
+    });
+
     $('#appMapFinderForm')?.addEventListener('submit', event => {
       event.preventDefault();
       const plot = $('#appPlotNumber')?.value.trim() || '';
@@ -458,6 +516,7 @@
     const caps = session?.capabilities || {};
     const workspaceCaps = {
       propertiesWorkspace: 'properties', projectsWorkspace: 'projects', subProjectsWorkspace: 'subprojects',
+      masterDataWorkspace: 'master_data',
       appLeadsWorkspace: 'leads', digitalMapsWorkspace: 'digital_maps', galleryWorkspace: 'gallery',
       popupsWorkspace: 'popups', agentsWorkspace: 'agents', addressesWorkspace: 'offices',
       loginUsersWorkspace: 'users', rolesWorkspace: 'roles', submissionsWorkspace: 'submissions',
@@ -479,21 +538,36 @@
     document.documentElement.dataset.canManageProperties = String(caps.properties_manage !== false);
     document.documentElement.dataset.canManageProjects = String(caps.projects_manage !== false);
     document.documentElement.dataset.canManageSubprojects = String(caps.subprojects_manage !== false);
+    document.documentElement.dataset.canManageMasterData = String(caps.master_data_manage !== false);
+    document.documentElement.dataset.canViewHealth = String(caps.health !== false);
+    $$('[data-master-manage]').forEach(section => { section.hidden = caps.master_data_manage === false; });
+    $$('[data-app-action="api-health"]').forEach(button=>{button.hidden=caps.health===false;});
   }
 
   function applyBootstrap(session) {
     if (!session?.authenticated) return;
     adminAppReady = true;
     applyCapabilities(session);
+    try{
+      const density=localStorage.getItem('heera-dashboard-density')==='compact'?'compact':'comfortable';
+      document.body.dataset.dashboardDensity=density;
+      $('#dashboardDensityToggle')?.setAttribute('aria-pressed',String(density==='compact'));
+    }catch(_){document.body.dataset.dashboardDensity='comfortable';}
     if (session.dashboard) {
       dashboardData = session.dashboard;
+      workspaceLoadedAt.set('appHomeWorkspace', Date.now());
       const counts = dashboardData.counts || {};
       if ($('#appNewLeadCount')) $('#appNewLeadCount').textContent = Number(counts.new_leads || 0).toLocaleString();
       if ($('#appPendingSubmissionCount')) $('#appPendingSubmissionCount').textContent = Number(counts.pending_submissions || 0).toLocaleString();
       if ($('#appActiveProjectCount')) $('#appActiveProjectCount').textContent = Number(counts.active_projects || 0).toLocaleString();
+      if ($('#dashPropertyCount') && counts.properties !== undefined) $('#dashPropertyCount').textContent = Number(counts.properties || 0).toLocaleString();
+      if ($('#dashProjectCount') && counts.active_projects !== undefined) $('#dashProjectCount').textContent = Number(counts.active_projects || 0).toLocaleString();
+      if ($('#dashSubmissionCount') && counts.pending_submissions !== undefined) $('#dashSubmissionCount').textContent = Number(counts.pending_submissions || 0).toLocaleString();
+      if ($('#dashUserCount') && counts.active_admins !== undefined) $('#dashUserCount').textContent = Number(counts.active_admins || 0).toLocaleString();
       updateNotifications(counts);
       renderActivity(dashboardData.recent_activity || []);
     }
+    if(session?.capabilities?.health!==false) setTimeout(() => executeAction('api-health').catch(()=>{}), 1200);
     if (!adminAppStarted) {
       adminAppStarted = true;
       initialWorkspace();

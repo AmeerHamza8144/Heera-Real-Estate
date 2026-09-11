@@ -26,12 +26,9 @@
 - [ ] Display PKR price on property cards
 - [ ] Display payment plan details on property cards / detail view
 
-## 6. Popup Ads (front-page popup carousel)
-- [x] Backend: `home_popups` action returns all published popups (api.php)
-- [x] Backend: `popup_ads` table added to database.sql
-- [x] Frontend: auto-show popup on every page refresh (script.js)
-- [x] Frontend: rotating carousel with prev/next buttons, dots, and counter (index.html, script.js, styles.css)
-- [x] Frontend: close button on the right side of the popup
-- [x] Admin: dedicated "Popups" tab to add/edit/delete/publish multiple popups (admin.html, admin.js)
-- [x] Admin: popup image upload support
-
+## 6. Important Updates (landing-page ticker)
+- [x] Backend: `home_popups` remains as the compatibility endpoint for published updates
+- [x] Backend: existing `popup_ads` records are preserved
+- [x] Frontend: published text updates move across the top of the landing page
+- [x] Frontend: old promotional popup screen removed
+- [x] Admin: Important Updates can add, edit, order, publish, and delete ticker messages

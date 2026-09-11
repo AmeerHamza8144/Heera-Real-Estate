@@ -20,6 +20,8 @@ $adminApi = contents($root.'/admin-api.php');
 $legacyApi = contents($root.'/api.php');
 $adminHtml = contents($root.'/admin.html');
 $adminJs = contents($root.'/admin.js');
+$siteNav = contents($root.'/site-nav.js');
+$projectJs = contents($root.'/project.js');
 
 check(str_contains($db, 'CREATE TABLE sub_projects'), 'database.sql defines normalized sub_projects');
 check(str_contains($db, 'sub_project_id INT UNSIGNED'), 'database.sql links properties/payment plans to sub-projects');
@@ -32,9 +34,16 @@ check(str_contains($adminApi, "case 'roles'"), 'Admin API exposes roles and perm
 check(str_contains($legacyApi, 'permissionForLegacyAction'), 'legacy admin API actions are permission-gated');
 check(str_contains($adminHtml, 'id="subProjectsWorkspace"'), 'admin contains Sub-Projects workspace');
 check(str_contains($adminHtml, 'id="rolesWorkspace"'), 'admin contains Roles & Permissions workspace');
-check(str_contains($adminHtml, 'name="sub_project_id"'), 'property editor has normalized sub-project selector');
+check(str_contains($adminHtml, 'name="sub_project_id"') && str_contains($adminHtml, 'name="sub_project_name"'), 'property editor accepts a text sub-project and keeps its normalized ID');
+check(str_contains($adminHtml, 'id="projectSubProjectName"') && !str_contains($adminHtml, '<input type="hidden" name="plan_name"'), 'project editor exposes Sub-Project as a textbox');
+check(str_contains($adminJs, 'project_plan_sub_project_name_') && str_contains($core, "['sub_project_name']"), 'payment-plan Sub-Project textbox is normalized by the API');
+check(!str_contains($core, 'legacy label can be read'), 'project Sub-Project textbox does not depend on the legacy plan_name column');
 check(str_contains($adminJs, 'loadSubProjects') && str_contains($adminJs, 'loadRoles'), 'admin JS loads new structural modules');
 check(str_contains($core, "'payment_plans'] = null") || str_contains($core, "'payment_plans' => null"), 'project writes deprecate legacy payment-plan JSON');
+check(is_file($root.'/project-schema-repair.sql'), 'phpMyAdmin project schema repair is included');
+check(str_contains(contents($root.'/index.html'), 'id="importantUpdates"'), 'landing page contains the important-updates ticker');
+check(str_contains($siteNav, 'sub_project_id=') && !str_contains($siteNav, 'Project overview'), 'public Projects menu links real Sub-Project names');
+check(str_contains($projectJs, 'selected_sub_project') && str_contains($projectJs, 'About the sub-project'), 'project page renders the selected Sub-Project identity');
 
 if ($failures) {
     fwrite(STDERR, PHP_EOL.'Static contract failures: '.count($failures).PHP_EOL);

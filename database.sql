@@ -111,11 +111,11 @@ CREATE TABLE property_submissions (
 CREATE TABLE digital_maps (
   map_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(180) NOT NULL,
-  map_image VARCHAR(500) NOT NULL,
+  map_image VARCHAR(500) DEFAULT NULL,
   original_pdf VARCHAR(500),
   plot_index_file VARCHAR(500),
-  original_width INT UNSIGNED NOT NULL,
-  original_height INT UNSIGNED NOT NULL,
+  original_width INT UNSIGNED NOT NULL DEFAULT 0,
+  original_height INT UNSIGNED NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -325,6 +325,18 @@ CREATE TABLE office_addresses (
 );
 
 -- Role based access control
+CREATE TABLE master_options (
+  option_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  option_type ENUM('project','subproject','block','marla') NOT NULL,
+  name VARCHAR(180) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_master_option_type_name (option_type,name),
+  INDEX idx_master_option_list (option_type,is_active,sort_order,name)
+);
+
 CREATE TABLE roles (
   role_id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   role_key VARCHAR(60) NOT NULL UNIQUE,
@@ -369,6 +381,7 @@ INSERT INTO permissions (permission_key,label,module_name) VALUES
 ('agents.view','View agents','Agents'),('agents.manage','Manage agents','Agents'),
 ('offices.manage','Manage offices','Settings'),('users.manage','Manage login users','Security'),
 ('roles.manage','Manage roles and permissions','Security'),('uploads.manage','Upload media','Media'),
+('master_data.view','View reusable master data','Configuration'),('master_data.manage','Manage reusable master data','Configuration'),
 ('ai_advisor.use','Use AI property advisor','AI'),('system.health','View API/database health','System');
 
 INSERT INTO role_permissions (role_id,permission_key)
@@ -376,11 +389,11 @@ SELECT r.role_id,p.permission_key FROM roles r CROSS JOIN permissions p WHERE r.
 INSERT INTO role_permissions (role_id,permission_key)
 SELECT r.role_id,p.permission_key FROM roles r CROSS JOIN permissions p WHERE r.role_key='manager' AND p.permission_key<>'roles.manage';
 INSERT INTO role_permissions (role_id,permission_key)
-SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','crm.manage','agents.view','ai_advisor.use') WHERE r.role_key='agent';
+SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','crm.manage','agents.view','master_data.view','ai_advisor.use') WHERE r.role_key='agent';
 INSERT INTO role_permissions (role_id,permission_key)
-SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','system.health') WHERE r.role_key='accountant';
+SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','master_data.view','system.health') WHERE r.role_key='accountant';
 INSERT INTO role_permissions (role_id,permission_key)
-SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','properties.manage','projects.view','projects.manage','subprojects.view','subprojects.manage','payment_plans.view','payment_plans.manage','maps.view','gallery.manage','popups.manage','agents.view','uploads.manage') WHERE r.role_key='editor';
+SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','properties.manage','projects.view','projects.manage','subprojects.view','subprojects.manage','payment_plans.view','payment_plans.manage','maps.view','gallery.manage','popups.manage','agents.view','uploads.manage','master_data.view','master_data.manage') WHERE r.role_key='editor';
 
 -- Initial agent account. Change this password immediately after setup.
 -- Email: admin@havenly.local  |  Password: Havenly2026!

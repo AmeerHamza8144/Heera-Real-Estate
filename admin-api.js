@@ -52,6 +52,9 @@
     admin_roles: 'roles',
     save_role: 'roles/save',
     delete_role: 'roles/delete',
+    admin_master_data: 'master-data',
+    save_master_option: 'master-data/save',
+    archive_master_option: 'master-data/archive',
     upload: 'upload',
     health: 'health'
   };
@@ -68,7 +71,12 @@
     let result = {};
     try { result = text ? JSON.parse(text) : {}; }
     catch {
-      const error = new Error('The Admin API returned an invalid response. Check PHP/server logs.');
+      const message = response.status === 413
+        ? 'The upload is larger than the web server allows. Increase PHP upload_max_filesize and post_max_size, restart Apache/PHP, then try again.'
+        : response.status >= 500
+          ? 'The server could not complete the upload. Check PHP/server logs and maps/uploads permissions.'
+          : 'The Admin API returned an invalid response. Check PHP/server logs.';
+      const error = new Error(message);
       error.status = response.status;
       throw error;
     }
@@ -142,7 +150,7 @@
   async function health() { return request('health'); }
 
   window.HeeraAdminAPI = {
-    version: 'v1',
+    version: 'v2',
     request,
     get,
     bootstrap,

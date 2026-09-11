@@ -151,6 +151,12 @@
 
   function renderNavigationProjects(projects) {
     if (!projectsMenu) return;
+    const projectHref = (project, subProject = null) => {
+      const base = project.slug ? `project/${encodeURIComponent(project.slug)}` : `project.php?id=${Number(project.project_id)}`;
+      if (!subProject) return base;
+      if (subProject.slug) return `sub-project/${encodeURIComponent(subProject.slug)}`;
+      return `project.php?sub_project_id=${Number(subProject.sub_project_id)}`;
+    };
     const grouped = new Map();
     projects.forEach((project) => {
       const title = String(project.title || "Project").trim() || "Project";
@@ -159,10 +165,16 @@
       grouped.get(key).projects.push(project);
     });
     const items = [...grouped.values()].slice(0, 7).map((group) => {
-      const planned = group.projects.filter((project) => String(project.plan_name || "").trim());
-      if (!planned.length && group.projects.length === 1) {
+      const subProjectLinks = group.projects.flatMap((project) => {
+        const subProjects = Array.isArray(project.sub_projects) ? project.sub_projects : [];
+        if (subProjects.length) return subProjects.map((subProject) => ({ project, subProject, label: subProject.name }));
+        const legacyName = String(project.plan_name || "").trim();
+        if (legacyName) return [{ project, subProject: null, label: legacyName }];
+        return group.projects.length > 1 ? [{ project, subProject: null, label: project.category || project.location || project.title }] : [];
+      });
+      if (!subProjectLinks.length && group.projects.length === 1) {
         const link = document.createElement("a");
-        link.href = group.projects[0].slug ? `project/${encodeURIComponent(group.projects[0].slug)}` : `project.php?id=${Number(group.projects[0].project_id)}`;
+        link.href = projectHref(group.projects[0]);
         link.textContent = group.title;
         return link;
       }
@@ -175,10 +187,10 @@
       toggle.innerHTML = `<span>${escapeNavigationText(group.title)}</span><b>›</b>`;
       const submenu = document.createElement("div");
       submenu.className = "project-submenu";
-      group.projects.forEach((project) => {
+      subProjectLinks.forEach(({ project, subProject, label }) => {
         const link = document.createElement("a");
-        link.href = project.slug ? `project/${encodeURIComponent(project.slug)}` : `project.php?id=${Number(project.project_id)}`;
-        link.textContent = String(project.plan_name || "Project overview").trim();
+        link.href = projectHref(project, subProject);
+        link.textContent = String(label || project.title).trim();
         submenu.appendChild(link);
       });
       wrapper.append(toggle, submenu);

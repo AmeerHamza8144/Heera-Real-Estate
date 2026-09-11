@@ -1,3 +1,30 @@
+# 2026-09-07 — Production SEO and public-route repair
+
+- Repaired property creation on legacy databases by removing the unconditional
+  sub-project migration from ordinary property saves.
+- Expanded automatic and phpMyAdmin property-schema repair, including all
+  publishing fields, listing enums, media storage, and health diagnostics.
+- Replaced generic property database failures with actionable schema,
+  permissions, relationship, duplicate-slug, and data-size messages.
+- Added explicit property-media checks for PHP upload limits, temporary upload
+  failures, file-type support, and `uploads/` write permission.
+- Added one canonical metadata generator for titles, descriptions, robots,
+  Open Graph, Twitter cards, language alternates, and Google verification.
+- Added RealEstateAgent/LocalBusiness, WebSite, WebPage, listing, breadcrumb,
+  and location ItemList structured data.
+- Added server-rendered homepage links for current properties, projects, and
+  locations so discovery no longer depends only on JavaScript.
+- Added server-rendered sub-project links and payment-plan summaries to project
+  pages, including legacy slug recovery for URLs such as `/sub-project/5-marla-14`.
+- Rebuilt the XML sitemap and robots response; uploaded property/gallery images
+  are now crawlable while API and admin routes remain excluded.
+- Added canonical utility-page metadata and noindex controls for private/internal
+  pages, plus compression and conservative asset caching rules.
+- Made property ID/slug reads tolerant of older schemas and expanded
+  `project-schema-repair.sql` with public-property fields and visibility reports.
+- Added `SEO-SETUP.md` with production domain, Search Console, sitemap, analytics,
+  content, and publishing instructions.
+
 # 2026-08-29 — Mobile app-style admin shell
 
 - Added one responsive five-tab admin navigation shell: Home, Properties, Leads, Maps, More.
@@ -129,3 +156,15 @@
 - Added deterministic price/space/installment/customer-priority scoring with an optional AI explanation layer.
 - Added `POST /api/v1/property-comparison` with fallback to `api.php?action=compare_properties`.
 - Manual external properties are clearly marked unverified and are not written into the property inventory database.
+# September 2026 database and dashboard v4
+
+- Fixed the XAMPP/MariaDB health checker falsely marking every property column as missing when native prepared statements reject `SHOW COLUMNS ... LIKE ?`.
+- Added one shared server-side connection in `database-connection.php`, including configurable database-port support and safe API errors.
+- Added 25 repeat-safe v4 read procedures for the dashboard, properties, projects, sub-projects, payment plans, media, CRM, submissions, maps, gallery, updates, agents, offices, users, roles, permissions, reusable Master Data, and module health.
+- Connected public property/project/sub-project pages and Admin module lists to the procedures, with prepared-query fallbacks.
+- Added six paste-ready v3 project write/link/report procedures with an audit log and collation-safe binary comparisons.
+- Added a modern responsive Admin dashboard, live database/routine status, density control, and grouped permission controls.
+- Added `DATABASE-REBUILD-V4.md` with safe new/existing database import paths and phpMyAdmin verification calls.
+- Added a responsive Master Data CRUD screen for reusable Project, Sub-Project, Block, and Marla/size names; archive/restore preserves existing records.
+- Converted relevant project, sub-project, property, payment-plan, and map forms to duplicate-safe Master Data selections.
+- Removed duplicate dashboard navigation handlers and eager loading of every module; screens now open immediately and load data lazily with a short cache.

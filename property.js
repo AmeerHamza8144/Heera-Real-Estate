@@ -254,7 +254,7 @@ function renderProperty(property) {
   renderLinks(media);
 
   const enquiryText = encodeURIComponent(`Hello, I am interested in property #${property.property_id}: ${title}. Please share more information.`);
-  element("whatsAppEnquiry").href = `https://wa.me/923000660446?text=${enquiryText}`;
+  element("whatsAppEnquiry").href = `https://wa.me/923091496014?text=${enquiryText}`;
   element("propertyLoading").hidden = true;
   element("propertyContent").hidden = false;
 }

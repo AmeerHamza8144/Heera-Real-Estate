@@ -1,5 +1,14 @@
 # Havenly Real Estate Website
 
+## September 2026 interface and database repair
+
+- The home gallery now uses a responsive six-tile mosaic layout with alternating image widths and caption gradients.
+- Admin includes a Master Data screen for reusable Project, Sub-Project, Block, and Marla/size names. Project, Property, Payment Plan, and Map editors use those saved selections to prevent duplicate spellings.
+- Master Data entries can be created, read, updated, archived, and restored. Archiving never deletes existing project or property records.
+- Digital maps may be uploaded as an image, a PDF, or both. PDF-only maps open in the built-in PDF view while image-only maps keep interactive zoom support.
+- The front-page promotional popup has been replaced by a moving **Important updates** ticker managed from Admin.
+- Existing installations should import `project-schema-repair.sql`, `project-data-stored-procedures.sql`, and `module-data-stored-procedures.sql` once before saving projects. See `DATABASE-REBUILD-V4.md`.
+
 ## Advanced property search
 
 Visitors can filter public properties by Project, Block, Size, minimum/maximum Price, Property Type, Facing, Availability, and whether a Payment Plan is available. Administrators link a property to an optional project from the Property editor; existing databases can import `advanced-search-migration.sql` once.
@@ -45,7 +54,7 @@ The API defaults to the normal local XAMPP MySQL setup (`root` with no password 
 
 The main navigation includes **PLOT FINDER**. The supplied Phase 2 map uses the unchanged PDF plus a 12009 × 9009 interactive image. Visitors can choose any published map and search a numeric plot number without registering plots individually. The viewer centres, marks and pulses each indexed result. Mouse-wheel zoom, buttons, drag/pan, mobile pinch zoom, full screen and an original-PDF button are included.
 
-Admin Dashboard includes grouped submenus for every manager. Under **Digital Maps**, use **Add Map** to upload another high-resolution image, optional source PDF and optional normalized plot-index JSON. Use **Manage Blocks** to add any number of block names to the selected map. Blocks are never inferred from the map image or PDF.
+Admin Dashboard includes grouped submenus for every manager. Under **Digital Maps**, use **Add Map** to upload a high-resolution image, a source PDF, or both; the normalized plot-index JSON is optional. Use **Manage Blocks** to add any number of block names to the selected map. Blocks are never inferred from the map image or PDF.
 
 A map can be published without an index and remains viewable. Automatic plot-number search on that map becomes available after an index JSON is uploaded. `maps/plot-index-example.json` documents the required record format. A record's optional `block` value should match an Admin-added block if block-filtered results are required.
 
@@ -64,7 +73,7 @@ Properties and client submissions have an optional free-text **Block** field (`b
 
 ## Compact login and modern Admin
 
-`auth-compact.css` removes unnecessary vertical space from the unified login popup while keeping sign-in, sign-up, password recovery and Admin Login responsive. `admin-modern.css` provides a sticky desktop sidebar, overview cards, modern form panels and a touch-friendly mobile tab bar without replacing the existing session or CRUD functionality.
+`auth-compact.css` removes unnecessary vertical space from the unified login popup while keeping sign-in, sign-up, password recovery and Admin Login responsive. `admin-dashboard-v2.css` provides the current responsive dashboard shell: a sticky desktop sidebar, live database/module health, density control, modern form panels, grouped permission controls, and a touch-friendly mobile tab bar without replacing existing CRUD functionality.
 
 After a client or administrator signs in, the shared public header hides Login and displays a Profile button. Its dropdown identifies the current account, opens Add Property, provides an Admin Dashboard link for administrators, and securely logs out through the PHP session API.
 

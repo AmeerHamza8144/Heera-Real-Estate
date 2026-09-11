@@ -31,22 +31,7 @@ function errorResponse(string $message, int $status = 400): void {
 }
 
 function db(): PDO {
-    static $pdo = null;
-    if ($pdo instanceof PDO) return $pdo;
-    $host = getenv('HAVENLY_DB_HOST') ?: '127.0.0.1';
-    $name = getenv('HAVENLY_DB_NAME') ?: 'havenly_real_estate';
-    $user = getenv('HAVENLY_DB_USER') ?: 'root';
-    $password = getenv('HAVENLY_DB_PASSWORD') ?: '';
-    try {
-        $pdo = new PDO("mysql:host={$host};dbname={$name};charset=utf8mb4", $user, $password, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
-        return $pdo;
-    } catch (PDOException $exception) {
-        throw new RuntimeException('Database connection failed. Import database.sql and check the MySQL settings.');
-    }
+    return heeraDatabase();
 }
 
 function requestData(): array {
@@ -91,15 +76,24 @@ function clearLoginFailures(string $scope): void {
 
 function currentAdmin(): ?array {
     if (empty($_SESSION['admin_id'])) return null;
+    static $cachedAdminId = 0;
+    static $cachedAdmin = null;
+    $requestedAdminId=(int)$_SESSION['admin_id'];
+    if($cachedAdminId===$requestedAdminId && is_array($cachedAdmin))return $cachedAdmin;
     $pdo = db();
-    ensureLoginUsersSchema($pdo);
-    ensureAccessControlSchema($pdo);
+    if(($_SESSION['heera_schema_session']??'')!=='master-data-v2'){
+        ensureLoginUsersSchema($pdo);
+        ensureAccessControlSchema($pdo);
+        ensureMasterOptionsSchema($pdo);
+        $_SESSION['heera_schema_session']='master-data-v2';
+    }
     $statement = $pdo->prepare("SELECT a.admin_id,a.first_name,a.last_name,a.email,a.username,a.phone,a.role_id,r.role_key,r.name AS role_name FROM admin_users a LEFT JOIN roles r ON r.role_id=a.role_id WHERE a.admin_id=? AND a.is_active=TRUE LIMIT 1");
-    $statement->execute([$_SESSION['admin_id']]);
+    $statement->execute([$requestedAdminId]);
     $user = $statement->fetch();
     if (!$user) return null;
     $user['permissions'] = adminPermissionsForUser($pdo, (int)$user['admin_id']);
-    return $user;
+    $cachedAdminId=$requestedAdminId;$cachedAdmin=$user;
+    return $cachedAdmin;
 }
 
 
@@ -200,8 +194,8 @@ function requirePropertySubmitter(): array {
 function loginUsers(): array {
     requirePermission('users.manage');
     $pdo = db(); ensureLoginUsersSchema($pdo); ensureAccessControlSchema($pdo);
-    $admins = $pdo->query("SELECT a.admin_id AS user_id,CONCAT(a.first_name,' ',a.last_name) AS full_name,a.email,a.phone,a.username,a.is_active,'admin' AS user_type,a.role_id,r.role_key,r.name AS role_name,a.created_at FROM admin_users a LEFT JOIN roles r ON r.role_id=a.role_id ORDER BY a.admin_id")->fetchAll();
-    $clients = $pdo->query("SELECT client_id AS user_id,full_name,email,phone,NULL AS username,is_active,'client' AS user_type,NULL AS role_id,NULL AS role_key,'Client' AS role_name,created_at FROM client_users ORDER BY client_id")->fetchAll();
+    $admins = heeraStoredRows($pdo,'heera_v4_admin_users') ?? $pdo->query("SELECT a.admin_id AS user_id,CONCAT(a.first_name,' ',a.last_name) AS full_name,a.email,a.phone,a.username,a.is_active,'admin' AS user_type,a.role_id,r.role_key,r.name AS role_name,a.created_at FROM admin_users a LEFT JOIN roles r ON r.role_id=a.role_id ORDER BY a.admin_id")->fetchAll();
+    $clients = heeraStoredRows($pdo,'heera_v4_client_users') ?? $pdo->query("SELECT client_id AS user_id,full_name,email,phone,NULL AS username,is_active,'client' AS user_type,NULL AS role_id,NULL AS role_key,'Client' AS role_name,created_at FROM client_users ORDER BY client_id")->fetchAll();
     return array_merge($admins, $clients);
 }
 
@@ -293,10 +287,24 @@ function propertiesMedia(PDO $pdo, array $propertyIds): array {
 
 function ensurePropertyPublishingSchema(PDO $pdo): void {
     static $ready=false;if($ready)return;
-    foreach(['project_id'=>"ALTER TABLE properties ADD COLUMN project_id INT UNSIGNED NULL AFTER property_id",'sub_project_id'=>"ALTER TABLE properties ADD COLUMN sub_project_id INT UNSIGNED NULL AFTER project_id",'payment_plan_id'=>"ALTER TABLE properties ADD COLUMN payment_plan_id VARCHAR(80) NULL AFTER sub_project_id",'block_name'=>"ALTER TABLE properties ADD COLUMN block_name VARCHAR(120) NULL AFTER state_region",'publish_start_date'=>"ALTER TABLE properties ADD COLUMN publish_start_date DATE NULL AFTER description",'publish_end_date'=>"ALTER TABLE properties ADD COLUMN publish_end_date DATE NULL AFTER publish_start_date"] as $column=>$sql){try{if(!$pdo->query("SHOW COLUMNS FROM properties LIKE ".$pdo->quote($column))->fetch())$pdo->exec($sql);}catch(Throwable $e){/* Existing rows must remain readable even if ALTER is unavailable. */}}
-    try{$listingTypeColumn=$pdo->query("SHOW COLUMNS FROM properties LIKE 'listing_type'")->fetch();if($listingTypeColumn&&stripos((string)($listingTypeColumn['Type']??''),"'installment'")===false)$pdo->exec("ALTER TABLE properties MODIFY listing_type ENUM('sale','rent','installment') NOT NULL DEFAULT 'sale'");}catch(Throwable $e){}
+    $columns = [
+        'project_id'=>"ALTER TABLE properties ADD COLUMN project_id INT UNSIGNED NULL AFTER property_id",
+        'sub_project_id'=>"ALTER TABLE properties ADD COLUMN sub_project_id INT UNSIGNED NULL AFTER project_id",
+        'payment_plan_id'=>"ALTER TABLE properties ADD COLUMN payment_plan_id VARCHAR(80) NULL AFTER sub_project_id",
+        'slug'=>"ALTER TABLE properties ADD COLUMN slug VARCHAR(190) NULL AFTER title",
+        'block_name'=>"ALTER TABLE properties ADD COLUMN block_name VARCHAR(120) NULL AFTER state_region",
+        'size_label'=>"ALTER TABLE properties ADD COLUMN size_label VARCHAR(60) NULL AFTER area_sqft",
+        'property_facing'=>"ALTER TABLE properties ADD COLUMN property_facing VARCHAR(60) NULL AFTER size_label",
+        'price_pkr'=>"ALTER TABLE properties ADD COLUMN price_pkr DECIMAL(15,2) NULL AFTER property_facing",
+        'price_per_marla'=>"ALTER TABLE properties ADD COLUMN price_per_marla DECIMAL(12,2) NULL AFTER price_pkr",
+        'publish_start_date'=>"ALTER TABLE properties ADD COLUMN publish_start_date DATE NULL AFTER description",
+        'publish_end_date'=>"ALTER TABLE properties ADD COLUMN publish_end_date DATE NULL AFTER publish_start_date",
+    ];
+    foreach($columns as $column=>$sql){try{if(!$pdo->query("SHOW COLUMNS FROM properties LIKE ".$pdo->quote($column))->fetch())$pdo->exec($sql);}catch(Throwable $e){error_log('[Heera property schema]['.$column.'] '.$e->getMessage());}}
+    try{$listingTypeColumn=$pdo->query("SHOW COLUMNS FROM properties LIKE 'listing_type'")->fetch();if($listingTypeColumn&&stripos((string)($listingTypeColumn['Type']??''),"'installment'")===false)$pdo->exec("ALTER TABLE properties MODIFY listing_type ENUM('sale','rent','installment') NOT NULL DEFAULT 'sale'");}catch(Throwable $e){error_log('[Heera property schema][listing_type] '.$e->getMessage());}
+    try{$propertyTypeColumn=$pdo->query("SHOW COLUMNS FROM properties LIKE 'property_type'")->fetch();if($propertyTypeColumn&&stripos((string)($propertyTypeColumn['Type']??''),"'Land'")===false)$pdo->exec("ALTER TABLE properties MODIFY property_type ENUM('House','Apartment','Villa','Condo','Land') NOT NULL");}catch(Throwable $e){error_log('[Heera property schema][property_type] '.$e->getMessage());}
     try{if(!$pdo->query("SHOW INDEX FROM properties WHERE Key_name='idx_property_project'")->fetch())$pdo->exec('ALTER TABLE properties ADD INDEX idx_property_project (project_id)');}catch(Throwable $e){}
-    try{ensureSubProjectsSchema($pdo);}catch(Throwable $e){error_log('[Heera sub-project schema] '.$e->getMessage());}
+    try{$pdo->exec("CREATE TABLE IF NOT EXISTS property_media (media_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,property_id INT UNSIGNED NOT NULL,media_type ENUM('image','video','link') NOT NULL,file_path VARCHAR(500) NOT NULL,is_cover BOOLEAN NOT NULL DEFAULT FALSE,sort_order TINYINT UNSIGNED NOT NULL DEFAULT 0,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,INDEX idx_media_property(property_id,media_type,is_cover,sort_order)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");}catch(Throwable $e){error_log('[Heera property schema][property_media] '.$e->getMessage());}
     try{seo_ensure_schema($pdo);}catch(Throwable $e){}
     $ready=true;
 }
@@ -311,17 +319,20 @@ function listings(bool $onlyAvailable): array {
     $sql = "SELECT pr.property_id,pr.project_id,pr.sub_project_id,pr.payment_plan_id,pr.slug,pr.listing_type,pr.property_type,pr.status,pr.title,pr.address_line1,pr.city,pr.state_region,pr.block_name,pr.postal_code,pr.price,pr.bedrooms,pr.bathrooms,pr.area_sqft,pr.description,pr.size_label,pr.property_facing,pr.price_pkr,pr.price_per_marla,pr.publish_start_date,pr.publish_end_date,pr.created_at,pr.updated_at,pj.title AS project_title,COALESCE(sp.name,pj.plan_name) AS project_plan_name,sp.name AS sub_project_name,pj.payment_plans AS project_payment_plans,CASE WHEN pj.payment_plans IS NOT NULL AND TRIM(pj.payment_plans) NOT IN ('','[]','null') THEN 1 ELSE 0 END AS has_payment_plan FROM properties pr LEFT JOIN projects pj ON pj.project_id=pr.project_id LEFT JOIN sub_projects sp ON sp.sub_project_id=pr.sub_project_id";
     if ($onlyAvailable) $sql .= " WHERE pr.status = 'available' AND (pr.publish_start_date IS NULL OR pr.publish_start_date <= CURRENT_DATE) AND (pr.publish_end_date IS NULL OR pr.publish_end_date >= CURRENT_DATE)";
     $sql .= ' ORDER BY pr.updated_at DESC, pr.property_id DESC';
-    try {
-        $rows = $pdo->query($sql)->fetchAll();
-    } catch (PDOException $exception) {
-        $fallback = "SELECT pr.*,NULL AS project_title,NULL AS project_plan_name,NULL AS sub_project_name,NULL AS project_payment_plans,0 AS has_payment_plan FROM properties pr";
-        $conditions = [];
-        if ($onlyAvailable && databaseColumnExists($pdo, 'properties', 'status')) $conditions[] = "pr.status='available'";
-        if ($onlyAvailable && databaseColumnExists($pdo, 'properties', 'publish_start_date')) $conditions[] = '(pr.publish_start_date IS NULL OR pr.publish_start_date<=CURRENT_DATE)';
-        if ($onlyAvailable && databaseColumnExists($pdo, 'properties', 'publish_end_date')) $conditions[] = '(pr.publish_end_date IS NULL OR pr.publish_end_date>=CURRENT_DATE)';
-        if ($conditions) $fallback .= ' WHERE ' . implode(' AND ', $conditions);
-        $fallback .= databaseColumnExists($pdo, 'properties', 'updated_at') ? ' ORDER BY pr.updated_at DESC,pr.property_id DESC' : ' ORDER BY pr.property_id DESC';
-        $rows = $pdo->query($fallback)->fetchAll();
+    $rows = heeraStoredRows($pdo,'heera_v4_properties',[$onlyAvailable ? 0 : 1]);
+    if ($rows === null) {
+        try {
+            $rows = $pdo->query($sql)->fetchAll();
+        } catch (PDOException $exception) {
+            $fallback = "SELECT pr.*,NULL AS project_title,NULL AS project_plan_name,NULL AS sub_project_name,NULL AS project_payment_plans,0 AS has_payment_plan FROM properties pr";
+            $conditions = [];
+            if ($onlyAvailable && databaseColumnExists($pdo, 'properties', 'status')) $conditions[] = "pr.status='available'";
+            if ($onlyAvailable && databaseColumnExists($pdo, 'properties', 'publish_start_date')) $conditions[] = '(pr.publish_start_date IS NULL OR pr.publish_start_date<=CURRENT_DATE)';
+            if ($onlyAvailable && databaseColumnExists($pdo, 'properties', 'publish_end_date')) $conditions[] = '(pr.publish_end_date IS NULL OR pr.publish_end_date>=CURRENT_DATE)';
+            if ($conditions) $fallback .= ' WHERE ' . implode(' AND ', $conditions);
+            $fallback .= databaseColumnExists($pdo, 'properties', 'updated_at') ? ' ORDER BY pr.updated_at DESC,pr.property_id DESC' : ' ORDER BY pr.property_id DESC';
+            $rows = $pdo->query($fallback)->fetchAll();
+        }
     }
     $mediaByProperty = propertiesMedia($pdo, array_map('intval', array_column($rows, 'property_id')));
     foreach ($rows as &$row) {
@@ -357,29 +368,8 @@ function listings(bool $onlyAvailable): array {
 function property(int $propertyId, string $slug = ''): array {
     $pdo = db();
     ensurePropertyPublishingSchema($pdo);
-    $hasSlug = databaseColumnExists($pdo, 'properties', 'slug');
-    if ($slug !== '' && !$hasSlug && $propertyId < 1) errorResponse('Property not found.', 404);
-    $useSlug = $slug !== '' && $hasSlug;
-    $selector = $useSlug ? 'pr.slug = ?' : 'pr.property_id = ?';
-    $value = $useSlug ? $slug : $propertyId;
-    try {
-        $statement = $pdo->prepare("SELECT pr.property_id,pr.project_id,pr.sub_project_id,pr.payment_plan_id,pr.slug,pr.listing_type,pr.property_type,pr.status,pr.title,pr.address_line1,pr.city,pr.state_region,pr.block_name,pr.postal_code,pr.price,pr.bedrooms,pr.bathrooms,pr.area_sqft,pr.description,pr.size_label,pr.property_facing,pr.price_pkr,pr.price_per_marla,pr.publish_start_date,pr.publish_end_date,pr.created_at,pr.updated_at,pj.title AS project_title,COALESCE(sp.name,pj.plan_name) AS project_plan_name,sp.name AS sub_project_name,pj.payment_plans AS project_payment_plans,CASE WHEN pj.payment_plans IS NOT NULL AND TRIM(pj.payment_plans) NOT IN ('','[]','null') THEN 1 ELSE 0 END AS has_payment_plan FROM properties pr LEFT JOIN projects pj ON pj.project_id=pr.project_id LEFT JOIN sub_projects sp ON sp.sub_project_id=pr.sub_project_id WHERE {$selector} AND pr.status='available' AND (pr.publish_start_date IS NULL OR pr.publish_start_date<=CURRENT_DATE) AND (pr.publish_end_date IS NULL OR pr.publish_end_date>=CURRENT_DATE)");
-        $statement->execute([$value]);
-        $row = $statement->fetch();
-    } catch (PDOException $exception) {
-        $conditions = [str_replace('pr.', '', $selector)];
-        if (databaseColumnExists($pdo, 'properties', 'status')) $conditions[] = "status='available'";
-        if (databaseColumnExists($pdo, 'properties', 'publish_start_date')) $conditions[] = '(publish_start_date IS NULL OR publish_start_date<=CURRENT_DATE)';
-        if (databaseColumnExists($pdo, 'properties', 'publish_end_date')) $conditions[] = '(publish_end_date IS NULL OR publish_end_date>=CURRENT_DATE)';
-        $statement = $pdo->prepare('SELECT properties.*,NULL AS project_title,NULL AS project_plan_name,NULL AS sub_project_name,NULL AS project_payment_plans,0 AS has_payment_plan FROM properties WHERE ' . implode(' AND ', $conditions) . ' LIMIT 1');
-        $statement->execute([$value]);
-        $row = $statement->fetch();
-    }
+    $row=seo_fetch_property($pdo,$slug!==''?$slug:null,$propertyId);
     if (!$row) errorResponse('Property not found.', 404);
-    try {$row['media'] = propertyMedia($pdo, (int)$row['property_id']);} catch (PDOException $exception) {$row['media'] = [];}
-    $row['selected_payment_plan'] = paymentPlanById($pdo, $row['payment_plan_id'] ?? null) ?: seo_find_payment_plan($row['project_payment_plans'] ?? null, $row['payment_plan_id'] ?? null);
-    if ($row['selected_payment_plan']) $row['has_payment_plan'] = 1;
-    $row['payment_plans'] = [];
     return $row;
 }
 
@@ -537,6 +527,55 @@ function saveMedia(PDO $pdo, int $propertyId, array $media): void {
 
 // Property payment plans are supplied through the linked project / normalized payment plan API.
 
+function resolvePropertySubProject(PDO $pdo, int $projectId, int $subProjectId, string $subProjectName): int {
+    $subProjectName = trim($subProjectName);
+    if ($subProjectName === '' && $subProjectId < 1) return 0;
+    ensureSubProjectsSchema($pdo);
+    if ($subProjectName === '') {
+        if ($projectId < 1) errorResponse('Choose a project before entering a sub-project.');
+        $check = $pdo->prepare('SELECT sub_project_id FROM sub_projects WHERE sub_project_id=? AND project_id=?');
+        $check->execute([$subProjectId,$projectId]);
+        if (!$check->fetchColumn()) errorResponse('The selected sub-project does not belong to this project.');
+        return $subProjectId;
+    }
+    if ($projectId < 1) errorResponse('Choose a linked project before entering a sub-project name.');
+    $find = $pdo->prepare('SELECT sub_project_id FROM sub_projects WHERE project_id=? AND name=? LIMIT 1');
+    $find->execute([$projectId,$subProjectName]);
+    $existing = (int)($find->fetchColumn() ?: 0);
+    if ($existing > 0) return $existing;
+    $slug = seo_unique_slug($pdo, 'sub_projects', 'sub_project_id', 'slug', $subProjectName.' '.$projectId, 0);
+    try {
+        $insert = $pdo->prepare("INSERT INTO sub_projects (project_id,name,slug,status,sort_order) VALUES (?,?,?,'published',0)");
+        $insert->execute([$projectId,$subProjectName,$slug ?: null]);
+        return (int)$pdo->lastInsertId();
+    } catch (PDOException $exception) {
+        if ((int)($exception->errorInfo[1] ?? 0) !== 1062) throw $exception;
+        $find->execute([$projectId,$subProjectName]);
+        $existing = (int)($find->fetchColumn() ?: 0);
+        if ($existing > 0) return $existing;
+        throw $exception;
+    }
+}
+
+function propertyDatabaseErrorMessage(PDOException $exception): string {
+    $driverCode = (int)($exception->errorInfo[1] ?? 0);
+    $sqlState = (string)($exception->errorInfo[0] ?? $exception->getCode());
+    if (in_array($driverCode, [1054,1146], true) || in_array($sqlState, ['42S02','42S22'], true)) {
+        return 'The property database schema is incomplete. Import project-schema-repair.sql in phpMyAdmin, then try again.';
+    }
+    if (in_array($driverCode, [1044,1045,1142], true) || $sqlState === '42000') {
+        return 'The database user does not have permission to update the property tables. Check the database user privileges in your hosting panel.';
+    }
+    if (in_array($driverCode, [1264,1265,1406], true) || in_array($sqlState, ['01000','22001','22003'], true)) {
+        return 'A property value does not fit the current database columns. Import project-schema-repair.sql, then check the price and selected listing type.';
+    }
+    if ($driverCode === 1062) return 'A property with the same generated URL already exists. Change the listing title or city and try again.';
+    if (in_array($driverCode, [1216,1217,1451,1452], true) || $sqlState === '23000') {
+        return 'The linked project, sub-project, or payment plan is invalid. Reload the admin page and select an existing published record.';
+    }
+    return 'The property could not be saved because of a database error. Import project-schema-repair.sql and check the PHP error log.';
+}
+
 function saveProperty(array $data): void {
     requirePermission('properties.manage');
     $pdo = db();
@@ -554,25 +593,31 @@ function saveProperty(array $data): void {
     $status = allowedValue(stringValue($data, 'status'), ['available', 'pending', 'sold', 'rented'], 'status');
     $projectId = (int)($data['project_id'] ?? 0);
     $subProjectId = (int)($data['sub_project_id'] ?? 0);
+    $subProjectName = optionalStringValue($data, 'sub_project_name', 180);
     $paymentPlanId = $listingType === 'installment' ? optionalStringValue($data, 'payment_plan_id', 80) : '';
     $projectPaymentPlansRaw = null;
-    ensureSubProjectsSchema($pdo);
-    if($projectId>0){$projectCheck=$pdo->prepare('SELECT project_id,payment_plans FROM projects WHERE project_id=?');$projectCheck->execute([$projectId]);$projectRow=$projectCheck->fetch();if(!$projectRow)errorResponse('The selected project no longer exists.');$projectPaymentPlansRaw=$projectRow['payment_plans']??null;}
-    if($subProjectId>0){if($projectId<1)errorResponse('Choose a project before selecting a sub-project.');$subCheck=$pdo->prepare('SELECT sub_project_id FROM sub_projects WHERE sub_project_id=? AND project_id=?');$subCheck->execute([$subProjectId,$projectId]);if(!$subCheck->fetch())errorResponse('The selected sub-project does not belong to this project.');}
-    if($paymentPlanId!==''&&$projectId<1) errorResponse('Choose a linked project before connecting a payment plan.');
-    if($paymentPlanId!==''){
-        $selectedPlan=paymentPlanById($pdo,$paymentPlanId);
-        $validPlan=$selectedPlan && (int)$selectedPlan['project_id']===$projectId;
-        if($validPlan && $subProjectId>0 && !empty($selectedPlan['sub_project_id']) && (int)$selectedPlan['sub_project_id']!==$subProjectId) errorResponse('The selected payment plan belongs to a different sub-project.');
-        if(!$validPlan && !seo_find_payment_plan($projectPaymentPlansRaw,$paymentPlanId)) errorResponse('The selected payment plan no longer exists in this project.');
+    try {
+        if($projectId>0){$legacyPlanColumn=databaseColumnExists($pdo,'projects','payment_plans')?'payment_plans':'NULL AS payment_plans';$projectCheck=$pdo->prepare("SELECT project_id,{$legacyPlanColumn} FROM projects WHERE project_id=?");$projectCheck->execute([$projectId]);$projectRow=$projectCheck->fetch();if(!$projectRow)errorResponse('The selected project no longer exists.');$projectPaymentPlansRaw=$projectRow['payment_plans']??null;}
+        $subProjectId = resolvePropertySubProject($pdo,$projectId,$subProjectId,$subProjectName);
+        if($paymentPlanId!==''&&$projectId<1) errorResponse('Choose a linked project before connecting a payment plan.');
+        if($paymentPlanId!==''){
+            $selectedPlan=paymentPlanById($pdo,$paymentPlanId);
+            $validPlan=$selectedPlan && (int)$selectedPlan['project_id']===$projectId;
+            if($validPlan && $subProjectId>0 && !empty($selectedPlan['sub_project_id']) && (int)$selectedPlan['sub_project_id']!==$subProjectId) errorResponse('The selected payment plan belongs to a different sub-project.');
+            if(!$validPlan && !seo_find_payment_plan($projectPaymentPlansRaw,$paymentPlanId)) errorResponse('The selected payment plan no longer exists in this project.');
+        }
+        $existingSlug = '';
+        if ($propertyId > 0 && databaseColumnExists($pdo,'properties','slug')) {
+            $slugStatement = $pdo->prepare('SELECT slug FROM properties WHERE property_id=?');
+            $slugStatement->execute([$propertyId]);
+            $existingSlug = (string)($slugStatement->fetchColumn() ?: '');
+        }
+        if (!databaseColumnExists($pdo,'properties','slug')) errorResponse('The property database schema is incomplete. Import project-schema-repair.sql in phpMyAdmin, then try again.', 503);
+        $slug = $existingSlug !== '' ? $existingSlug : seo_unique_slug($pdo, 'properties', 'property_id', 'slug', $title . ' ' . $city, $propertyId);
+    } catch (PDOException $exception) {
+        error_log('[Heera property preflight] '.$exception->getMessage());
+        errorResponse(propertyDatabaseErrorMessage($exception), 500);
     }
-    $existingSlug = '';
-    if ($propertyId > 0) {
-        $slugStatement = $pdo->prepare('SELECT slug FROM properties WHERE property_id=?');
-        $slugStatement->execute([$propertyId]);
-        $existingSlug = (string)($slugStatement->fetchColumn() ?: '');
-    }
-    $slug = $existingSlug !== '' ? $existingSlug : seo_unique_slug($pdo, 'properties', 'property_id', 'slug', $title . ' ' . $city, $propertyId);
     $publishStart=dateValue($data,'publish_start_date');$publishEnd=dateValue($data,'publish_end_date');
     if($publishStart&&$publishEnd&&$publishEnd<$publishStart) errorResponse('The removal date must be the same as or later than the publication start date.');
     $values = [
@@ -621,10 +666,13 @@ function saveProperty(array $data): void {
         }
         saveMedia($pdo, $propertyId, is_array($data['media'] ?? null) ? $data['media'] : []);
         $pdo->commit();
+        syncMasterOptionName($pdo,'block',optionalStringValue($data,'block_name',120));
+        syncMasterOptionName($pdo,'marla',optionalStringValue($data,'size_label',60));
         respond(['property_id' => $propertyId]);
     } catch (PDOException $exception) {
         if ($pdo->inTransaction()) $pdo->rollBack();
-        errorResponse('The listing could not be saved.', 500);
+        error_log('[Heera save property] '.$exception->getMessage());
+        errorResponse(propertyDatabaseErrorMessage($exception), 500);
     }
 }
 
@@ -702,10 +750,13 @@ function ensureProjectPlanSchema(PDO $pdo): void {
         }
     }
     try {
-        $oldUnique = $pdo->query("SHOW INDEX FROM projects WHERE Key_name = 'uq_project_title'")->fetch();
-        if ($oldUnique) $pdo->exec("ALTER TABLE projects DROP INDEX uq_project_title");
+        $oldIndexes = $pdo->query("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='projects' AND NON_UNIQUE=0 AND INDEX_NAME<>'PRIMARY' GROUP BY INDEX_NAME HAVING COUNT(*)=1 AND MAX(COLUMN_NAME)='title'")->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($oldIndexes as $oldIndex) {
+            $quotedIndex = str_replace('`', '``', (string)$oldIndex);
+            $pdo->exec("ALTER TABLE projects DROP INDEX `{$quotedIndex}`");
+        }
     } catch (Throwable $exception) {
-        error_log('[Heera project schema] uq_project_title: ' . $exception->getMessage());
+        error_log('[Heera project schema] legacy title index: ' . $exception->getMessage());
     }
     try {
         $newIndex = $pdo->query("SHOW INDEX FROM projects WHERE Key_name = 'idx_project_title_plan'")->fetch();
@@ -741,6 +792,9 @@ function ensureProjectPlanSchema(PDO $pdo): void {
 
 
 function ensurePaymentPlansTable(PDO $pdo): void {
+    static $ready = [];
+    $key = spl_object_id($pdo);
+    if (!empty($ready[$key])) return;
     try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS payment_plans (
             payment_plan_id VARCHAR(80) NOT NULL PRIMARY KEY,
@@ -770,8 +824,34 @@ function ensurePaymentPlansTable(PDO $pdo): void {
     } catch (Throwable $exception) {
         error_log('[Heera payment plan schema] ' . $exception->getMessage());
     }
-    try { if (structuralTableExists($pdo,'payment_plans') && !structuralColumnExists($pdo,'payment_plans','sub_project_id')) $pdo->exec('ALTER TABLE payment_plans ADD COLUMN sub_project_id INT UNSIGNED NULL AFTER project_id'); } catch (Throwable $exception) {}
+    $columns = [
+        'sub_project_id' => 'ALTER TABLE payment_plans ADD COLUMN sub_project_id INT UNSIGNED NULL AFTER project_id',
+        'plan_name' => "ALTER TABLE payment_plans ADD COLUMN plan_name VARCHAR(180) NOT NULL DEFAULT 'Payment Plan' AFTER sub_project_id",
+        'size_label' => 'ALTER TABLE payment_plans ADD COLUMN size_label VARCHAR(80) NULL AFTER plan_name',
+        'booking_amount' => 'ALTER TABLE payment_plans ADD COLUMN booking_amount DECIMAL(15,2) NULL AFTER size_label',
+        'monthly_installment_count' => 'ALTER TABLE payment_plans ADD COLUMN monthly_installment_count INT UNSIGNED NULL AFTER booking_amount',
+        'monthly_installment' => 'ALTER TABLE payment_plans ADD COLUMN monthly_installment DECIMAL(15,2) NULL AFTER monthly_installment_count',
+        'half_yearly_count' => 'ALTER TABLE payment_plans ADD COLUMN half_yearly_count INT UNSIGNED NULL AFTER monthly_installment',
+        'half_yearly_installment' => 'ALTER TABLE payment_plans ADD COLUMN half_yearly_installment DECIMAL(15,2) NULL AFTER half_yearly_count',
+        'balloting' => 'ALTER TABLE payment_plans ADD COLUMN balloting VARCHAR(120) NULL AFTER half_yearly_installment',
+        'on_possession' => 'ALTER TABLE payment_plans ADD COLUMN on_possession DECIMAL(15,2) NULL AFTER balloting',
+        'other_payment' => 'ALTER TABLE payment_plans ADD COLUMN other_payment DECIMAL(15,2) NULL AFTER on_possession',
+        'total_price' => 'ALTER TABLE payment_plans ADD COLUMN total_price DECIMAL(15,2) NULL AFTER other_payment',
+        'full_payment_discount_percent' => 'ALTER TABLE payment_plans ADD COLUMN full_payment_discount_percent DECIMAL(6,2) NULL AFTER total_price',
+        'half_payment_discount_percent' => 'ALTER TABLE payment_plans ADD COLUMN half_payment_discount_percent DECIMAL(6,2) NULL AFTER full_payment_discount_percent',
+        'preferred_location_charge_percent' => 'ALTER TABLE payment_plans ADD COLUMN preferred_location_charge_percent DECIMAL(6,2) NULL AFTER half_payment_discount_percent',
+        'sort_order' => 'ALTER TABLE payment_plans ADD COLUMN sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER preferred_location_charge_percent',
+        'is_active' => 'ALTER TABLE payment_plans ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE AFTER sort_order',
+        'created_at' => 'ALTER TABLE payment_plans ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER is_active',
+        'updated_at' => 'ALTER TABLE payment_plans ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at',
+    ];
+    foreach ($columns as $column => $sql) {
+        try { if (structuralTableExists($pdo,'payment_plans') && !structuralColumnExists($pdo,'payment_plans',$column)) $pdo->exec($sql); }
+        catch (Throwable $exception) { error_log('[Heera payment plan schema] '.$column.': '.$exception->getMessage()); }
+    }
+    try { if (structuralTableExists($pdo,'payment_plans') && !structuralIndexExists($pdo,'payment_plans','idx_payment_plans_project')) $pdo->exec('ALTER TABLE payment_plans ADD INDEX idx_payment_plans_project (project_id,is_active,sort_order)'); } catch (Throwable $exception) {}
     try { if (structuralTableExists($pdo,'payment_plans') && !structuralIndexExists($pdo,'payment_plans','idx_payment_plans_sub_project')) $pdo->exec('ALTER TABLE payment_plans ADD INDEX idx_payment_plans_sub_project (sub_project_id,is_active,sort_order)'); } catch (Throwable $exception) {}
+    $ready[$key] = true;
 }
 
 function syncPaymentPlansTable(PDO $pdo, int $projectId, array $plans): void {
@@ -839,6 +919,8 @@ function paymentPlansForProject(int $projectId, bool $admin = false, int $subPro
         } catch (Throwable $exception) { error_log('[Heera payment plan migration] '.$exception->getMessage()); }
     }
 
+    $stored = heeraStoredRows($pdo,'heera_v4_payment_plans',[$projectId,$subProjectId,$admin ? 1 : 0]);
+    if ($stored !== null) return $stored;
     $sql = "SELECT pp.payment_plan_id AS plan_id,pp.project_id,pp.sub_project_id,pp.plan_name,pp.size_label,pp.booking_amount,pp.monthly_installment_count,pp.monthly_installment,pp.half_yearly_count,pp.half_yearly_installment,pp.balloting,pp.on_possession,pp.other_payment,pp.total_price,pp.full_payment_discount_percent,pp.half_payment_discount_percent,pp.preferred_location_charge_percent,sp.name AS sub_project_name FROM payment_plans pp LEFT JOIN sub_projects sp ON sp.sub_project_id=pp.sub_project_id WHERE pp.project_id=? AND pp.is_active=TRUE";
     $params = [$projectId];
     if ($subProjectId > 0) { $sql .= ' AND (pp.sub_project_id IS NULL OR pp.sub_project_id=?)'; $params[] = $subProjectId; }
@@ -853,7 +935,7 @@ function projects(bool $onlyPublished): array {
     $sql = 'SELECT * FROM projects';
     if ($onlyPublished) $sql .= " WHERE status = 'published'";
     $sql .= ' ORDER BY updated_at DESC, project_id ASC';
-    $rows = $pdo->query($sql)->fetchAll();
+    $rows = heeraStoredRows($pdo,'heera_v4_projects',[$onlyPublished ? 0 : 1]) ?? $pdo->query($sql)->fetchAll();
     $mediaByProject = projectsMedia($pdo, array_map('intval', array_column($rows, 'project_id')));
     foreach ($rows as &$row) {
         $row['media'] = $mediaByProject[(int)$row['project_id']] ?? [];
@@ -863,20 +945,58 @@ function projects(bool $onlyPublished): array {
     return $rows;
 }
 
-function projectById(int $projectId, string $slug = ''): ?array {
+function projectById(int $projectId, string $slug = '', int $subProjectId = 0): ?array {
     if ($projectId < 1 && $slug === '') return null;
     $pdo = db();
     ensureProjectPlanSchema($pdo);
-    $hasSlug = false;try{$hasSlug=(bool)$pdo->query("SHOW COLUMNS FROM projects LIKE 'slug'")->fetch();}catch(Throwable $e){}
-    $selector = $slug !== '' && $hasSlug ? 'slug = ?' : 'project_id = ?';
-    $statement = $pdo->prepare("SELECT * FROM projects WHERE {$selector} AND status = 'published'");
-    $statement->execute([$slug !== '' && $hasSlug ? $slug : $projectId]);
-    $project = $statement->fetch();
+    $project=seo_fetch_project($pdo,$slug!==''?$slug:null,$projectId);
     if (!$project) return null;
-$project['media'] = projectMedia(db(), (int)$project['project_id']);
-    $project['sub_projects'] = subProjects((int)$project['project_id'], false);
-    $project['payment_plans'] = paymentPlansForProject((int)$project['project_id'], false);
-    return $project;
+    return seo_select_project_sub_project($project, $subProjectId);
+}
+
+/** Read-only relationship health check for the authenticated admin. */
+function projectRelationshipDiagnostics(int $projectId, string $subProjectSlug = ''): array {
+    $pdo = db();
+    ensureProjectPlanSchema($pdo);
+    ensurePropertyPublishingSchema($pdo);
+    $projectStmt = $pdo->prepare('SELECT project_id,title,slug,status FROM projects WHERE project_id=? LIMIT 1');
+    $projectStmt->execute([$projectId]);
+    $project = $projectStmt->fetch() ?: null;
+    $subProject = null;
+    if ($project && trim($subProjectSlug) !== '') {
+        $subStmt = $pdo->prepare('SELECT sub_project_id,project_id,name,slug,status FROM sub_projects WHERE project_id=? AND BINARY slug=BINARY ? LIMIT 1');
+        $subStmt->execute([$projectId, trim($subProjectSlug)]);
+        $subProject = $subStmt->fetch() ?: null;
+        if (!$subProject) {
+            $scan = $pdo->prepare('SELECT sub_project_id,project_id,name,slug,status FROM sub_projects WHERE project_id=? ORDER BY sub_project_id');
+            $scan->execute([$projectId]);
+            foreach ($scan->fetchAll() as $candidate) {
+                if (hash_equals(seo_slugify((string)$candidate['name'].'-'.$projectId), trim($subProjectSlug))) { $subProject=$candidate; break; }
+            }
+        }
+    }
+    $subProjectId = (int)($subProject['sub_project_id'] ?? 0);
+    $count = static function (PDO $pdo, string $table, int $projectId, int $subProjectId): int {
+        $sql="SELECT COUNT(*) FROM `{$table}` WHERE project_id=?";
+        $params=[$projectId];
+        if ($subProjectId>0 && in_array($table,['properties','payment_plans'],true)) {$sql.=' AND sub_project_id=?';$params[]=$subProjectId;}
+        $stmt=$pdo->prepare($sql);$stmt->execute($params);return (int)$stmt->fetchColumn();
+    };
+    $issues=[];
+    if (!$project) $issues[]='PROJECT_MISSING';
+    elseif (($project['status']??'')!=='published') $issues[]='PARENT_NOT_PUBLISHED';
+    if ($subProjectSlug!=='' && !$subProject) $issues[]='SUBPROJECT_SLUG_MISSING';
+    elseif ($subProject && ($subProject['status']??'')!=='published') $issues[]='SUBPROJECT_NOT_PUBLISHED';
+    return [
+        'database'=>'connected','project'=>$project,'sub_project'=>$subProject,
+        'public_url_ready'=>$project && (!$subProjectSlug || $subProject) && !$issues,
+        'issues'=>$issues,
+        'counts'=>[
+            'project_media'=>$project?$count($pdo,'project_media',$projectId,0):0,
+            'payment_plans'=>$project?$count($pdo,'payment_plans',$projectId,$subProjectId):0,
+            'properties'=>$project?$count($pdo,'properties',$projectId,$subProjectId):0,
+        ],
+    ];
 }
 
 function saveProjectMedia(PDO $pdo, int $projectId, array $media): void {
@@ -912,9 +1032,10 @@ function saveProject(array $data): void {
     if (array_key_exists('payment_plans', $data)) requirePermission('payment_plans.manage');
     $pdo = db();
     ensureProjectPlanSchema($pdo);
+    ensureSubProjectsSchema($pdo);
     $projectId = (int)($data['project_id'] ?? 0);
     $title = stringValue($data, 'title', 180);
-    $planName = stringValue($data, 'plan_name', 180); // legacy display label only; use sub_projects for new structure
+    $planName = stringValue($data, 'plan_name', 180);
     $category = stringValue($data, 'category', 100);
     $location = stringValue($data, 'location', 180);
     $heroImage = stringValue($data, 'hero_image_url', 500);
@@ -936,10 +1057,6 @@ function saveProject(array $data): void {
             if ($paymentPlansJson === false) errorResponse('The payment-plan data is invalid.');
         }
     }
-    if ($planName !== '' && !$hasPlanName) {
-        errorResponse('The project database needs an update before this legacy label can be read.', 503);
-    }
-
     $media = is_array($data['media'] ?? null) ? $data['media'] : [];
     $hasRequestedMedia = false;
     foreach (['gallery', 'plans'] as $mediaType) {
@@ -995,9 +1112,26 @@ function saveProject(array $data): void {
             $statement->execute(array_values($fields));
             $projectId = (int)$pdo->lastInsertId();
         }
+        if ($planName !== '') {
+            resolvePropertySubProject($pdo, $projectId, 0, $planName);
+        }
+        foreach ($paymentPlans as &$paymentPlan) {
+            $subProjectName = trim((string)($paymentPlan['sub_project_name'] ?? ''));
+            if (strlen($subProjectName) > 180) errorResponse('A payment-plan sub-project name is too long.');
+            $paymentPlan['sub_project_id'] = resolvePropertySubProject(
+                $pdo,
+                $projectId,
+                (int)($paymentPlan['sub_project_id'] ?? 0),
+                $subProjectName
+            ) ?: null;
+        }
+        unset($paymentPlan);
         if ($hasMediaTable) saveProjectMedia($pdo, $projectId, $media);
         syncPaymentPlansTable($pdo, $projectId, $paymentPlans ?? []);
         $pdo->commit();
+        syncMasterOptionName($pdo,'project',$title);
+        if($planName!=='')syncMasterOptionName($pdo,'subproject',$planName);
+        foreach($paymentPlans as $savedPlan){syncMasterOptionName($pdo,'subproject',(string)($savedPlan['sub_project_name']??''));syncMasterOptionName($pdo,'marla',(string)($savedPlan['size_label']??''));}
         try { ensureRelationalIntegrity($pdo); } catch (Throwable $relationError) { error_log('[Heera relation repair] '.$relationError->getMessage()); }
         respond(['project_id' => $projectId]);
     } catch (PDOException $exception) {
@@ -1230,7 +1364,7 @@ function adminCrmLeads(): array {
     $pdo = db(); ensureEnquiriesTable($pdo); ensureAgentsTable($pdo);
     $sql = "SELECT e.*,p.title AS property_title,a.name AS assigned_agent_name FROM enquiries e LEFT JOIN properties p ON p.property_id=e.property_id LEFT JOIN agents a ON a.agent_id=e.assigned_agent_id ORDER BY FIELD(e.priority,'hot','high','medium','low'),e.created_at DESC,e.enquiry_id DESC";
     try {
-        $rows = $pdo->query($sql)->fetchAll();
+        $rows = heeraStoredRows($pdo,'heera_v4_crm_leads') ?? $pdo->query($sql)->fetchAll();
         foreach ($rows as &$row) if ((int)($row['lead_score'] ?? 0) < 1) $row['lead_score'] = crmLeadScore($row);
         unset($row);
         return $rows;
@@ -1290,7 +1424,7 @@ function homeGallery(bool $admin = false): array {
     $sql = 'SELECT gallery_id, image_url, caption, sort_order, is_published, created_at FROM home_gallery';
     if (!$admin) $sql .= ' WHERE is_published = TRUE';
     $sql .= ' ORDER BY sort_order, gallery_id';
-    return $pdo->query($sql)->fetchAll();
+    return heeraStoredRows($pdo,'heera_v4_gallery',[$admin ? 1 : 0]) ?? $pdo->query($sql)->fetchAll();
 }
 
 function ensureAgentsTable(PDO $pdo): void {
@@ -1316,7 +1450,7 @@ function agents(bool $onlyPublished): array {
     $sql = 'SELECT agent_id, name, title, email, phone, photo_url, bio, is_published FROM agents';
     if ($onlyPublished) $sql .= ' WHERE is_published = TRUE';
     $sql .= ' ORDER BY name ASC, agent_id ASC';
-    return $pdo->query($sql)->fetchAll();
+    return heeraStoredRows($pdo,'heera_v4_agents',[$onlyPublished ? 0 : 1]) ?? $pdo->query($sql)->fetchAll();
 }
 
 function ensureOfficeAddressesTable(PDO $pdo): void {
@@ -1339,7 +1473,7 @@ function officeAddresses(bool $onlyPublished): array {
     $sql = 'SELECT office_id, office_name, address_text, phone, map_url, is_published FROM office_addresses';
     if ($onlyPublished) $sql .= ' WHERE is_published = TRUE';
     $sql .= ' ORDER BY office_id ASC';
-    return $pdo->query($sql)->fetchAll();
+    return heeraStoredRows($pdo,'heera_v4_offices',[$onlyPublished ? 0 : 1]) ?? $pdo->query($sql)->fetchAll();
 }
 
 function saveOfficeAddress(array $data): void {
@@ -1532,7 +1666,8 @@ function adminSubmissions(): array {
     requireAdmin();
     $pdo = db();
     ensurePropertySubmissionsTable($pdo);
-    return array_map('submissionPayload', $pdo->query('SELECT * FROM property_submissions ORDER BY status = \'pending\' DESC, created_at DESC')->fetchAll());
+    $rows=heeraStoredRows($pdo,'heera_v4_submissions')??$pdo->query('SELECT * FROM property_submissions ORDER BY status = \'pending\' DESC, created_at DESC')->fetchAll();
+    return array_map('submissionPayload', $rows);
 }
 
 function saveSubmission(array $data): void {
@@ -1687,14 +1822,14 @@ function homePopup(): ?array {
 function homePopups(): array {
     $pdo = db();
     ensurePopupAdsTable($pdo);
-    return $pdo->query('SELECT popup_id, popup_type, image_url, video_url, link_url, headline, html_content, is_published FROM popup_ads WHERE is_published = TRUE ORDER BY sort_order ASC, popup_id ASC')->fetchAll();
+    return heeraStoredRows($pdo,'heera_v4_updates',[0])??$pdo->query('SELECT popup_id, popup_type, image_url, video_url, link_url, headline, html_content, is_published FROM popup_ads WHERE is_published = TRUE ORDER BY sort_order ASC, popup_id ASC')->fetchAll();
 }
 
 function adminPopups(): array {
     requireAdmin();
     $pdo = db();
     ensurePopupAdsTable($pdo);
-    return $pdo->query('SELECT popup_id, popup_type, image_url, video_url, link_url, headline, html_content, is_published, sort_order, created_at FROM popup_ads ORDER BY sort_order, popup_id')->fetchAll();
+    return heeraStoredRows($pdo,'heera_v4_updates',[1])??$pdo->query('SELECT popup_id, popup_type, image_url, video_url, link_url, headline, html_content, is_published, sort_order, created_at FROM popup_ads ORDER BY sort_order, popup_id')->fetchAll();
 }
 
 function savePopup(array $data): void {
@@ -1756,20 +1891,29 @@ function deletePopup(array $data): void {
 
 function uploadMedia(): void {
     requireAdmin();
+    if (requestExceedsPostLimit()) errorResponse('The upload is larger than the PHP post_max_size limit. Increase post_max_size, restart PHP/Apache, and try again.', 413);
     if (empty($_FILES['files'])) errorResponse('Choose at least one file to upload.');
     $files = $_FILES['files'];
     $allowed = [
         'image/jpeg' => ['image', 'jpg'], 'image/png' => ['image', 'png'], 'image/gif' => ['image', 'gif'], 'image/webp' => ['image', 'webp'],
         'video/mp4' => ['video', 'mp4'], 'video/webm' => ['video', 'webm']
     ];
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $finfo = class_exists('finfo') ? new finfo(FILEINFO_MIME_TYPE) : null;
     $directory = __DIR__ . DIRECTORY_SEPARATOR . 'uploads';
     if (!is_dir($directory) && !mkdir($directory, 0755, true)) errorResponse('The upload folder could not be created.', 500);
+    if (!is_writable($directory)) errorResponse('The uploads folder is not writable. Give the PHP/web-server user write permission, then try again.', 500);
     $uploaded = [];
     foreach ($files['tmp_name'] as $index => $temporaryFile) {
-        if ($files['error'][$index] !== UPLOAD_ERR_OK) errorResponse('One of the files could not be uploaded.');
-        if ($files['size'][$index] > 15 * 1024 * 1024) errorResponse('Each file must be 15 MB or smaller.');
-        $mime = $finfo->file($temporaryFile);
+        $file = [
+            'error' => $files['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+            'size' => $files['size'][$index] ?? 0,
+        ];
+        $failure = uploadFailureMessage($file, 'Property media', 15);
+        if ($failure !== null) errorResponse($failure, in_array((int)$file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) ? 413 : 400);
+        $mime = $finfo
+            ? (string)$finfo->file($temporaryFile)
+            : (function_exists('mime_content_type') ? (string)(mime_content_type($temporaryFile) ?: '') : '');
+        if ($mime === '') errorResponse('PHP file-type detection is unavailable. Enable the fileinfo extension to upload property media.', 500);
         if (!isset($allowed[$mime])) errorResponse('Only JPG, PNG, GIF, WebP, MP4, and WebM files are supported.');
         [$type, $extension] = $allowed[$mime];
         $filename = $type === 'image' ? storeOptimizedImageUpload($temporaryFile,$directory,$mime,bin2hex(random_bytes(16))) : bin2hex(random_bytes(16)).'.'.$extension;
@@ -1781,14 +1925,38 @@ function uploadMedia(): void {
 
 function ensureDigitalMapSchema(PDO $pdo): void {
     static $ready=false;if($ready)return;
-    $pdo->exec("CREATE TABLE IF NOT EXISTS digital_maps (map_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,name VARCHAR(180) NOT NULL,map_image VARCHAR(500) NOT NULL,original_pdf VARCHAR(500) DEFAULT NULL,plot_index_file VARCHAR(500) DEFAULT NULL,original_width INT UNSIGNED NOT NULL,original_height INT UNSIGNED NOT NULL,is_active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY uq_digital_map_name (name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS digital_maps (map_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,name VARCHAR(180) NOT NULL,map_image VARCHAR(500) DEFAULT NULL,original_pdf VARCHAR(500) DEFAULT NULL,plot_index_file VARCHAR(500) DEFAULT NULL,original_width INT UNSIGNED NOT NULL DEFAULT 0,original_height INT UNSIGNED NOT NULL DEFAULT 0,is_active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY uq_digital_map_name (name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $columns = [
+        'map_image' => 'ALTER TABLE digital_maps ADD COLUMN map_image VARCHAR(500) NULL AFTER name',
+        'original_pdf' => 'ALTER TABLE digital_maps ADD COLUMN original_pdf VARCHAR(500) NULL AFTER map_image',
+        'plot_index_file' => 'ALTER TABLE digital_maps ADD COLUMN plot_index_file VARCHAR(500) NULL AFTER original_pdf',
+        'original_width' => 'ALTER TABLE digital_maps ADD COLUMN original_width INT UNSIGNED NOT NULL DEFAULT 0 AFTER plot_index_file',
+        'original_height' => 'ALTER TABLE digital_maps ADD COLUMN original_height INT UNSIGNED NOT NULL DEFAULT 0 AFTER original_width',
+        'is_active' => 'ALTER TABLE digital_maps ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE AFTER original_height',
+        'created_at' => 'ALTER TABLE digital_maps ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER is_active',
+        'updated_at' => 'ALTER TABLE digital_maps ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at',
+    ];
+    foreach ($columns as $column => $sql) {
+        try {
+            if (!structuralColumnExists($pdo, 'digital_maps', $column)) $pdo->exec($sql);
+        } catch (Throwable $exception) {
+            error_log('[Heera digital map schema]['.$column.'] '.$exception->getMessage());
+        }
+    }
+    try {
+        $nullable=$pdo->query("SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='digital_maps' AND COLUMN_NAME='map_image'")->fetchColumn();
+        if($nullable==='NO')$pdo->exec('ALTER TABLE digital_maps MODIFY map_image VARCHAR(500) NULL');
+    } catch(Throwable $exception){error_log('[Heera digital map schema][map_image nullable] '.$exception->getMessage());}
+    try {
+        if (!structuralIndexExists($pdo, 'digital_maps', 'uq_digital_map_name')) $pdo->exec('ALTER TABLE digital_maps ADD UNIQUE KEY uq_digital_map_name (name)');
+    } catch(Throwable $exception){error_log('[Heera digital map schema][name index] '.$exception->getMessage());}
     $pdo->exec("CREATE TABLE IF NOT EXISTS digital_map_blocks (block_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,map_id INT UNSIGNED NOT NULL,name VARCHAR(120) NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT fk_digital_block_map FOREIGN KEY (map_id) REFERENCES digital_maps(map_id) ON DELETE CASCADE,UNIQUE KEY uq_digital_map_block (map_id,name),INDEX idx_digital_blocks_map (map_id,name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     $ready=true;
 }
 
 function digitalMaps(bool $onlyActive=true): array {
-    $pdo=db();ensureDigitalMapSchema($pdo);$sql='SELECT * FROM digital_maps'.($onlyActive?' WHERE is_active=1':'').' ORDER BY name,map_id';$rows=$pdo->query($sql)->fetchAll();
-    $blocks=$pdo->query('SELECT block_id,map_id,name,created_at FROM digital_map_blocks ORDER BY map_id,name')->fetchAll();$grouped=[];foreach($blocks as $block)$grouped[(int)$block['map_id']][]=['block_id'=>(int)$block['block_id'],'map_id'=>(int)$block['map_id'],'name'=>$block['name'],'created_at'=>$block['created_at']];
+    $pdo=db();ensureDigitalMapSchema($pdo);$sql='SELECT * FROM digital_maps'.($onlyActive?' WHERE is_active=1':'').' ORDER BY name,map_id';$rows=heeraStoredRows($pdo,'heera_v4_maps',[$onlyActive?0:1])??$pdo->query($sql)->fetchAll();
+    $blocks=heeraStoredRows($pdo,'heera_v4_map_blocks')??$pdo->query('SELECT block_id,map_id,name,created_at FROM digital_map_blocks ORDER BY map_id,name')->fetchAll();$grouped=[];foreach($blocks as $block)$grouped[(int)$block['map_id']][]=['block_id'=>(int)$block['block_id'],'map_id'=>(int)$block['map_id'],'name'=>$block['name'],'created_at'=>$block['created_at']];
     return array_map(function($row)use($grouped){$id=(int)$row['map_id'];return ['map_id'=>$id,'name'=>$row['name'],'map_image'=>$row['map_image'],'original_pdf'=>$row['original_pdf'],'plot_index_file'=>$row['plot_index_file'],'original_width'=>(int)$row['original_width'],'original_height'=>(int)$row['original_height'],'is_active'=>(int)$row['is_active'],'blocks'=>$grouped[$id]??[],'created_at'=>$row['created_at'],'updated_at'=>$row['updated_at']];},$rows);
 }
 
@@ -1829,19 +1997,53 @@ function automaticPlotSearch(): array {
     return ['found'=>count($results)>0,'map_id'=>$map['map_id'],'project'=>$map['name'],'plot_number'=>(string)((int)$plotNumber),'requested_block'=>$block,'block_fallback'=>$fallback,'matches'=>$results,'total_matches'=>count($results),'property'=>automaticPlotProperty((string)((int)$plotNumber),$block),'source'=>$index['method']??'Uploaded plot index'];
 }
 
+function uploadFailureMessage(array $file, string $label, int $maxMegabytes): ?string {
+    $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($error === UPLOAD_ERR_OK) {
+        if ((int)($file['size'] ?? 0) > $maxMegabytes * 1024 * 1024) return "{$label} is larger than {$maxMegabytes} MB.";
+        return null;
+    }
+    return match ($error) {
+        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => "{$label} is larger than the PHP/web-server upload limit. Increase upload_max_filesize and post_max_size, then try again.",
+        UPLOAD_ERR_PARTIAL => "{$label} was only partially uploaded. Please retry on a stable connection.",
+        UPLOAD_ERR_NO_TMP_DIR => "{$label} could not upload because PHP has no temporary upload folder.",
+        UPLOAD_ERR_CANT_WRITE => "{$label} could not upload because the server could not write the temporary file.",
+        UPLOAD_ERR_EXTENSION => "{$label} upload was stopped by a PHP extension or hosting security rule.",
+        UPLOAD_ERR_NO_FILE => null,
+        default => "{$label} upload failed (PHP upload error {$error}).",
+    };
+}
+
+function requestExceedsPostLimit(): bool {
+    $length = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+    return $length > 0 && empty($_POST) && empty($_FILES);
+}
+
+function validUploadedPdf(string $temporaryPath, ?finfo $finfo = null): bool {
+    if ($temporaryPath === '' || !is_readable($temporaryPath)) return false;
+    $header = file_get_contents($temporaryPath, false, null, 0, 5);
+    if ($header !== '%PDF-') return false;
+    if (!$finfo) return true;
+    $mime = (string)$finfo->file($temporaryPath);
+    return in_array($mime, ['application/pdf','application/x-pdf','application/acrobat','applications/vnd.pdf','text/pdf','text/x-pdf','application/octet-stream'], true);
+}
+
 function saveDigitalMap(): void {
-    requireAdmin();$pdo=db();ensureDigitalMapSchema($pdo);$id=(int)($_POST['map_id']??0);$name=stringValue($_POST,'name',180);if($name==='')errorResponse('Map name is required.');$existing=$id?digitalMapById($id,false):null;if($id&&!$existing)errorResponse('This map no longer exists.',404);
-    $image=$existing['map_image']??'';$pdf=$existing['original_pdf']??null;$indexFile=$existing['plot_index_file']??null;$width=(int)($existing['original_width']??0);$height=(int)($existing['original_height']??0);$directory=__DIR__.DIRECTORY_SEPARATOR.'maps'.DIRECTORY_SEPARATOR.'uploads';if(!is_dir($directory)&&!mkdir($directory,0755,true))errorResponse('The map upload folder could not be created.',500);$finfo=new finfo(FILEINFO_MIME_TYPE);
-    if(isset($_FILES['map_image'])&&($_FILES['map_image']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){$file=$_FILES['map_image'];if($file['error']!==UPLOAD_ERR_OK||$file['size']>60*1024*1024)errorResponse('Map image upload failed or is larger than 60 MB.');$mime=$finfo->file($file['tmp_name']);$ext=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'][$mime]??null;if(!$ext)errorResponse('Map image must be JPG, PNG or WebP.');$size=getimagesize($file['tmp_name']);if(!$size)errorResponse('The map image is invalid.');[$width,$height]=$size;$filename=bin2hex(random_bytes(16)).'.'.$ext;if(!move_uploaded_file($file['tmp_name'],$directory.DIRECTORY_SEPARATOR.$filename))errorResponse('The map image could not be saved.');$image='maps/uploads/'.$filename;}
-    if($image===''||$width<100||$height<100)errorResponse('Upload a valid high-resolution map image.');
-    if(isset($_FILES['original_pdf'])&&($_FILES['original_pdf']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){$file=$_FILES['original_pdf'];if($file['error']!==UPLOAD_ERR_OK||$file['size']>100*1024*1024)errorResponse('PDF upload failed or is larger than 100 MB.');if($finfo->file($file['tmp_name'])!=='application/pdf')errorResponse('Original map document must be a PDF.');$filename=bin2hex(random_bytes(16)).'.pdf';if(!move_uploaded_file($file['tmp_name'],$directory.DIRECTORY_SEPARATOR.$filename))errorResponse('The PDF could not be saved.');$pdf='maps/uploads/'.$filename;}
+    requireAdmin();
+    if(requestExceedsPostLimit())errorResponse('The upload is larger than the PHP post_max_size limit. Increase post_max_size, restart PHP/Apache, and try again.',413);
+    $pdo=db();ensureDigitalMapSchema($pdo);$id=(int)($_POST['map_id']??0);$name=stringValue($_POST,'name',180);if($name==='')errorResponse('Map name is required.');$existing=$id?digitalMapById($id,false):null;if($id&&!$existing)errorResponse('This map no longer exists.',404);
+    $image=$existing['map_image']??'';$pdf=$existing['original_pdf']??null;$indexFile=$existing['plot_index_file']??null;$width=(int)($existing['original_width']??0);$height=(int)($existing['original_height']??0);$directory=__DIR__.DIRECTORY_SEPARATOR.'maps'.DIRECTORY_SEPARATOR.'uploads';if(!is_dir($directory)&&!mkdir($directory,0755,true))errorResponse('The map upload folder could not be created.',500);if(!is_writable($directory))errorResponse('The maps/uploads folder is not writable. Give the PHP/web-server user write permission, then try again.',500);$finfo=class_exists('finfo')?new finfo(FILEINFO_MIME_TYPE):null;$imageSaved=false;$pdfSaved=false;
+    if(isset($_FILES['map_image'])&&($_FILES['map_image']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){$file=$_FILES['map_image'];$failure=uploadFailureMessage($file,'Map image',60);if($failure!==null)errorResponse($failure,$file['error']===UPLOAD_ERR_INI_SIZE?413:400);$mime=$finfo?(string)$finfo->file($file['tmp_name']):(function_exists('mime_content_type')?(string)(mime_content_type($file['tmp_name'])?:''):'');$ext=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'][$mime]??null;if(!$ext)errorResponse('Map image must be JPG, PNG or WebP.');$size=getimagesize($file['tmp_name']);if(!$size)errorResponse('The map image is invalid.');[$width,$height]=$size;$filename=bin2hex(random_bytes(16)).'.'.$ext;if(!move_uploaded_file($file['tmp_name'],$directory.DIRECTORY_SEPARATOR.$filename))errorResponse('The map image could not be saved in maps/uploads. Check folder permissions and available disk space.',500);$image='maps/uploads/'.$filename;$imageSaved=true;}
+    if($image!==''&&($width<100||$height<100))errorResponse('Upload a valid map image.');
+    if(isset($_FILES['original_pdf'])&&($_FILES['original_pdf']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){$file=$_FILES['original_pdf'];$failure=uploadFailureMessage($file,'Map PDF',100);if($failure!==null)errorResponse($failure,$file['error']===UPLOAD_ERR_INI_SIZE?413:400);if(!validUploadedPdf((string)$file['tmp_name'],$finfo))errorResponse('Original map document must be a valid PDF file.');$filename=bin2hex(random_bytes(16)).'.pdf';if(!move_uploaded_file($file['tmp_name'],$directory.DIRECTORY_SEPARATOR.$filename))errorResponse('The PDF could not be saved in maps/uploads. Check folder permissions and available disk space.',500);$pdf='maps/uploads/'.$filename;$pdfSaved=true;}
+    if($image===''&&empty($pdf))errorResponse('Upload a map image, a PDF, or both.');
     if(isset($_FILES['plot_index'])&&($_FILES['plot_index']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){$file=$_FILES['plot_index'];if($file['error']!==UPLOAD_ERR_OK||$file['size']>15*1024*1024)errorResponse('Plot index upload failed or is larger than 15 MB.');$decoded=json_decode((string)file_get_contents($file['tmp_name']),true);if(!is_array($decoded)||!isset($decoded['plots'])||!is_array($decoded['plots']))errorResponse('Plot index JSON must contain a plots array.');foreach($decoded['plots'] as $plot){if(!isset($plot['plot_number'],$plot['normalized_x'],$plot['normalized_y'])||(float)$plot['normalized_x']<0||(float)$plot['normalized_x']>1||(float)$plot['normalized_y']<0||(float)$plot['normalized_y']>1)errorResponse('A plot-index record is invalid.');}$decoded['project']=$name;$decoded['map_image']=$image;$decoded['original_pdf']=$pdf;$decoded['original_width']=$width;$decoded['original_height']=$height;$filename=bin2hex(random_bytes(16)).'.json';$written=file_put_contents($directory.DIRECTORY_SEPARATOR.$filename,json_encode($decoded,JSON_UNESCAPED_SLASHES));if($written===false)errorResponse('The plot index could not be saved.',500);$indexFile='maps/uploads/'.$filename;}
     $active=!empty($_POST['is_active'])?1:0;
-    try{if($id){$stmt=$pdo->prepare('UPDATE digital_maps SET name=?,map_image=?,original_pdf=?,plot_index_file=?,original_width=?,original_height=?,is_active=? WHERE map_id=?');$stmt->execute([$name,$image,$pdf,$indexFile,$width,$height,$active,$id]);}else{$stmt=$pdo->prepare('INSERT INTO digital_maps (name,map_image,original_pdf,plot_index_file,original_width,original_height,is_active) VALUES (?,?,?,?,?,?,?)');$stmt->execute([$name,$image,$pdf,$indexFile,$width,$height,$active]);$id=(int)$pdo->lastInsertId();}respond(['saved'=>true,'map_id'=>$id]);}catch(PDOException $e){errorResponse('A map with this name already exists.',409);}
+    try{if($id){$stmt=$pdo->prepare('UPDATE digital_maps SET name=?,map_image=?,original_pdf=?,plot_index_file=?,original_width=?,original_height=?,is_active=? WHERE map_id=?');$stmt->execute([$name,$image?:null,$pdf?:null,$indexFile?:null,$width,$height,$active,$id]);}else{$stmt=$pdo->prepare('INSERT INTO digital_maps (name,map_image,original_pdf,plot_index_file,original_width,original_height,is_active) VALUES (?,?,?,?,?,?,?)');$stmt->execute([$name,$image?:null,$pdf?:null,$indexFile?:null,$width,$height,$active]);$id=(int)$pdo->lastInsertId();}syncMasterOptionName($pdo,'project',$name);respond(['saved'=>true,'map_id'=>$id,'map_image'=>$image?:null,'original_pdf'=>$pdf?:null,'image_uploaded'=>$imageSaved,'pdf_uploaded'=>$pdfSaved]);}catch(PDOException $e){error_log('[Heera save digital map] '.$e->getMessage());if((int)($e->errorInfo[1]??0)===1062)errorResponse('A map with this name already exists.',409);errorResponse('The digital map could not be saved. Import project-schema-repair.sql in phpMyAdmin, then try again.',500);}
 }
 
 function deleteDigitalMap(array $data): void {requireAdmin();$pdo=db();ensureDigitalMapSchema($pdo);$id=(int)($data['map_id']??0);if($id<1)errorResponse('Choose a valid map.');$stmt=$pdo->prepare('DELETE FROM digital_maps WHERE map_id=?');$stmt->execute([$id]);if(!$stmt->rowCount())errorResponse('This map no longer exists.',404);respond(['deleted'=>true]);}
-function saveDigitalMapBlock(array $data): void {requireAdmin();$pdo=db();ensureDigitalMapSchema($pdo);$mapId=(int)($data['map_id']??0);$name=stringValue($data,'name',120);if(!$mapId||$name==='')errorResponse('Choose a map and enter a block name.');if(!digitalMapById($mapId,false))errorResponse('The selected map does not exist.',404);try{$stmt=$pdo->prepare('INSERT INTO digital_map_blocks (map_id,name) VALUES (?,?)');$stmt->execute([$mapId,$name]);respond(['saved'=>true,'block_id'=>(int)$pdo->lastInsertId()]);}catch(PDOException $e){errorResponse('This block already exists in the selected map.',409);}}
+function saveDigitalMapBlock(array $data): void {requireAdmin();$pdo=db();ensureDigitalMapSchema($pdo);$mapId=(int)($data['map_id']??0);$name=stringValue($data,'name',120);if(!$mapId||$name==='')errorResponse('Choose a map and enter a block name.');if(!digitalMapById($mapId,false))errorResponse('The selected map does not exist.',404);try{$stmt=$pdo->prepare('INSERT INTO digital_map_blocks (map_id,name) VALUES (?,?)');$stmt->execute([$mapId,$name]);syncMasterOptionName($pdo,'block',$name);respond(['saved'=>true,'block_id'=>(int)$pdo->lastInsertId()]);}catch(PDOException $e){errorResponse('This block already exists in the selected map.',409);}}
 function deleteDigitalMapBlock(array $data): void {requireAdmin();$pdo=db();ensureDigitalMapSchema($pdo);$id=(int)($data['block_id']??0);$stmt=$pdo->prepare('DELETE FROM digital_map_blocks WHERE block_id=?');$stmt->execute([$id]);if(!$stmt->rowCount())errorResponse('This block no longer exists.',404);respond(['deleted'=>true]);}
 
 
@@ -1865,7 +2067,8 @@ function adminDashboardData(): array {
         try { return (int)$pdo->query($sql)->fetchColumn(); }
         catch (Throwable $exception) { return 0; }
     };
-    $counts = [
+    $storedCounts=heeraStoredRows($pdo,'heera_v4_dashboard_counts');
+    $counts = $storedCounts[0]??[
         'new_leads' => $count($pdo, "SELECT COUNT(*) FROM enquiries WHERE lead_stage='new'"),
         'pending_submissions' => $count($pdo, "SELECT COUNT(*) FROM property_submissions WHERE status='pending'"),
         'active_projects' => $count($pdo, "SELECT COUNT(*) FROM projects WHERE status='published'")

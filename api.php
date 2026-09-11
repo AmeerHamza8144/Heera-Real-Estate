@@ -8,6 +8,7 @@ $csrfProtectedActions = [
     'logout','submit_property','save_submission','approve_submission','save_property','delete_property',
     'save_project','delete_project','save_sub_project','delete_sub_project','save_home_gallery','delete_home_gallery','save_popup','delete_popup',
     'save_agent','delete_agent','save_office_address','delete_office_address','save_login_user','delete_login_user','save_role','delete_role',
+    'save_master_option','archive_master_option',
     'save_digital_map','delete_digital_map','save_digital_map_block','delete_digital_map_block','save_enquiry_status','upload'
 ];
 if (in_array($action, $csrfProtectedActions, true)) verifyCsrf();
@@ -26,7 +27,18 @@ try {
         case 'auto_plot_search': respond(automaticPlotSearch());
         case 'project':
             $projectId = (int)($_GET['id'] ?? 0);
-            $project = projectById($projectId, trim((string)($_GET['slug'] ?? '')));
+            $projectSlug = trim((string)($_GET['slug'] ?? ''));
+            $subProjectId = (int)($_GET['sub_project_id'] ?? 0);
+            $subProjectSlug = trim((string)($_GET['sub_project_slug'] ?? ''));
+            if ($subProjectSlug !== '' || ($projectId < 1 && $projectSlug === '' && $subProjectId > 0)) {
+                $subProject = seo_fetch_published_sub_project(db(), $subProjectSlug ?: null, $subProjectId);
+                if ($subProject) {
+                    $projectId = (int)$subProject['project_id'];
+                    $projectSlug = '';
+                    $subProjectId = (int)$subProject['sub_project_id'];
+                }
+            }
+            $project = projectById($projectId, $projectSlug, $subProjectId);
             if (!$project) errorResponse('Project not found.', 404);
             respond($project);
         case 'home_gallery': respond(homeGallery(false));
@@ -66,6 +78,9 @@ try {
             requireAdmin();
             respond(listings(false));
         case 'admin_projects': respond(projects(false));
+        case 'admin_project_diagnostics':
+            requireAdmin();
+            respond(projectRelationshipDiagnostics((int)($_GET['id'] ?? 0), trim((string)($_GET['sub_project_slug'] ?? ''))));
         case 'admin_sub_projects': respond(subProjects((int)($_GET['project_id'] ?? 0), true));
         case 'save_sub_project': saveSubProject(requestData());
         case 'delete_sub_project': deleteSubProject(requestData());
@@ -101,6 +116,9 @@ try {
         case 'admin_roles': respond(rolesAndPermissions());
         case 'save_role': saveRole(requestData());
         case 'delete_role': deleteRole(requestData());
+        case 'admin_master_data': respond(masterOptions(true));
+        case 'save_master_option': saveMasterOption(requestData());
+        case 'archive_master_option': archiveMasterOption(requestData());
         case 'admin_submissions': respond(adminSubmissions());
         case 'save_submission': saveSubmission(requestData());
         case 'approve_submission': approveSubmission(requestData());
@@ -125,6 +143,8 @@ try {
     }
 } catch (Throwable $exception) {
     error_log('[Heera API] ' . get_class($exception) . ': ' . $exception->getMessage());
-    $message = $exception instanceof PDOException ? 'The database request could not be completed.' : ($exception->getMessage() ?: 'An unexpected server error occurred.');
+    $message = $exception instanceof PDOException
+        ? (in_array((string)$action, ['admin_properties','properties','save_property','upload'], true) ? propertyDatabaseErrorMessage($exception) : 'The database request could not be completed.')
+        : ($exception->getMessage() ?: 'An unexpected server error occurred.');
     errorResponse($message, 500);
 }

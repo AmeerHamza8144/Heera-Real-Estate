@@ -6,11 +6,40 @@ const safeUrl = (value) => {
 };
 const projectId = Number(window.__PROJECT_DATA__?.project_id || new URLSearchParams(window.location.search).get("id"));
 const projectSlug = String(window.__PROJECT_DATA__?.slug || new URLSearchParams(window.location.search).get("slug") || "");
+const requestedSubProjectId = Number(window.__PROJECT_DATA__?.selected_sub_project?.sub_project_id || new URLSearchParams(window.location.search).get("sub_project_id") || 0);
+const requestedSubProjectSlug = String(window.__PROJECT_DATA__?.selected_sub_project?.slug || new URLSearchParams(window.location.search).get("sub_project_slug") || "");
 
 function renderMedia(container, items, kind, emptyText) {
   const selected = items.filter((item) => item.media_type === kind && safeUrl(item.file_path));
   if (!selected.length) { container.innerHTML = `<p class="media-empty">${emptyText}</p>`; return; }
-  container.innerHTML = selected.map((item) => `<figure class="${kind === "plan" ? "plan-tile" : ""}"><img src="${safeUrl(item.file_path)}" alt="${escapeHtml(item.caption || "Project " + kind)}" loading="lazy" />${item.caption ? `<p>${escapeHtml(item.caption)}</p>` : ""}</figure>`).join("");
+  container.innerHTML = selected.map((item) => {
+    const source = safeUrl(item.file_path);
+    const image = `<img src="${escapeHtml(source)}" alt="${escapeHtml(item.caption || "Project " + kind)}" loading="lazy" />`;
+    return `<figure class="${kind === "plan" ? "plan-tile" : ""}">${kind === "gallery" ? `<a href="${escapeHtml(source)}" target="_blank" rel="noopener" aria-label="Open full-size project image">${image}</a>` : image}${item.caption ? `<p>${escapeHtml(item.caption)}</p>` : ""}</figure>`;
+  }).join("");
+}
+
+function projectPropertyPrice(property) {
+  const pkr = Number(property.price_pkr || 0);
+  if (pkr > 0) return `PKR ${Math.round(pkr).toLocaleString("en-PK")}`;
+  const legacy = Number(property.price || 0);
+  return legacy > 0 ? `$${Math.round(legacy).toLocaleString("en-US")}` : "Price on request";
+}
+
+function renderProjectProperties(container, properties) {
+  const section = document.querySelector("#propertiesSection");
+  const rows = Array.isArray(properties) ? properties : [];
+  if (!container || !section) return;
+  section.hidden = rows.length === 0;
+  container.innerHTML = rows.map((property) => {
+    const href = property.slug ? `property/${encodeURIComponent(property.slug)}` : `property.php?id=${Number(property.property_id)}`;
+    const image = safeUrl(property.image_url);
+    const meta = [property.block_name, property.size_label, property.city].filter(Boolean).map(escapeHtml).join(" · ");
+    return `<article class="project-property-card">
+      <a class="project-property-image" href="${href}">${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(property.title || "Property")}" loading="lazy">` : "<span>No image uploaded</span>"}</a>
+      <div><p class="eyebrow">${escapeHtml(property.listing_type === "rent" ? "For rent" : property.listing_type === "installment" ? "On installments" : "For sale")}</p><h3><a href="${href}">${escapeHtml(property.title || "Property")}</a></h3>${meta ? `<p>${meta}</p>` : ""}<strong>${escapeHtml(projectPropertyPrice(property))}</strong></div>
+    </article>`;
+  }).join("");
 }
 
 function paymentNumber(value) {
@@ -193,32 +222,55 @@ function renderProjectPlans(container, project) {
 }
 
 function renderProject(project) {
-  document.title = `Heera Estate | ${project.title}${project.plan_name ? ` - ${project.plan_name}` : ""}`;
-  if (project.slug && !/\/project\//.test(window.location.pathname)) history.replaceState(null, "", `project/${encodeURIComponent(project.slug)}`);
-  document.querySelector("#projectTitle").textContent = project.title;
-  document.querySelector("#projectCategory").textContent = project.plan_name ? `Plan: ${project.plan_name}` : (project.category || "Project");
+  const subProjects = Array.isArray(project.sub_projects) ? project.sub_projects : [];
+  const selectedSubProject = project.selected_sub_project || subProjects.find((item) => Number(item.sub_project_id) === requestedSubProjectId) || null;
+  const selectedSubProjectId = Number(selectedSubProject?.sub_project_id || 0);
+  const selectedName = String(selectedSubProject?.name || "").trim();
+  const displayProject = selectedSubProjectId ? {
+    ...project,
+    payment_plans: (project.payment_plans || []).filter((plan) => !plan.sub_project_id || Number(plan.sub_project_id) === selectedSubProjectId),
+    properties: (project.properties || []).filter((property) => Number(property.sub_project_id || 0) === selectedSubProjectId || (!property.sub_project_id && subProjects.length === 1))
+  } : project;
+  document.title = `Heera Estate | ${project.title}${selectedName ? ` - ${selectedName}` : (project.plan_name ? ` - ${project.plan_name}` : "")}`;
+  if (selectedSubProject?.slug && !/\/sub-project\//.test(window.location.pathname)) {
+    history.replaceState(null, "", `sub-project/${encodeURIComponent(selectedSubProject.slug)}`);
+  } else if (project.slug && !/\/(?:project|sub-project)\//.test(window.location.pathname)) {
+    history.replaceState(null, "", `project/${encodeURIComponent(project.slug)}${selectedSubProjectId ? `?sub_project_id=${selectedSubProjectId}` : ""}`);
+  }
+  document.querySelector("#projectTitle").textContent = selectedName || project.title;
+  document.querySelector("#projectCategory").textContent = selectedName ? project.title : (project.plan_name ? `Plan: ${project.plan_name}` : (project.category || "Project"));
   document.querySelector("#projectLocation").textContent = project.location || "";
-  document.querySelector("#projectHeadline").textContent = project.headline || project.title;
-  document.querySelector("#projectDescription").textContent = project.description || "Project information will be added shortly.";
+  const overviewEyebrow = document.querySelector("#projectOverviewEyebrow");
+  if (overviewEyebrow) overviewEyebrow.textContent = selectedName ? "About the sub-project" : "About the project";
+  document.querySelector("#projectHeadline").textContent = selectedName || project.headline || project.title;
+  document.querySelector("#projectDescription").textContent = selectedSubProject?.description || project.description || "Project information will be added shortly.";
   const heroImage = safeUrl(project.hero_image_url) || safeUrl((project.media || []).find((item) => item.media_type === "gallery")?.file_path);
   if (heroImage) document.querySelector("#projectHero").style.backgroundImage = `linear-gradient(90deg,rgba(23,38,33,.72),rgba(23,38,33,.2)), url("${heroImage}")`;
-  const subProjects = Array.isArray(project.sub_projects) ? project.sub_projects : [];
-  const facts = [["Location", project.location], ["Status", project.status], ["Project type", project.category], ["Sub-projects", subProjects.length ? String(subProjects.length) : ""]].filter(([, value]) => value);
-  document.querySelector("#projectFacts").innerHTML = facts.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+  const facts = selectedName
+    ? [["Parent project", project.title], ["Sub-project", selectedName], ["Location", project.location], ["Status", selectedSubProject.status || project.status]]
+    : [["Location", project.location], ["Status", project.status], ["Project type", project.category], ["Sub-projects", subProjects.length ? String(subProjects.length) : ""]];
+  const visibleFacts = facts.filter(([, value]) => value);
+  document.querySelector("#projectFacts").innerHTML = visibleFacts.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
   const subSection = document.querySelector("#subProjectsSection");
   const subGrid = document.querySelector("#projectSubProjects");
   if (subSection && subGrid && subProjects.length) {
     subSection.hidden = false;
-    subGrid.innerHTML = subProjects.map(item => `<article class="sub-project-public-card"><p class="eyebrow">${escapeHtml(item.status || "Published")}</p><h3>${escapeHtml(item.name)}</h3>${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}</article>`).join("");
+    subGrid.innerHTML = subProjects.map((item) => { const href=item.slug?`sub-project/${encodeURIComponent(item.slug)}`:`project.php?sub_project_id=${Number(item.sub_project_id)}`;return `<a class="sub-project-public-card${Number(item.sub_project_id) === selectedSubProjectId ? " is-active" : ""}" href="${href}"${Number(item.sub_project_id) === selectedSubProjectId ? ' aria-current="page"' : ""}><p class="eyebrow">${escapeHtml(item.status || "Published")}</p><h3>${escapeHtml(item.name)}</h3>${item.description ? `<p>${escapeHtml(item.description)}</p>` : ""}</a>`; }).join("");
   }
-  renderProjectPlans(document.querySelector("#projectPlans"), project);
+  const plansSection = document.querySelector("#plansSection");
+  const hasPlans = (displayProject.media || []).some((item) => item.media_type === "plan") || (displayProject.payment_plans || []).length > 0;
+  if (plansSection) plansSection.hidden = !hasPlans;
+  renderProjectPlans(document.querySelector("#projectPlans"), displayProject);
+  renderProjectProperties(document.querySelector("#projectProperties"), displayProject.properties || []);
   renderMedia(document.querySelector("#projectGallery"), project.media || [], "gallery", "Project images will be available soon.");
 }
 
 async function loadProject() {
   if (window.__PROJECT_DATA__) { renderProject(window.__PROJECT_DATA__); return; }
-  if ((!Number.isInteger(projectId) || projectId < 1) && !projectSlug) throw new Error("Missing project");
-  const query = projectSlug ? `slug=${encodeURIComponent(projectSlug)}` : `id=${projectId}`;
+  if ((!Number.isInteger(projectId) || projectId < 1) && !projectSlug && !requestedSubProjectSlug && requestedSubProjectId < 1) throw new Error("Missing project");
+  const query = requestedSubProjectSlug
+    ? `sub_project_slug=${encodeURIComponent(requestedSubProjectSlug)}`
+    : `${projectSlug ? `slug=${encodeURIComponent(projectSlug)}` : `id=${projectId}`}${requestedSubProjectId ? `&sub_project_id=${requestedSubProjectId}` : ""}`;
   const response = await fetch(`api.php?action=project&${query}`, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error("Project unavailable");
   renderProject(await response.json());

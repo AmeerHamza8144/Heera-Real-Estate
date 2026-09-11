@@ -10,8 +10,8 @@ For Advanced Property Search on an existing database, import `advanced-search-mi
 
 1. Extract the complete `heera-chatbot` folder into `C:\xampp\htdocs\`.
 2. Start Apache and MySQL in XAMPP.
-3. For a new installation, import `database.sql` in phpMyAdmin.
-4. For an existing installation, replace the code files after backing up the website and database. The API automatically adds the new `block_name` columns when the related features are first used.
+3. For a new installation, import `database.sql`, `project-schema-repair.sql`, `project-data-stored-procedures.sql`, and `module-data-stored-procedures.sql` in that order.
+4. For an existing installation, back up the database and import `project-schema-repair.sql`, `project-data-stored-procedures.sql`, and `module-data-stored-procedures.sql` in that order. The repair is additive and does not remove project/property records.
 5. Keep `uploads/` and `maps/uploads/` writable. For client videos and map uploads, set `upload_max_filesize=110M`, `post_max_size=190M`, and `max_execution_time=300` in PHP and restart Apache.
 6. Open the site, sign in through the compact Login popup, and test Admin on desktop and mobile.
 
@@ -42,3 +42,7 @@ The advisor always ranks properties locally from your MySQL inventory. To add AI
 ## Existing database upgrade (Structural v2)
 
 After backing up your database, import `structural-upgrade-v2.sql` in phpMyAdmin. Then log in as Super Admin and open **More → API & Database** to confirm all tables and foreign keys are healthy. Existing `projects.plan_name` values are migrated into `sub_projects`; legacy `projects.payment_plans` JSON is copied into the normalized `payment_plans` table by the runtime compatibility migrator.
+
+If an upgraded installation cannot save or display properties, import `project-schema-repair.sql` into the same database configured in `.env`, refresh the Admin page, and run **More → API & Database** again. The health check now reports every missing property column. Property media uploads also require PHP's `fileinfo` extension and a writable `uploads/` directory.
+
+The shared connection lives in `database-connection.php`. It uses the `HAVENLY_DB_HOST`, `HAVENLY_DB_PORT`, `HAVENLY_DB_NAME`, `HAVENLY_DB_USER`, and `HAVENLY_DB_PASSWORD` server variables, with standard XAMPP defaults. Every major Admin/public list module calls its `heera_v4_*` read procedure when installed and safely falls back to its prepared query if the procedure is unavailable. See `DATABASE-REBUILD-V4.md` for exact phpMyAdmin import and verification steps.

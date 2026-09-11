@@ -202,83 +202,39 @@ const safeUrl = (value) => {
   try { return ["http:", "https:"].includes(new URL(url).protocol) ? url : ""; } catch { return ""; }
 };
 
-let homeGalleryItems = [];
-let homeGalleryIndex = 0;
-let homeGalleryTimer = null;
-
-function showHomeGallerySlide(index) {
-  const gallery = document.querySelector("#homeGallery");
-  if (!homeGalleryItems.length || !gallery) return;
-  homeGalleryIndex = (index + homeGalleryItems.length) % homeGalleryItems.length;
-  const track = gallery.querySelector(".gallery-slider-track");
-  if (track) track.style.transform = `translateX(-${homeGalleryIndex * 100}%)`;
-  gallery.querySelectorAll(".gallery-dot").forEach((dot, dotIndex) => {
-    dot.classList.toggle("active", dotIndex === homeGalleryIndex);
-  });
-}
-
-function stopHomeGalleryAutoplay() {
-  if (homeGalleryTimer) {
-    clearInterval(homeGalleryTimer);
-    homeGalleryTimer = null;
-  }
-}
-
-function startHomeGalleryAutoplay() {
-  stopHomeGalleryAutoplay();
-  if (homeGalleryItems.length < 2) return;
-  homeGalleryTimer = setInterval(() => {
-    showHomeGallerySlide(homeGalleryIndex + 1);
-  }, 5000);
-}
-
 function renderHomeGallery(items) {
   const gallery = document.querySelector("#homeGallery");
-  homeGalleryItems = Array.isArray(items) ? items.filter((item) => safeUrl(item.image_url)) : [];
   if (!gallery) return;
-  stopHomeGalleryAutoplay();
-  if (!homeGalleryItems.length) {
+  const galleryItems = Array.isArray(items) ? items.filter((item) => safeUrl(item.image_url)) : [];
+  if (!galleryItems.length) {
     gallery.innerHTML = '<p class="home-gallery-empty">New images from our work will appear here soon.</p>';
     return;
   }
-  const slides = homeGalleryItems.map((item) => {
+  const tiles = galleryItems.map((item, index) => {
     const image = safeUrl(item.image_url);
-    return `<div class="gallery-slide"><figure class="gallery-tile"><img src="${image}" alt="${escapeHtml(item.caption || "Havenly gallery image")}" loading="lazy" />${item.caption ? `<span>${escapeHtml(item.caption)}</span>` : ""}</figure></div>`;
+    const caption = item.caption || `Heera Estate gallery image ${index + 1}`;
+    return `<figure class="gallery-tile"><button class="gallery-open" type="button" data-gallery-src="${escapeHtml(image)}" data-gallery-caption="${escapeHtml(caption)}" aria-label="Open full image: ${escapeHtml(caption)}"><img src="${escapeHtml(image)}" alt="${escapeHtml(caption)}" loading="lazy" /></button>${item.caption ? `<figcaption>${escapeHtml(item.caption)}</figcaption>` : ""}</figure>`;
   }).join("");
-  const dots = homeGalleryItems.length > 1 ? `<div class="gallery-dots">${homeGalleryItems.map((_, index) => `<button type="button" class="gallery-dot${index === 0 ? " active" : ""}" data-index="${index}" aria-label="Go to slide ${index + 1}"></button>`).join("")}</div>` : "";
-  const controls = homeGalleryItems.length > 1 ? `
-    <button type="button" class="gallery-control gallery-prev" aria-label="Previous image">‹</button>
-    <button type="button" class="gallery-control gallery-next" aria-label="Next image">›</button>
-  ` : "";
-  gallery.innerHTML = `
-    <div class="home-gallery-slider">
-      <div class="gallery-slider-track">${slides}</div>
-      ${controls}
-    </div>
-    ${dots}
-  `;
-  if (homeGalleryItems.length > 1) {
-    const prevButton = gallery.querySelector(".gallery-prev");
-    const nextButton = gallery.querySelector(".gallery-next");
-    prevButton?.addEventListener("click", () => {
-      showHomeGallerySlide(homeGalleryIndex - 1);
-      startHomeGalleryAutoplay();
-    });
-    nextButton?.addEventListener("click", () => {
-      showHomeGallerySlide(homeGalleryIndex + 1);
-      startHomeGalleryAutoplay();
-    });
-    gallery.querySelectorAll(".gallery-dot").forEach((dot) => {
-      dot.addEventListener("click", (event) => {
-        const target = event.currentTarget;
-        const index = Number(target.dataset.index);
-        showHomeGallerySlide(index);
-        startHomeGalleryAutoplay();
-      });
-    });
-    showHomeGallerySlide(0);
-    startHomeGalleryAutoplay();
-  }
+  gallery.innerHTML = `<div class="home-gallery-mosaic">${tiles}</div>`;
+}
+
+function initializeGalleryLightbox() {
+  const dialog = document.querySelector("#galleryLightbox");
+  const image = dialog?.querySelector("img");
+  const caption = dialog?.querySelector("figcaption");
+  if (!dialog || !image || !caption) return;
+  document.querySelector("#homeGallery")?.addEventListener("click", (event) => {
+    const opener = event.target.closest("[data-gallery-src]");
+    if (!opener) return;
+    image.src = opener.dataset.gallerySrc || "";
+    image.alt = opener.dataset.galleryCaption || "Gallery image";
+    caption.textContent = opener.dataset.galleryCaption || "";
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+  });
+  dialog.querySelector(".gallery-lightbox-close")?.addEventListener("click", () => dialog.close?.());
+  dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close?.(); });
+  dialog.addEventListener("close", () => { image.removeAttribute("src"); });
 }
 
 async function loadHomeGallery() {
@@ -323,110 +279,45 @@ function renderAgents(items) {
   }).join("");
 }
 
-// Front-page popup ads (one or many, rotated as a carousel)
-let frontPopups = [];
-let frontPopupIndex = 0;
-let frontPopupTimer = null;
+function updateText(value = '') {
+  const template = document.createElement('template');
+  template.innerHTML = String(value);
+  return (template.content.textContent || '').replace(/\s+/g, ' ').trim();
+}
 
-function showFrontPopupByIndex(index) {
-  const existing = document.querySelector('#frontPopup');
-  if (!existing) return;
-  const popup = frontPopups[index];
-  if (!popup) return;
-  frontPopupIndex = index;
-  const panel = existing.querySelector('.front-popup-panel');
-  const img = panel.querySelector('.popup-image');
-  const video = panel.querySelector('.popup-video');
-  const headline = panel.querySelector('.popup-headline');
-  const body = panel.querySelector('.popup-body');
-  const action = panel.querySelector('.popup-action');
-  const type = ['content','image','video'].includes(popup.popup_type) ? popup.popup_type : (popup.image_url ? 'image' : 'content');
-  panel.dataset.popupType = type;
-  video.pause();
-  video.removeAttribute('src');
-  video.load();
-  img.hidden = type !== 'image';
-  video.hidden = type !== 'video';
-  headline.hidden = type !== 'content' || !popup.headline;
-  body.hidden = type !== 'content' || !popup.html_content;
-  if (type === 'image') img.src = safeUrl(popup.image_url) || popup.image_url;
-  else img.removeAttribute('src');
-  if (type === 'video') { video.src = safeUrl(popup.video_url) || popup.video_url; video.load(); }
-  headline.textContent = type === 'content' ? (popup.headline || '') : '';
-  body.innerHTML = type === 'content' ? (popup.html_content || '') : '';
-  if (popup.link_url) {
-    action.href = popup.link_url;
-    action.textContent = 'View details';
-    action.hidden = false;
-  } else {
-    action.hidden = true;
+function renderImportantUpdates(items) {
+  const ticker = document.querySelector('#importantUpdates');
+  const track = document.querySelector('#importantUpdatesTrack');
+  if (!ticker || !track) return;
+  const updates = (Array.isArray(items) ? items : []).map((item) => ({
+    message: [item?.headline, updateText(item?.html_content)].filter(Boolean).join(' — '),
+    link: safeUrl(item?.link_url)
+  })).filter((item) => item.message);
+  if (!updates.length) {
+    ticker.hidden = true;
+    track.innerHTML = '';
+    return;
   }
-// update dots
-  const dots = existing.querySelectorAll('.popup-dot');
-  dots.forEach((dot, i) => dot.classList.toggle('active', i === frontPopupIndex));
-  // update counter
-  const counter = existing.querySelector('#popupCounter');
-  if (counter) counter.textContent = `${frontPopupIndex + 1} / ${frontPopups.length}`;
-  // restart auto-advance
-  restartPopupTimer();
+  const renderGroup = (hidden = false) => `<span class="important-updates-group"${hidden ? ' aria-hidden="true"' : ''}>${updates.map((item) => item.link
+    ? `<a class="important-update-item" href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.message)}</a>`
+    : `<span class="important-update-item">${escapeHtml(item.message)}</span>`).join('')}</span>`;
+  track.innerHTML = renderGroup() + renderGroup(true);
+  track.style.setProperty('--ticker-duration', `${Math.max(18, Math.min(70, updates.reduce((total, item) => total + item.message.length, 0) / 4))}s`);
+  ticker.hidden = false;
 }
 
-function renderPopupDots() {
-  const existing = document.querySelector('#frontPopup');
-  if (!existing) return;
-  const dotsWrap = existing.querySelector('.popup-dots');
-  if (!dotsWrap) return;
-  dotsWrap.innerHTML = frontPopups.map((_, i) => `<button type="button" class="popup-dot" data-index="${i}" aria-label="Go to ad ${i + 1}"></button>`).join('');
-}
-
-function restartPopupTimer() {
-  if (frontPopupTimer) clearInterval(frontPopupTimer);
-  if (frontPopups.length < 2) return;
-  if (frontPopups[frontPopupIndex]?.popup_type === 'video') return;
-  frontPopupTimer = setInterval(() => {
-    const next = (frontPopupIndex + 1) % frontPopups.length;
-    showFrontPopupByIndex(next);
-  }, 5000);
-}
-
-function openFrontPopup() {
-  const existing = document.querySelector('#frontPopup');
-  if (!existing) return;
-  existing.hidden = false;
-  requestAnimationFrame(() => existing.classList.add('open'));
-}
-
-function closeFrontPopup() {
-  const existing = document.querySelector('#frontPopup');
-  if (!existing) return;
-  existing.classList.remove('open');
-  setTimeout(() => { if (!existing.classList.contains('open')) existing.hidden = true; }, 220);
-  if (frontPopupTimer) { clearInterval(frontPopupTimer); frontPopupTimer = null; }
-  existing.querySelector('.popup-video')?.pause();
-}
-
-async function loadHomePopupFront() {
+async function loadImportantUpdates() {
   try {
     const response = await fetch('api.php?action=home_popups', { headers: { Accept: 'application/json' } });
-    if (!response.ok) return;
+    if (!response.ok) throw new Error('Could not load important updates');
     const data = await response.json();
-    const popups = Array.isArray(data) ? data : (data && data.popups) ? data.popups : [];
-    const candidates = popups.filter((p) => {
-      if (!p) return false;
-      const type = ['content','image','video'].includes(p.popup_type) ? p.popup_type : (p.image_url ? 'image' : 'content');
-      return type === 'image' ? !!p.image_url : type === 'video' ? !!p.video_url : !!(p.headline || p.html_content);
-    });
-    if (!candidates.length) return;
-    frontPopups = candidates;
-    frontPopupIndex = 0;
-    renderPopupDots();
-    showFrontPopupByIndex(0);
-    openFrontPopup();
-  } catch (e) { /* ignore */ }
+    renderImportantUpdates(Array.isArray(data) ? data : []);
+  } catch (error) {
+    renderImportantUpdates([]);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (window.location.hash !== '#admin-login') loadHomePopupFront();
   // Index login popup handlers (admin login on main page)
   const openLoginBtn = document.querySelector('#openIndexLogin');
   const loginPopup = document.querySelector('#loginPopup');
@@ -482,34 +373,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-  const closeBtn = document.querySelector('#closeFrontPopup');
-  const front = document.querySelector('#frontPopup');
-  const markPopupSeen = () => {
-    try {
-      const current = frontPopups[frontPopupIndex];
-      if (current && current.popup_id) {
-        let seen = [];
-        const raw = localStorage.getItem('homePopupSeenList');
-        if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) seen = parsed; }
-        if (!seen.includes(String(current.popup_id))) seen.push(String(current.popup_id));
-        localStorage.setItem('homePopupSeenList', JSON.stringify(seen));
-      }
-    } catch (e) { /* ignore */ }
-  };
-  if (closeBtn && front) closeBtn.addEventListener('click', () => { markPopupSeen(); closeFrontPopup(); });
-  const backdrop = front ? front.querySelector('.front-popup-backdrop') : null;
-  if (backdrop && front) backdrop.addEventListener('click', () => { markPopupSeen(); closeFrontPopup(); });
-  // carousel controls
-  const prevBtn = front ? front.querySelector('.popup-prev') : null;
-  const nextBtn = front ? front.querySelector('.popup-next') : null;
-  if (prevBtn) prevBtn.addEventListener('click', () => { if (frontPopups.length < 2) return; showFrontPopupByIndex((frontPopupIndex - 1 + frontPopups.length) % frontPopups.length); });
-  if (nextBtn) nextBtn.addEventListener('click', () => { if (frontPopups.length < 2) return; showFrontPopupByIndex((frontPopupIndex + 1) % frontPopups.length); });
-  // dots
-  const dotsWrap = front ? front.querySelector('.popup-dots') : null;
-  if (dotsWrap) dotsWrap.addEventListener('click', (event) => {
-    const dot = event.target.closest('.popup-dot');
-    if (dot) showFrontPopupByIndex(Number(dot.dataset.index));
-  });
 });
 
 async function loadAgents() {
@@ -1013,7 +876,11 @@ if (document.querySelector("#propertyGrid") || document.querySelector("#searchFo
   loadProperties();
 }
 if (document.querySelector("#homeGallery")) {
+  initializeGalleryLightbox();
   loadHomeGallery();
+}
+if (document.querySelector("#importantUpdates")) {
+  loadImportantUpdates();
 }
 if (document.querySelector("#agentsGrid")) {
   loadAgents();

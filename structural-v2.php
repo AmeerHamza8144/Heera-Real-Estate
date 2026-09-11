@@ -117,6 +117,8 @@ function subProjects(int $projectId = 0, bool $admin = false, bool $enforcePermi
             FROM sub_projects sp JOIN projects p ON p.project_id=sp.project_id";
     if ($where) $sql .= ' WHERE '.implode(' AND ', $where);
     $sql .= ' ORDER BY p.title,sp.sort_order,sp.name,sp.sub_project_id';
+    $stored = heeraStoredRows($pdo,'heera_v4_subprojects',[$projectId,$admin ? 1 : 0]);
+    if ($stored !== null) return $stored;
     $stmt = $pdo->prepare($sql); $stmt->execute($params);
     return $stmt->fetchAll();
 }
@@ -147,7 +149,15 @@ function saveSubProject(array $data): void {
             $stmt->execute([$projectId,$name,$slug,$description ?: null,$status,$sortOrder]);
             $id = (int)$pdo->lastInsertId();
         }
-        respond(['sub_project_id'=>$id]);
+        // A published child cannot be reachable while its parent remains a
+        // draft. Keep both visibility states synchronized so newly saved
+        // sub-project links work immediately on the public website.
+        if ($status === 'published') {
+            $publishParent = $pdo->prepare("UPDATE projects SET status='published' WHERE project_id=? AND status<>'published'");
+            $publishParent->execute([$projectId]);
+        }
+        syncMasterOptionName($pdo,'subproject',$name);
+        respond(['sub_project_id'=>$id,'project_id'=>$projectId,'status'=>$status]);
     } catch (PDOException $e) {
         if ((int)($e->errorInfo[1] ?? 0) === 1062) errorResponse('That sub-project already exists in this project.',409);
         throw $e;
@@ -230,6 +240,7 @@ function ensureAccessControlSchema(PDO $pdo): void {
         ['agents.view','View agents','Agents'],['agents.manage','Manage agents','Agents'],
         ['offices.manage','Manage offices','Settings'],['users.manage','Manage login users','Security'],
         ['roles.manage','Manage roles and permissions','Security'],['uploads.manage','Upload media','Media'],
+        ['master_data.view','View reusable master data','Configuration'],['master_data.manage','Manage reusable master data','Configuration'],
         ['ai_advisor.use','Use AI property advisor','AI'],['system.health','View API/database health','System']
     ];
     $pstmt=$pdo->prepare('INSERT INTO permissions(permission_key,label,module_name) VALUES(?,?,?) ON DUPLICATE KEY UPDATE label=VALUES(label),module_name=VALUES(module_name)');
@@ -250,9 +261,9 @@ function ensureAccessControlSchema(PDO $pdo): void {
     $grants=[
         'super_admin'=>$all,
         'manager'=>array_values(array_filter($all,fn($p)=>!in_array($p,['roles.manage'],true))),
-        'agent'=>['dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','crm.manage','agents.view','ai_advisor.use'],
-        'accountant'=>['dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','system.health'],
-        'editor'=>['dashboard.view','properties.view','properties.manage','projects.view','projects.manage','subprojects.view','subprojects.manage','payment_plans.view','payment_plans.manage','maps.view','gallery.manage','popups.manage','agents.view','uploads.manage'],
+        'agent'=>['dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','crm.manage','agents.view','master_data.view','ai_advisor.use'],
+        'accountant'=>['dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','master_data.view','system.health'],
+        'editor'=>['dashboard.view','properties.view','properties.manage','projects.view','projects.manage','subprojects.view','subprojects.manage','payment_plans.view','payment_plans.manage','maps.view','gallery.manage','popups.manage','agents.view','uploads.manage','master_data.view','master_data.manage'],
     ];
     $insert=$pdo->prepare('INSERT IGNORE INTO role_permissions(role_id,permission_key) VALUES(?,?)');
     foreach($grants as $roleKey=>$keys){
@@ -262,6 +273,10 @@ function ensureAccessControlSchema(PDO $pdo): void {
         if($roleKey!=='super_admin' && $existingGrantCount>0) continue; // preserve admin-customized system roles
         foreach($keys as $perm)$insert->execute([$roleId,$perm]);
     }
+    // Add only the two new Master Data grants to existing built-in roles. This
+    // does not remove or rewrite any administrator-customized permission.
+    foreach(['manager','editor'] as $roleKey){if(!empty($roleMap[$roleKey])){foreach(['master_data.view','master_data.manage'] as $perm)$insert->execute([$roleMap[$roleKey],$perm]);}}
+    foreach(['agent','accountant'] as $roleKey){if(!empty($roleMap[$roleKey]))$insert->execute([$roleMap[$roleKey],'master_data.view']);}
 
     if(!empty($roleMap['super_admin']))$pdo->prepare('UPDATE admin_users SET role_id=? WHERE role_id IS NULL')->execute([$roleMap['super_admin']]);
     structuralAddForeignKey($pdo,'role_permissions','fk_role_permissions_role','role_id','roles','role_id','CASCADE');
@@ -270,8 +285,71 @@ function ensureAccessControlSchema(PDO $pdo): void {
     $ready[$key]=true;
 }
 
+function ensureMasterOptionsSchema(PDO $pdo): void {
+    static $ready=[];$key=spl_object_id($pdo);if(!empty($ready[$key]))return;
+    $pdo->exec("CREATE TABLE IF NOT EXISTS master_options (
+        option_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        option_type ENUM('project','subproject','block','marla') NOT NULL,
+        name VARCHAR(180) NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_master_option_type_name(option_type,name),
+        INDEX idx_master_option_list(option_type,is_active,sort_order,name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $seed=static function(string $type,string $select)use($pdo):void{try{$pdo->exec("INSERT IGNORE INTO master_options(option_type,name) {$select}");}catch(Throwable $e){error_log('[Heera master data seed]['.$type.'] '.$e->getMessage());}};
+    if(structuralTableExists($pdo,'projects'))$seed('project',"SELECT 'project',TRIM(title) FROM projects WHERE title IS NOT NULL AND TRIM(title)<>''");
+    if(structuralTableExists($pdo,'sub_projects'))$seed('subproject',"SELECT 'subproject',TRIM(name) FROM sub_projects WHERE name IS NOT NULL AND TRIM(name)<>''");
+    if(structuralTableExists($pdo,'properties')){
+        $seed('block',"SELECT 'block',TRIM(block_name) FROM properties WHERE block_name IS NOT NULL AND TRIM(block_name)<>''");
+        $seed('marla',"SELECT 'marla',TRIM(size_label) FROM properties WHERE size_label IS NOT NULL AND TRIM(size_label)<>''");
+    }
+    if(structuralTableExists($pdo,'digital_map_blocks'))$seed('block',"SELECT 'block',TRIM(name) FROM digital_map_blocks WHERE name IS NOT NULL AND TRIM(name)<>''");
+    if(structuralTableExists($pdo,'payment_plans'))$seed('marla',"SELECT 'marla',TRIM(size_label) FROM payment_plans WHERE size_label IS NOT NULL AND TRIM(size_label)<>''");
+    $ready[$key]=true;
+}
+
+function masterOptions(bool $includeInactive=true): array {
+    requirePermission('master_data.view');
+    $pdo=db();ensureMasterOptionsSchema($pdo);
+    $rows=heeraStoredRows($pdo,'heera_v4_master_options',[$includeInactive?1:0]);
+    if($rows===null){$sql='SELECT option_id,option_type,name,is_active,sort_order,created_at,updated_at FROM master_options'.($includeInactive?'':' WHERE is_active=TRUE').' ORDER BY FIELD(option_type,\'project\',\'subproject\',\'block\',\'marla\'),sort_order,name,option_id';$rows=$pdo->query($sql)->fetchAll();}
+    return $rows;
+}
+
+function syncMasterOptionName(PDO $pdo,string $type,string $name): void {
+    $name=trim($name);if($name===''||!in_array($type,['project','subproject','block','marla'],true))return;
+    try{ensureMasterOptionsSchema($pdo);$stmt=$pdo->prepare('INSERT IGNORE INTO master_options(option_type,name) VALUES(?,?)');$stmt->execute([$type,$name]);}
+    catch(Throwable $e){error_log('[Heera master data sync] '.$e->getMessage());}
+}
+
+function saveMasterOption(array $data): void {
+    requirePermission('master_data.manage');
+    $pdo=db();ensureMasterOptionsSchema($pdo);
+    $id=(int)($data['option_id']??0);
+    $type=allowedValue(strtolower(stringValue($data,'option_type',20)),['project','subproject','block','marla'],'master data type');
+    $limit=['project'=>180,'subproject'=>180,'block'=>120,'marla'=>60][$type];
+    $name=stringValue($data,'name',$limit);if($name==='')errorResponse('Option name is required.');
+    $active=array_key_exists('is_active',$data)?(!empty($data['is_active'])?1:0):1;
+    $sort=max(0,min(65535,(int)($data['sort_order']??0)));
+    try{
+        if($id>0){$stmt=$pdo->prepare('UPDATE master_options SET option_type=?,name=?,is_active=?,sort_order=? WHERE option_id=?');$stmt->execute([$type,$name,$active,$sort,$id]);if(!$stmt->rowCount()){$check=$pdo->prepare('SELECT option_id FROM master_options WHERE option_id=?');$check->execute([$id]);if(!$check->fetch())errorResponse('Master-data option not found.',404);}}
+        else{$stmt=$pdo->prepare('INSERT INTO master_options(option_type,name,is_active,sort_order) VALUES(?,?,?,?)');$stmt->execute([$type,$name,$active,$sort]);$id=(int)$pdo->lastInsertId();}
+        respond(['option_id'=>$id,'saved'=>true]);
+    }catch(PDOException $e){if((int)($e->errorInfo[1]??0)===1062)errorResponse('That option already exists in this category.',409);throw $e;}
+}
+
+function archiveMasterOption(array $data): void {
+    requirePermission('master_data.manage');
+    $pdo=db();ensureMasterOptionsSchema($pdo);$id=(int)($data['option_id']??0);if($id<1)errorResponse('Choose a valid master-data option.');
+    $stmt=$pdo->prepare('UPDATE master_options SET is_active=FALSE WHERE option_id=?');$stmt->execute([$id]);
+    if(!$stmt->rowCount()){$check=$pdo->prepare('SELECT option_id FROM master_options WHERE option_id=?');$check->execute([$id]);if(!$check->fetch())errorResponse('Master-data option not found.',404);}
+    respond(['archived'=>true,'option_id'=>$id]);
+}
+
 function adminPermissionsForUser(PDO $pdo, int $adminId): array {
-    ensureAccessControlSchema($pdo);
+    if(($_SESSION['heera_schema_session']??'')!=='master-data-v2')ensureAccessControlSchema($pdo);
     $stmt=$pdo->prepare("SELECT DISTINCT rp.permission_key FROM admin_users a JOIN roles r ON r.role_id=a.role_id LEFT JOIN role_permissions rp ON rp.role_id=r.role_id WHERE a.admin_id=? ORDER BY rp.permission_key");
     $stmt->execute([$adminId]);
     return array_values(array_filter(array_map('strval',array_column($stmt->fetchAll(),'permission_key'))));
@@ -292,8 +370,14 @@ function requirePermission(string $permission): array {
 function rolesAndPermissions(): array {
     requirePermission('roles.manage');
     $pdo=db();ensureAccessControlSchema($pdo);
-    $permissions=$pdo->query('SELECT permission_key,label,module_name,description FROM permissions ORDER BY module_name,label')->fetchAll();
-    $roles=$pdo->query("SELECT r.role_id,r.role_key,r.name,r.description,r.is_system,(SELECT COUNT(*) FROM admin_users a WHERE a.role_id=r.role_id) AS user_count FROM roles r ORDER BY r.is_system DESC,r.name")->fetchAll();
+    $permissions=heeraStoredRows($pdo,'heera_v4_permissions')??$pdo->query('SELECT permission_key,label,module_name,description FROM permissions ORDER BY module_name,label')->fetchAll();
+    $roles=heeraStoredRows($pdo,'heera_v4_roles')??$pdo->query("SELECT r.role_id,r.role_key,r.name,r.description,r.is_system,(SELECT COUNT(*) FROM admin_users a WHERE a.role_id=r.role_id) AS user_count FROM roles r ORDER BY r.is_system DESC,r.name")->fetchAll();
+    $storedRolePermissions=heeraStoredRows($pdo,'heera_v4_role_permissions');
+    if ($storedRolePermissions !== null) {
+        $byRole=[];foreach($storedRolePermissions as $grant)$byRole[(int)$grant['role_id']][]=$grant['permission_key'];
+        foreach($roles as &$role)$role['permissions']=$byRole[(int)$role['role_id']]??[];
+        return ['roles'=>$roles,'permissions'=>$permissions];
+    }
     $stmt=$pdo->prepare('SELECT permission_key FROM role_permissions WHERE role_id=? ORDER BY permission_key');
     foreach($roles as &$role){$stmt->execute([(int)$role['role_id']]);$role['permissions']=array_column($stmt->fetchAll(),'permission_key');}
     return ['roles'=>$roles,'permissions'=>$permissions];
@@ -336,7 +420,9 @@ function adminCapabilitiesFromPermissions(array $admin): array {
         'payment_plans'=>$has('payment_plans.view'),'payment_plans_manage'=>$has('payment_plans.manage'),'leads'=>$has('crm.view'),'leads_manage'=>$has('crm.manage'),
         'submissions'=>$has('submissions.view'),'submissions_manage'=>$has('submissions.manage'),'digital_maps'=>$has('maps.view'),'maps_manage'=>$has('maps.manage'),
         'gallery'=>$has('gallery.manage'),'popups'=>$has('popups.manage'),'agents'=>$has('agents.view'),'agents_manage'=>$has('agents.manage'),
-        'offices'=>$has('offices.manage'),'users'=>$has('users.manage'),'roles'=>$has('roles.manage'),'uploads'=>$has('uploads.manage'),'ai_property_advisor'=>$has('ai_advisor.use'),'health'=>$has('system.health')
+        'offices'=>$has('offices.manage'),'users'=>$has('users.manage'),'roles'=>$has('roles.manage'),
+        'master_data'=>$has('master_data.view'),'master_data_manage'=>$has('master_data.manage'),
+        'uploads'=>$has('uploads.manage'),'ai_property_advisor'=>$has('ai_advisor.use'),'health'=>$has('system.health')
     ];
 }
 
@@ -387,6 +473,7 @@ function permissionForAdminRoute(string $route): ?string {
         'offices'=>'offices.manage','offices/save'=>'offices.manage','offices/delete'=>'offices.manage',
         'users'=>'users.manage','users/save'=>'users.manage','users/delete'=>'users.manage','role-options'=>'users.manage',
         'roles'=>'roles.manage','roles/save'=>'roles.manage','roles/delete'=>'roles.manage',
+        'master-data'=>'master_data.view','master-data/save'=>'master_data.manage','master-data/archive'=>'master_data.manage',
         'upload'=>'uploads.manage',
     ];
     return $map[$route] ?? null;
@@ -403,7 +490,8 @@ function permissionForLegacyAction(string $action): ?string {
         'admin_digital_maps'=>'maps','save_digital_map'=>'maps/save','delete_digital_map'=>'maps/delete','save_digital_map_block'=>'maps/blocks/save','delete_digital_map_block'=>'maps/blocks/delete',
         'admin_home_gallery'=>'gallery','save_home_gallery'=>'gallery/save','delete_home_gallery'=>'gallery/delete','admin_popups'=>'popups','save_popup'=>'popups/save','delete_popup'=>'popups/delete',
         'admin_agents'=>'agents','save_agent'=>'agents/save','delete_agent'=>'agents/delete','admin_office_addresses'=>'offices','save_office_address'=>'offices/save','delete_office_address'=>'offices/delete',
-        'admin_login_users'=>'users','save_login_user'=>'users/save','delete_login_user'=>'users/delete','admin_role_options'=>'role-options','admin_roles'=>'roles','save_role'=>'roles/save','delete_role'=>'roles/delete','upload'=>'upload'
+        'admin_login_users'=>'users','save_login_user'=>'users/save','delete_login_user'=>'users/delete','admin_role_options'=>'role-options','admin_roles'=>'roles','save_role'=>'roles/save','delete_role'=>'roles/delete',
+        'admin_master_data'=>'master-data','save_master_option'=>'master-data/save','archive_master_option'=>'master-data/archive','upload'=>'upload'
     ];
     return permissionForAdminRoute($aliases[$action] ?? $action);
 }
@@ -411,5 +499,7 @@ function permissionForLegacyAction(string $action): ?string {
 function roleOptions(): array {
     requirePermission('users.manage');
     $pdo=db();ensureAccessControlSchema($pdo);
+    $roles=heeraStoredRows($pdo,'heera_v4_roles');
+    if($roles!==null)return array_map(static fn(array $role):array=>['role_id'=>$role['role_id'],'role_key'=>$role['role_key'],'name'=>$role['name']],$roles);
     return $pdo->query('SELECT role_id,role_key,name FROM roles ORDER BY is_system DESC,name')->fetchAll();
 }

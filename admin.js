@@ -1,4 +1,4 @@
-const adminState = { properties: [], projects: [], subProjects: [], roles: [], permissions: [], homeGallery: [], submissions: [], officeAddresses: [], loginUsers: [], digitalMaps: [] };
+const adminState = { properties: [], projects: [], subProjects: [], roles: [], permissions: [], masterOptions: [], homeGallery: [], submissions: [], officeAddresses: [], loginUsers: [], digitalMaps: [] };
 let adminCsrfToken = "";
 const welcomeScreen = document.querySelector("#welcomeScreen");
 const loginModal = document.querySelector("#loginModal");
@@ -77,19 +77,6 @@ function showDashboard(user) {
   const adminName = document.querySelector("#adminName");
   if (adminName) adminName.textContent = user?.name || user?.email || "Admin";
   saveAdminSession(user);
-  const permissions = new Set(user?.permissions || []);
-  const can = (permission) => user?.role === "super_admin" || permissions.has(permission);
-  if (can("projects.view")) loadProjects();
-  if (can("subprojects.view")) loadSubProjects();
-  if (can("properties.view")) loadProperties();
-  if (can("gallery.manage")) loadHomeGallery();
-  if (can("popups.manage")) loadAdminPopups();
-  if (can("agents.view")) loadAgents();
-  if (can("offices.manage")) loadOfficeAddresses();
-  if (can("users.manage")) loadLoginUsers();
-  if (can("roles.manage")) loadRoles();
-  if (can("submissions.view")) loadSubmissions();
-  if (can("maps.view")) loadDigitalMaps();
 }
 
 async function loadSubmissions() {
@@ -172,7 +159,7 @@ async function api(action, data = null, isUpload = false) {
     adminCsrfToken = window.HeeraAdminAPI.getCsrfToken?.() || adminCsrfToken;
     return result;
   }
-  // Compatibility fallback for servers that have not deployed Admin API v1 yet.
+  // Compatibility fallback for servers that have not deployed Admin API v2 yet.
   if (data && !adminCsrfToken) {
     const tokenResponse = await fetch("api.php?action=csrf", { credentials: "same-origin", headers: { Accept: "application/json" } });
     const tokenResult = await tokenResponse.json().catch(() => ({}));
@@ -206,13 +193,176 @@ function escapeHtml(value = "") {
   return String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
 }
 
+const masterOptionLabels = { project: "Project", subproject: "Sub-Project", block: "Block", marla: "Marla / Size" };
+let masterDataFilter = "all";
+let masterDataRequest = null;
+
+function activeMasterOptions(type) {
+  return (adminState.masterOptions || []).filter((item) => item.option_type === type && Number(item.is_active));
+}
+
+function masterOptionChoices(type, selectedValue = "", blankLabel = "Choose an option") {
+  const selected = String(selectedValue || "");
+  const items = activeMasterOptions(type);
+  const known = items.some((item) => item.name === selected);
+  const legacy = selected && !known ? `<option value="${escapeHtml(selected)}">${escapeHtml(selected)} (existing)</option>` : "";
+  return `<option value="">${escapeHtml(blankLabel)}</option>${legacy}${items.map((item) => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join("")}`;
+}
+
+function syncOneMasterSelect(selector, type, blankLabel) {
+  const select = document.querySelector(selector);
+  if (!select) return;
+  const selected = select.value;
+  select.innerHTML = masterOptionChoices(type, selected, blankLabel);
+  select.value = selected;
+}
+
+function setMasterSelectValue(selector, type, value, blankLabel) {
+  const select = document.querySelector(selector);
+  if (!select) return;
+  const selected = String(value || "");
+  select.innerHTML = masterOptionChoices(type, selected, blankLabel);
+  select.value = selected;
+}
+
+function syncMasterOptionSelects() {
+  syncOneMasterSelect("#projectNameSelect", "project", "Choose project name");
+  syncOneMasterSelect("#projectSubProjectName", "subproject", "No sub-project");
+  syncOneMasterSelect("#subProjectNameSelect", "subproject", "Choose sub-project name");
+  syncOneMasterSelect("#propertyBlockSelect", "block", "Choose block (optional)");
+  syncOneMasterSelect("#propertyMarlaSelect", "marla", "Choose Marla / size (optional)");
+  syncOneMasterSelect("#digitalMapProjectNameSelect", "project", "Choose project name");
+  syncOneMasterSelect("#digitalMapBlockNameSelect", "block", "Choose block name");
+  document.querySelectorAll(".payment-plan-size-select").forEach((select) => {
+    const selected = select.value;
+    select.innerHTML = masterOptionChoices("marla", selected, "Choose Marla / size");
+    select.value = selected;
+  });
+}
+
+function renderMasterOptions() {
+  const list = document.querySelector("#masterOptionList");
+  if (!list) return;
+  const all = adminState.masterOptions || [];
+  const items = masterDataFilter === "all" ? all : all.filter((item) => item.option_type === masterDataFilter);
+  const count = document.querySelector("#masterOptionCount");
+  if (count) count.textContent = `${items.length} option${items.length === 1 ? "" : "s"}`;
+  if (!items.length) {
+    list.innerHTML = '<p class="empty-list">No options in this category yet.</p>';
+    return;
+  }
+  const canManage = document.documentElement.dataset.canManageMasterData !== "false";
+  list.innerHTML = items.map((item) => `<article class="master-option-row${Number(item.is_active) ? "" : " is-archived"}">
+    <span class="master-option-type">${escapeHtml(masterOptionLabels[item.option_type] || item.option_type)}</span>
+    <div><strong>${escapeHtml(item.name)}</strong><small>${Number(item.is_active) ? "Available in forms" : "Archived · existing data preserved"}</small></div>
+    ${canManage ? `<div class="admin-row-actions"><button class="edit-master-option" data-id="${Number(item.option_id)}" type="button">Edit</button><button class="toggle-master-option" data-id="${Number(item.option_id)}" type="button">${Number(item.is_active) ? "Archive" : "Restore"}</button></div>` : ""}
+  </article>`).join("");
+}
+
+function resetMasterOptionEditor() {
+  const form = document.querySelector("#masterOptionForm");
+  if (!form) return;
+  form.reset();
+  form.elements.option_id.value = "";
+  form.elements.sort_order.value = "0";
+  form.elements.is_active.checked = true;
+  document.querySelector("#masterOptionEditorTitle").textContent = "Add an option";
+  document.querySelector("#cancelMasterOptionEdit").hidden = true;
+  document.querySelector("#masterOptionMessage").textContent = "";
+}
+
+function populateMasterOptionEditor(item) {
+  const form = document.querySelector("#masterOptionForm");
+  if (!form) return;
+  form.elements.option_id.value = item.option_id;
+  form.elements.option_type.value = item.option_type;
+  form.elements.name.value = item.name;
+  form.elements.sort_order.value = item.sort_order || 0;
+  form.elements.is_active.checked = !!Number(item.is_active);
+  document.querySelector("#masterOptionEditorTitle").textContent = `Edit: ${item.name}`;
+  document.querySelector("#cancelMasterOptionEdit").hidden = false;
+  document.querySelector("#masterOptionMessage").textContent = "";
+}
+
+async function loadMasterData(force = false) {
+  const workspace = document.querySelector("#masterDataWorkspace");
+  if (workspace?.dataset.permissionAllowed === "false") return adminState.masterOptions;
+  if (!force && adminState.masterOptions.length) {
+    renderMasterOptions();
+    syncMasterOptionSelects();
+    return adminState.masterOptions;
+  }
+  if (masterDataRequest) return masterDataRequest;
+  masterDataRequest = api("admin_master_data").then((rows) => {
+    adminState.masterOptions = Array.isArray(rows) ? rows : [];
+    renderMasterOptions();
+    syncMasterOptionSelects();
+    return adminState.masterOptions;
+  }).catch((error) => {
+    const message = document.querySelector("#masterOptionMessage");
+    if (message) { message.textContent = error.message; message.classList.add("error"); }
+    throw error;
+  }).finally(() => { masterDataRequest = null; });
+  return masterDataRequest;
+}
+
+document.querySelector("#masterDataFilters")?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-master-filter]");
+  if (!button) return;
+  masterDataFilter = button.dataset.masterFilter || "all";
+  document.querySelectorAll("[data-master-filter]").forEach((item) => item.classList.toggle("active", item === button));
+  renderMasterOptions();
+});
+
+document.querySelector("#masterOptionList")?.addEventListener("click", async (event) => {
+  const id = Number(event.target.dataset.id);
+  const item = (adminState.masterOptions || []).find((option) => Number(option.option_id) === id);
+  if (!item) return;
+  if (event.target.classList.contains("edit-master-option")) populateMasterOptionEditor(item);
+  if (event.target.classList.contains("toggle-master-option")) {
+    try {
+      if (Number(item.is_active)) await api("archive_master_option", { option_id: id });
+      else await api("save_master_option", { option_id: id, option_type: item.option_type, name: item.name, sort_order: item.sort_order, is_active: true });
+      await loadMasterData(true);
+    } catch (error) { alert(error.message); }
+  }
+});
+
+document.querySelector("#masterOptionForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.querySelector("#masterOptionMessage");
+  const button = document.querySelector("#saveMasterOptionButton");
+  message.classList.remove("error");
+  button.disabled = true;
+  message.textContent = "Saving option…";
+  button.disabled = true;
+  try {
+    await api("save_master_option", {
+      option_id: form.elements.option_id.value,
+      option_type: form.elements.option_type.value,
+      name: form.elements.name.value.trim(),
+      sort_order: form.elements.sort_order.value,
+      is_active: form.elements.is_active.checked
+    });
+    resetMasterOptionEditor();
+    await loadMasterData(true);
+    message.textContent = "Option saved and connected to entry forms.";
+  } catch (error) {
+    message.textContent = error.message;
+    message.classList.add("error");
+  } finally { button.disabled = false; }
+});
+
+document.querySelector("#cancelMasterOptionEdit")?.addEventListener("click", resetMasterOptionEditor);
+
 function mediaLines(property, type) {
   return (property.media || []).filter((media) => media.media_type === type).map((media) => media.file_path).join("\n");
 }
 
 async function loadProperties() {
   try {
-    const properties = await api("admin_properties");
+    const [properties] = await Promise.all([api("admin_properties"), loadMasterData().catch(() => [])]);
     adminState.properties = properties;
     renderPropertyList();
   } catch (error) {
@@ -264,14 +414,15 @@ function updateBedsBathsVisibility() {
 
 function populateEditor(property) {
   setAdminSubview("propertiesWorkspace", "form");
+  syncMasterOptionSelects();
+  setMasterSelectValue("#propertyBlockSelect", "block", property.block_name, "Choose block (optional)");
+  setMasterSelectValue("#propertyMarlaSelect", "marla", property.size_label, "Choose Marla / size (optional)");
   syncPropertyProjectOptions();
   const fields = propertyForm.elements;
-  ["property_id", "project_id", "sub_project_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
+  ["property_id", "project_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
     fields[field].value = property[field] ?? "";
   });
-  const subProjectSelect = document.querySelector("#propertySubProjectSelect");
-  if (subProjectSelect) subProjectSelect.dataset.preferredSubProjectId = String(property.sub_project_id || "");
-  syncPropertySubProjectOptions(property.sub_project_id || "");
+  syncPropertySubProjectOptions(property.sub_project_name || "", property.sub_project_id || "");
   syncPropertyPaymentPlanOptions(property.payment_plan_id || "");
   fields.images.value = mediaLines(property, "image");
   fields.videos.value = mediaLines(property, "video");
@@ -291,7 +442,8 @@ function populateEditor(property) {
 function resetEditor() {
   propertyForm.reset();
   propertyForm.elements.property_id.value = "";
-  syncPropertySubProjectOptions("");
+  syncMasterOptionSelects();
+  syncPropertySubProjectOptions("", "");
   syncPropertyPaymentPlanOptions("");
   document.querySelector("#editorEyebrow").textContent = "New listing";
   document.querySelector("#editorTitle").textContent = "Add a property";
@@ -386,7 +538,7 @@ propertyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const fields = propertyForm.elements;
   const body = {};
-  ["property_id", "project_id", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
+  ["property_id", "project_id", "sub_project_id", "sub_project_name", "title", "price", "listing_type", "property_type", "status", "address_line1", "city", "state_region", "block_name", "postal_code", "bedrooms", "bathrooms", "area_sqft", "description", "size_label", "property_facing", "price_pkr", "price_per_marla", "publish_start_date", "publish_end_date"].forEach((field) => {
     body[field] = fields[field] ? fields[field].value.trim() : "";
   });
   body.payment_plan_id = fields.payment_plan_id ? fields.payment_plan_id.value.trim() : "";
@@ -431,7 +583,7 @@ document.querySelector("#mediaUpload").addEventListener("change", async (event) 
 
 async function loadProjects() {
   try {
-    adminState.projects = await api("admin_projects");
+    [adminState.projects] = await Promise.all([api("admin_projects"), loadMasterData().catch(() => [])]);
     propertyPlanCache.clear();
     renderProjectList();
     syncPropertyProjectOptions();
@@ -459,7 +611,7 @@ function syncPropertyProjectOptions() {
 async function loadSubProjects(projectId = "") {
   try {
     const params = projectId ? { project_id: String(projectId) } : {};
-    adminState.subProjects = await apiGet("admin_sub_projects", params);
+    [adminState.subProjects] = await Promise.all([apiGet("admin_sub_projects", params), loadMasterData().catch(() => [])]);
     renderSubProjects();
     syncSubProjectProjectOptions();
     syncPropertySubProjectOptions(null);
@@ -497,6 +649,7 @@ function renderSubProjects() {
 function resetSubProjectEditor() {
   const form = document.querySelector("#subProjectForm"); if (!form) return;
   form.reset(); form.elements.sub_project_id.value = ""; form.elements.sort_order.value = "0";
+  syncMasterOptionSelects();
   document.querySelector("#subProjectEditorTitle").textContent = "Add a sub-project";
   document.querySelector("#cancelSubProjectEdit").hidden = true;
   document.querySelector("#subProjectMessage").textContent = "";
@@ -505,29 +658,42 @@ function resetSubProjectEditor() {
 function populateSubProjectEditor(item) {
   setAdminSubview("subProjectsWorkspace", "form");
   const form = document.querySelector("#subProjectForm");
+  syncMasterOptionSelects();
+  setMasterSelectValue("#subProjectNameSelect", "subproject", item.name, "Choose sub-project name");
   ["sub_project_id","project_id","name","status","sort_order","description"].forEach(name => { form.elements[name].value = item[name] ?? ""; });
   document.querySelector("#subProjectEditorTitle").textContent = `Edit: ${item.name}`;
   document.querySelector("#cancelSubProjectEdit").hidden = false;
   document.querySelector("#subProjectMessage").textContent = "";
 }
 
-function syncPropertySubProjectOptions(preferredSubProjectId = null) {
+function syncPropertySubProjectOptions(preferredName = null, preferredSubProjectId = null) {
   const projectSelect = document.querySelector("#propertyProjectSelect");
-  const select = document.querySelector("#propertySubProjectSelect");
+  const input = document.querySelector("#propertySubProjectInput");
+  const hiddenId = document.querySelector("#propertySubProjectId");
   const hint = document.querySelector("#propertySubProjectHint");
-  if (!projectSelect || !select) return;
+  if (!projectSelect || !input || !hiddenId) return;
   const projectId = projectSelect.value;
-  const preferred = preferredSubProjectId !== null ? String(preferredSubProjectId || "") : (select.dataset.preferredSubProjectId || select.value);
+  const currentName = preferredName !== null ? String(preferredName || "") : input.value;
+  const currentId = preferredSubProjectId !== null ? String(preferredSubProjectId || "") : hiddenId.value;
   if (!projectId) {
-    select.innerHTML = '<option value="">No sub-project</option>'; select.disabled = true;
-    if (hint) hint.textContent = "Choose a linked project first.";
+    input.innerHTML = '<option value="">Choose a linked project first</option>';
+    input.value = "";
+    input.disabled = true;
+    hiddenId.value = "";
+    if (hint) hint.textContent = "Choose a linked project first, then select a saved sub-project name.";
     return;
   }
   const items = subProjectsForProject(projectId);
-  select.disabled = false;
-  select.innerHTML = `<option value="">No sub-project</option>${items.map(item => `<option value="${Number(item.sub_project_id)}">${escapeHtml(item.name)}${item.status !== "published" ? " (" + escapeHtml(item.status) + ")" : ""}</option>`).join("")}`;
-  if ([...select.options].some(option => option.value === preferred)) { select.value = preferred; delete select.dataset.preferredSubProjectId; }
-  if (hint) hint.textContent = items.length ? "Optional: link this property directly to a phase, block or plan." : "No sub-projects exist for this project yet. Add one from More → Sub-Projects.";
+  const masterNames = activeMasterOptions("subproject").map((item) => item.name);
+  const names = [...new Set([...items.map((item) => item.name), ...masterNames])];
+  if (currentName && !names.includes(currentName)) names.unshift(currentName);
+  input.innerHTML = `<option value="">No sub-project</option>${names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}`;
+  input.disabled = false;
+  input.value = currentName;
+  const match = items.find(item => String(item.sub_project_id) === currentId)
+    || items.find(item => item.name.localeCompare(currentName, undefined, { sensitivity: "accent" }) === 0);
+  hiddenId.value = match ? String(match.sub_project_id) : "";
+  if (hint) hint.textContent = names.length ? "Select an existing project-linked or Master Data name." : "Add a sub-project name in Master Data first.";
 }
 
 function propertyPaymentPlanLabel(plan) {
@@ -587,7 +753,7 @@ async function syncPropertyPaymentPlanOptions(preferredPlanId = null) {
   }
   const currentValue = preferredPlanId !== null ? String(preferredPlanId || "") : planSelect.value;
   const projectId = projectSelect.value;
-  const subProjectId = document.querySelector("#propertySubProjectSelect")?.value || "";
+  const subProjectId = document.querySelector("#propertySubProjectId")?.value || "";
   if (!projectId) {
     planSelect.innerHTML = '<option value="">Choose a project first</option>';
     planSelect.disabled = true;
@@ -617,9 +783,8 @@ async function syncPropertyPaymentPlanOptions(preferredPlanId = null) {
 }
 
 document.querySelector("#propertyListingType")?.addEventListener("change", () => syncPropertyPaymentPlanOptions(null));
-document.querySelector("#propertyProjectSelect")?.addEventListener("change", () => { const s=document.querySelector("#propertySubProjectSelect"); if(s) delete s.dataset.preferredSubProjectId; syncPropertySubProjectOptions(null); syncPropertyPaymentPlanOptions(null); });
-document.querySelector("#propertySubProjectSelect")?.addEventListener("change", () => syncPropertyPaymentPlanOptions(null));
-
+document.querySelector("#propertyProjectSelect")?.addEventListener("change", () => { syncPropertySubProjectOptions("", ""); syncPropertyPaymentPlanOptions(null); });
+document.querySelector("#propertySubProjectInput")?.addEventListener("change", () => { syncPropertySubProjectOptions(null, ""); syncPropertyPaymentPlanOptions(null); });
 function projectMediaLines(project, type) {
   return (project.media || []).filter((media) => media.media_type === type).map((media) => media.file_path).join("\n");
 }
@@ -637,6 +802,12 @@ function createProjectPlanRow(planData) {
   row.className = "plan-row";
   row.dataset.index = index;
   const planId = String(planData?.plan_id || newPaymentPlanId());
+  const projectId = document.querySelector("#projectForm")?.elements?.project_id?.value || 0;
+  const availableSubProjects = subProjectsForProject(projectId);
+  const linkedSubProject = availableSubProjects.find((item) => String(item.sub_project_id) === String(planData?.sub_project_id || ""));
+  const subProjectName = String(planData?.sub_project_name || linkedSubProject?.name || "");
+  const subProjectNames = [...new Set([...availableSubProjects.map((item) => item.name), ...activeMasterOptions("subproject").map((item) => item.name)])];
+  if (subProjectName && !subProjectNames.includes(subProjectName)) subProjectNames.unshift(subProjectName);
   row.innerHTML = `
     <input type="hidden" name="project_plan_id_${index}" value="${escapeHtml(planId)}" />
     <div class="plan-row-header">
@@ -645,8 +816,8 @@ function createProjectPlanRow(planData) {
     </div>
     <div class="plan-fields">
       <label class="plan-name-field">Payment Plan Name<input name="project_plan_name_${index}" value="${escapeHtml(planData?.plan_name || "")}" placeholder="e.g. Executive Block Plan" required /></label>
-      <label>Sub-Project (optional)<select name="project_plan_sub_project_${index}"><option value="">Project-level plan</option>${subProjectsForProject(document.querySelector("#projectForm")?.elements?.project_id?.value || 0).map(item => `<option value="${Number(item.sub_project_id)}"${String(planData?.sub_project_id || "") === String(item.sub_project_id) ? " selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}</select></label>
-      <label>Size / Type<input name="project_plan_size_label_${index}" value="${escapeHtml(planData?.size_label || "")}" placeholder="3 Marla" /></label>
+      <label>Sub-Project name (optional)<select name="project_plan_sub_project_name_${index}"><option value="">No sub-project</option>${subProjectNames.map((name) => `<option value="${escapeHtml(name)}"${name === subProjectName ? " selected" : ""}>${escapeHtml(name)}</option>`).join("")}</select><span class="field-hint">Names come from Master Data and this project's saved sub-projects.</span></label>
+      <label>Size / Type<select class="payment-plan-size-select" name="project_plan_size_label_${index}">${masterOptionChoices("marla", planData?.size_label || "", "Choose Marla / size")}</select></label>
       <label>Booking<input name="project_plan_booking_${index}" type="number" min="0" value="${escapeHtml(planData?.booking_amount || "")}" placeholder="1000000" /></label>
       <label>Total Monthly Installments<input name="project_plan_monthly_count_${index}" type="number" min="0" step="1" value="${escapeHtml(planData?.monthly_installment_count || "")}" placeholder="42" /></label>
       <label>One Monthly Installment Amount<input name="project_plan_monthly_${index}" type="number" min="0" value="${escapeHtml(planData?.monthly_installment || "")}" placeholder="10000" /></label>
@@ -686,10 +857,14 @@ function getProjectPaymentPlansData() {
   rows.forEach((row, i) => {
     const sizeLabel = row.querySelector(`[name="project_plan_size_label_${i}"]`)?.value?.trim() || "";
     if (!sizeLabel) return;
+    const subProjectName = row.querySelector(`[name="project_plan_sub_project_name_${i}"]`)?.value?.trim() || "";
+    const projectId = document.querySelector("#projectForm")?.elements?.project_id?.value || 0;
+    const matchingSubProject = subProjectsForProject(projectId).find((item) => item.name.localeCompare(subProjectName, undefined, { sensitivity: "base" }) === 0);
     plans.push({
       plan_id: row.querySelector(`[name="project_plan_id_${i}"]`)?.value?.trim() || newPaymentPlanId(),
       plan_name: row.querySelector(`[name="project_plan_name_${i}"]`)?.value?.trim() || "Payment Plans",
-      sub_project_id: row.querySelector(`[name="project_plan_sub_project_${i}"]`)?.value?.trim() || "",
+      sub_project_id: matchingSubProject ? String(matchingSubProject.sub_project_id) : "",
+      sub_project_name: subProjectName,
       size_label: sizeLabel,
       booking_amount: row.querySelector(`[name="project_plan_booking_${i}"]`)?.value?.trim() || "",
       monthly_installment_count: row.querySelector(`[name="project_plan_monthly_count_${i}"]`)?.value?.trim() || "",
@@ -706,6 +881,14 @@ function getProjectPaymentPlansData() {
     });
   });
   return plans;
+}
+
+function syncProjectSubProjectNameOptions(project = null) {
+  const select = document.querySelector("#projectSubProjectName");
+  if (!select) return;
+  const selected = project?.plan_name || project?.sub_projects?.[0]?.name || select.value;
+  select.innerHTML = masterOptionChoices("subproject", selected, "No sub-project");
+  select.value = selected || "";
 }
 
 
@@ -728,10 +911,15 @@ function renderProjectList() {
 
 function populateProjectEditor(project) {
   setAdminSubview("projectsWorkspace", "form");
+  syncMasterOptionSelects();
+  setMasterSelectValue("#projectNameSelect", "project", project.title, "Choose project name");
+  setMasterSelectValue("#projectSubProjectName", "subproject", project.plan_name || project.sub_projects?.[0]?.name || "", "No sub-project");
   const fields = document.querySelector("#projectForm").elements;
   ["project_id", "title", "plan_name", "category", "location", "status", "hero_image_url", "headline", "description"].forEach((field) => {
     fields[field].value = project[field] ?? "";
   });
+  fields.plan_name.value = project.plan_name || project.sub_projects?.[0]?.name || "";
+  syncProjectSubProjectNameOptions(project);
   fields.gallery_images.value = projectMediaLines(project, "gallery");
   fields.plans.value = projectMediaLines(project, "plan");
   document.querySelector("#projectEditorEyebrow").textContent = "Editing project";
@@ -757,7 +945,9 @@ function populateProjectEditor(project) {
 function resetProjectEditor() {
   const form = document.querySelector("#projectForm");
   form.reset();
+  syncMasterOptionSelects();
   form.elements.project_id.value = "";
+  syncProjectSubProjectNameOptions(null);
   document.querySelector("#projectEditorEyebrow").textContent = "New project";
   document.querySelector("#projectEditorTitle").textContent = "Add a project";
   document.querySelector("#saveProjectButton").innerHTML = 'Publish project <span>→</span>';
@@ -845,7 +1035,7 @@ async function loadHomeGallery() {
   } catch (error) { document.querySelector("#homeGalleryStatus").textContent = error.message; }
 }
 
-// Admin popup management
+// Important-update management (stored in the legacy popup_ads table for compatibility).
 async function loadAdminPopups() {
   try {
     const popups = await api('admin_popups');
@@ -857,40 +1047,23 @@ async function loadAdminPopups() {
 function renderAdminPopups() {
   const container = document.querySelector('#adminPopupList');
   const popups = adminState.popups || [];
-  if (!popups.length) { container.innerHTML = '<p class="empty-list">No popups yet. Use the form above to add one.</p>'; return; }
+  if (!popups.length) { container.innerHTML = '<p class="empty-list">No important updates yet. Use the form above to add one.</p>'; return; }
   container.innerHTML = popups.map((p) => {
-    const type = ['content', 'image', 'video'].includes(p.popup_type) ? p.popup_type : (p.image_url ? 'image' : 'content');
-    const preview = type === 'image' && p.image_url
-      ? `<img src="${escapeHtml(p.image_url)}" alt="">`
-      : type === 'video' && p.video_url
-        ? `<video class="digital-map-preview admin-popup-video" src="${escapeHtml(p.video_url)}" muted preload="metadata"></video>`
-        : '<span class="admin-popup-type-preview">Content</span>';
-    const typeLabel = `${type.charAt(0).toUpperCase()}${type.slice(1)} popup`;
-    return `<article class="admin-property">${preview}<div><h3>${escapeHtml(p.headline || typeLabel)}</h3><p>${escapeHtml(p.link_url || '')}</p><strong>${escapeHtml(type)} only</strong><small style="color:${Number(p.is_published) ? 'green' : 'gray'}">${Number(p.is_published) ? '● Published' : '○ Draft'}</small></div><div class="admin-row-actions"><button type="button" class="edit-popup" data-id="${p.popup_id}">Edit</button><button type="button" class="delete-popup" data-id="${p.popup_id}">Delete</button></div></article>`;
+    const summary = String(p.html_content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    return `<article class="admin-property"><span class="admin-popup-type-preview">Update</span><div><h3>${escapeHtml(p.headline || 'Important update')}</h3><p>${escapeHtml(summary || p.link_url || '')}</p><strong>Order ${Number(p.sort_order || 0)}</strong><small style="color:${Number(p.is_published) ? 'green' : 'gray'}">${Number(p.is_published) ? '● Published' : '○ Draft'}</small></div><div class="admin-row-actions"><button type="button" class="edit-popup" data-id="${p.popup_id}">Edit</button><button type="button" class="delete-popup" data-id="${p.popup_id}">Delete</button></div></article>`;
   }).join('');
-}
-
-function syncPopupTypeFields() {
-  const form = document.querySelector('#homePopupForm');
-  const type = form.elements.popup_type.value;
-  form.querySelectorAll('[data-popup-type-fields]').forEach((group) => { group.hidden = group.dataset.popupTypeFields !== type; });
 }
 
 function populateHomePopupEditor(popup) {
   const form = document.querySelector('#homePopupForm');
   form.elements.popup_id.value = popup.popup_id || '';
-  form.elements.popup_type.value = popup.popup_type || (popup.image_url ? 'image' : 'content');
-  form.elements.image_url.value = popup.image_url || '';
-  form.elements.video_url.value = popup.video_url || '';
   form.elements.link_url.value = popup.link_url || '';
   form.elements.headline.value = popup.headline || '';
   form.elements.html_content.value = popup.html_content || '';
+  form.elements.sort_order.value = popup.sort_order || '0';
   form.elements.is_published.checked = !!Number(popup.is_published);
-  syncPopupTypeFields();
   document.querySelector('#homePopupMessage').textContent = '';
 }
-
-document.querySelector('#popupTypeSelect').addEventListener('change', syncPopupTypeFields);
 
 document.querySelector('#adminPopupList').addEventListener('click', async (event) => {
   const id = Number(event.target.dataset.id);
@@ -900,7 +1073,7 @@ document.querySelector('#adminPopupList').addEventListener('click', async (event
     if (popup) populateHomePopupEditor(popup);
   }
   if (event.target.classList.contains('delete-popup')) {
-    if (!window.confirm('Delete this popup?')) return;
+    if (!window.confirm('Delete this important update?')) return;
     try {
       await api('delete_popup', { popup_id: id });
       await loadAdminPopups();
@@ -914,12 +1087,13 @@ document.querySelector('#homePopupForm').addEventListener('submit', async (event
   const fields = form.elements;
   const body = {
     popup_id: fields.popup_id.value.trim(),
-    popup_type: fields.popup_type.value,
-    image_url: fields.image_url.value.trim(),
-    video_url: fields.video_url.value.trim(),
+    popup_type: 'content',
+    image_url: '',
+    video_url: '',
     link_url: fields.link_url.value.trim(),
     headline: fields.headline.value.trim(),
     html_content: fields.html_content.value.trim(),
+    sort_order: fields.sort_order.value,
     is_published: fields.is_published.checked ? 1 : 0
   };
   const msg = document.querySelector('#homePopupMessage');
@@ -927,35 +1101,13 @@ document.querySelector('#homePopupForm').addEventListener('submit', async (event
   msg.textContent = 'Saving…';
   try {
     await api('save_popup', body);
-    msg.textContent = 'Popup saved.';
+    msg.textContent = 'Important update saved.';
     await loadAdminPopups();
     form.reset();
-    form.elements.popup_type.value = 'content';
-    syncPopupTypeFields();
+    form.elements.sort_order.value = '0';
+    form.elements.is_published.checked = true;
   } catch (error) { msg.textContent = error.message; msg.classList.add('error'); }
 });
-
-async function uploadPopupFile(event, expectedType, targetField) {
-  const files = [...event.target.files];
-  if (!files.length) return;
-  const data = new FormData();
-  data.append('files[]', files[0]);
-  const msg = document.querySelector('#homePopupMessage');
-  msg.classList.remove('error');
-  msg.textContent = `Uploading popup ${expectedType}…`;
-  try {
-    const result = await api('upload', data, true);
-    const file = result.files && result.files[0];
-    if (!file || !file.url || file.type !== expectedType) throw new Error(`Choose a valid ${expectedType} file.`);
-    document.querySelector('#homePopupForm').elements[targetField].value = file.url;
-    msg.textContent = `${expectedType.charAt(0).toUpperCase()}${expectedType.slice(1)} uploaded. Save this popup, then add another if required.`;
-  } catch (error) { msg.textContent = error.message; msg.classList.add('error'); }
-  event.target.value = '';
-}
-
-document.querySelector('#popupImageUpload').addEventListener('change', (event) => uploadPopupFile(event, 'image', 'image_url'));
-document.querySelector('#popupVideoUpload').addEventListener('change', (event) => uploadPopupFile(event, 'video', 'video_url'));
-syncPopupTypeFields();
 
 async function loadAgents() {
   try {
@@ -1170,11 +1322,31 @@ function renderRoles(){
 function renderRolePermissionGrid(selected=[]){
   const grid=document.querySelector("#rolePermissionGrid");if(!grid)return;const chosen=new Set(selected||[]);const groups={};
   adminState.permissions.forEach(permission=>{(groups[permission.module_name]??=[]).push(permission);});
-  grid.innerHTML=Object.entries(groups).map(([module,permissions])=>`<section class="permission-module"><h4>${escapeHtml(module)}</h4>${permissions.map(permission=>`<label class="permission-check"><input type="checkbox" name="permissions" value="${escapeHtml(permission.permission_key)}"${chosen.has(permission.permission_key)?" checked":""}><span><strong>${escapeHtml(permission.label)}</strong><br><small>${escapeHtml(permission.permission_key)}</small></span></label>`).join("")}</section>`).join("");
+  grid.innerHTML=Object.entries(groups).map(([module,permissions])=>`<section class="permission-module" data-permission-module="${escapeHtml(module)}"><div class="permission-module__heading"><h4>${escapeHtml(module)}</h4><button class="permission-module-toggle" type="button" data-permission-module-toggle="${escapeHtml(module)}">Select module</button></div><div class="permission-module__items">${permissions.map(permission=>`<label class="permission-check"><input type="checkbox" name="permissions" value="${escapeHtml(permission.permission_key)}"${chosen.has(permission.permission_key)?" checked":""}><span><strong>${escapeHtml(permission.label)}</strong><br><small>${escapeHtml(permission.permission_key)}</small></span></label>`).join("")}</div></section>`).join("");
+  updatePermissionSelectionCount();
 }
+function updatePermissionSelectionCount(){const form=document.querySelector("#roleForm"),output=document.querySelector("#permissionSelectionCount");if(!form||!output)return;const checked=form.querySelectorAll('input[name="permissions"]:checked').length,total=form.querySelectorAll('input[name="permissions"]').length;output.textContent=`${checked} of ${total} selected`;}
 function resetRoleEditor(){const form=document.querySelector("#roleForm");if(!form)return;form.reset();form.elements.role_id.value="";document.querySelector("#roleEditorTitle").textContent="Create a role";document.querySelector("#cancelRoleEdit").hidden=true;renderRolePermissionGrid([]);document.querySelector("#roleMessage").textContent="";}
 function populateRoleEditor(role){const form=document.querySelector("#roleForm");form.elements.role_id.value=role.role_id;form.elements.name.value=role.name||"";form.elements.role_key.value=role.role_key||"";form.elements.description.value=role.description||"";document.querySelector("#roleEditorTitle").textContent=`Edit: ${role.name}`;document.querySelector("#cancelRoleEdit").hidden=false;renderRolePermissionGrid(role.permissions||[]);}
 document.querySelector("#cancelRoleEdit")?.addEventListener("click",resetRoleEditor);
+document.querySelector("#roleForm")?.addEventListener("change",updatePermissionSelectionCount);
+document.querySelector("#roleForm")?.addEventListener("click",event=>{
+  const actionButton=event.target.closest("button[data-permission-action]");
+  if(actionButton){
+    const action=actionButton.dataset.permissionAction;
+    document.querySelectorAll('#rolePermissionGrid input[name="permissions"]').forEach(input=>{
+      input.checked=action==='all'||(action==='view'&&(input.value.endsWith('.view')||input.value==='system.health'));
+    });
+    updatePermissionSelectionCount();
+    return;
+  }
+  const moduleButton=event.target.closest("button[data-permission-module-toggle]");
+  if(moduleButton){
+    const section=moduleButton.closest('.permission-module'),inputs=[...section.querySelectorAll('input[name="permissions"]')];
+    const select=inputs.some(input=>!input.checked);inputs.forEach(input=>{input.checked=select;});
+    moduleButton.textContent=select?'Clear module':'Select module';updatePermissionSelectionCount();
+  }
+});
 document.querySelector("#adminRoleList")?.addEventListener("click",async event=>{const id=Number(event.target.dataset.id),role=adminState.roles.find(r=>Number(r.role_id)===id);if(!role)return;if(event.target.classList.contains("edit-role"))populateRoleEditor(role);if(event.target.classList.contains("delete-role")){if(!confirm(`Delete role “${role.name}”?`))return;try{await api("delete_role",{role_id:id});await loadRoles();resetRoleEditor();}catch(error){alert(error.message);}}});
 document.querySelector("#roleForm")?.addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements,message=document.querySelector("#roleMessage");const permissions=[...event.currentTarget.querySelectorAll('input[name="permissions"]:checked')].map(input=>input.value);message.classList.remove("error");message.textContent="Saving role…";try{await api("save_role",{role_id:f.role_id.value,name:f.name.value.trim(),role_key:f.role_key.value.trim(),description:f.description.value.trim(),permissions});await loadRoles();resetRoleEditor();message.textContent="Role permissions saved.";}catch(error){message.textContent=error.message;message.classList.add("error");}});
 
@@ -1252,33 +1424,23 @@ document.querySelector("#adminHomeGallery").addEventListener("click", async (eve
 
 async function loadDigitalMaps(selectedMapId = null) {
   const message = document.querySelector("#digitalMapMessage");
-  try { adminState.digitalMaps = await api("admin_digital_maps"); renderDigitalMaps(selectedMapId); }
+  try { [adminState.digitalMaps] = await Promise.all([api("admin_digital_maps"), loadMasterData().catch(() => [])]); renderDigitalMaps(selectedMapId); }
   catch (error) { if (message) message.textContent = error.message; }
 }
 function renderDigitalMaps(selectedMapId = null) {
   const maps=adminState.digitalMaps||[],list=document.querySelector("#adminDigitalMapList");
   document.querySelector("#digitalMapCount").textContent=`${maps.length} map${maps.length===1?"":"s"}`;
-  list.innerHTML=maps.length?maps.map(map=>`<article class="admin-property"><img class="digital-map-preview" src="${escapeHtml(map.map_image)}" alt=""><div><h3>${escapeHtml(map.name)}</h3><p>${map.original_width} × ${map.original_height}</p><strong>${map.blocks.length} block${map.blocks.length===1?"":"s"} · ${Number(map.is_active)?"Published":"Hidden"}</strong></div><div class="admin-row-actions"><button class="edit-digital-map" data-id="${map.map_id}" type="button">Edit</button><button class="delete-digital-map" data-id="${map.map_id}" type="button">Delete</button></div></article>`).join(""):'<p class="empty-list">No digital maps have been added.</p>';
+  list.innerHTML=maps.length?maps.map(map=>{const preview=map.map_image?`<img class="digital-map-preview" src="${escapeHtml(map.map_image)}" alt="">`:'<span class="admin-popup-type-preview">PDF</span>';const format=map.map_image?(map.original_pdf?'Image + PDF':'Image only'):'PDF only';const dimensions=Number(map.original_width)&&Number(map.original_height)?`${map.original_width} × ${map.original_height}`:format;const pdfLink=String(map.original_pdf||"").startsWith("maps/")?`<a href="${escapeHtml(map.original_pdf)}" target="_blank" rel="noopener">Open PDF</a>`:"";return `<article class="admin-property">${preview}<div><h3>${escapeHtml(map.name)}</h3><p>${escapeHtml(dimensions)}</p><strong>${map.blocks.length} block${map.blocks.length===1?"":"s"} · ${Number(map.is_active)?"Published":"Hidden"}</strong></div><div class="admin-row-actions">${pdfLink}<button class="edit-digital-map" data-id="${map.map_id}" type="button">Edit</button><button class="delete-digital-map" data-id="${map.map_id}" type="button">Delete</button></div></article>`;}).join(""):'<p class="empty-list">No digital maps have been added.</p>';
   const select=document.querySelector("#digitalMapBlockMap"),previous=selectedMapId||Number(select.value)||maps[0]?.map_id||"";select.innerHTML='<option value="">Choose a map</option>'+maps.map(map=>`<option value="${map.map_id}">${escapeHtml(map.name)}</option>`).join("");if(maps.some(map=>Number(map.map_id)===Number(previous)))select.value=String(previous);renderDigitalMapBlocks();
 }
 function renderDigitalMapBlocks(){const mapId=Number(document.querySelector("#digitalMapBlockMap").value),map=adminState.digitalMaps.find(item=>Number(item.map_id)===mapId),container=document.querySelector("#digitalMapBlockList");container.innerHTML=map?(map.blocks.length?map.blocks.map(block=>`<span class="map-block-chip">${escapeHtml(block.name)}<button type="button" class="delete-digital-map-block" data-id="${block.block_id}" aria-label="Delete ${escapeHtml(block.name)}">×</button></span>`).join(""):'<p class="empty-list">No blocks yet. Add the first block above.</p>'):'<p class="empty-list">Choose a map to manage its blocks.</p>';}
-function resetDigitalMapEditor(){const form=document.querySelector("#digitalMapForm");form.reset();form.elements.map_id.value="";form.elements.is_active.checked=true;document.querySelector("#digitalMapEditorTitle").textContent="Add a map";document.querySelector("#cancelDigitalMapEdit").hidden=true;document.querySelector("#digitalMapCurrentFiles").textContent="";document.querySelector("#saveDigitalMapButton").innerHTML='Save map <span>→</span>';}
-function editDigitalMap(map){const form=document.querySelector("#digitalMapForm");form.elements.map_id.value=map.map_id;form.elements.name.value=map.name;form.elements.is_active.checked=!!Number(map.is_active);document.querySelector("#digitalMapEditorTitle").textContent=`Edit: ${map.name}`;document.querySelector("#cancelDigitalMapEdit").hidden=false;document.querySelector("#saveDigitalMapButton").innerHTML='Save changes <span>→</span>';document.querySelector("#digitalMapCurrentFiles").textContent=`Current image: ${map.map_image}${map.original_pdf?` · PDF: ${map.original_pdf}`:""}${map.plot_index_file?` · Index: ${map.plot_index_file}`:" · No automatic plot index"}`;document.querySelector("#digitalMapBlockMap").value=String(map.map_id);renderDigitalMapBlocks();}
+function resetDigitalMapEditor(){const form=document.querySelector("#digitalMapForm");form.reset();form.elements.map_id.value="";form.elements.is_active.checked=true;syncMasterOptionSelects();document.querySelector("#digitalMapEditorTitle").textContent="Add a map";document.querySelector("#cancelDigitalMapEdit").hidden=true;document.querySelector("#digitalMapCurrentFiles").textContent="";document.querySelector("#saveDigitalMapButton").innerHTML='Save map <span>→</span>';}
+function editDigitalMap(map){const form=document.querySelector("#digitalMapForm");setMasterSelectValue("#digitalMapProjectNameSelect","project",map.name,"Choose project name");form.elements.map_id.value=map.map_id;form.elements.name.value=map.name;form.elements.is_active.checked=!!Number(map.is_active);document.querySelector("#digitalMapEditorTitle").textContent=`Edit: ${map.name}`;document.querySelector("#cancelDigitalMapEdit").hidden=false;document.querySelector("#saveDigitalMapButton").innerHTML='Save changes <span>→</span>';const files=document.querySelector("#digitalMapCurrentFiles"),parts=[];if(map.map_image)parts.push(`<a href="${escapeHtml(map.map_image)}" target="_blank" rel="noopener">Open current image</a>`);if(map.original_pdf)parts.push(`<a href="${escapeHtml(map.original_pdf)}" target="_blank" rel="noopener">Open current PDF</a>`);if(map.plot_index_file)parts.push("Automatic plot index saved");files.innerHTML=parts.length?parts.join(" · "):"No files saved yet.";document.querySelector("#digitalMapBlockMap").value=String(map.map_id);renderDigitalMapBlocks();}
 document.querySelector("#cancelDigitalMapEdit").addEventListener("click",resetDigitalMapEditor);
 document.querySelector("#digitalMapBlockMap").addEventListener("change",renderDigitalMapBlocks);
-document.querySelector("#digitalMapForm").addEventListener("submit",async event=>{event.preventDefault();const message=document.querySelector("#digitalMapMessage"),data=new FormData(event.currentTarget);message.textContent="Uploading and saving map…";try{const result=await api("save_digital_map",data,true);await loadDigitalMaps(result.map_id);resetDigitalMapEditor();message.textContent="Digital map saved.";}catch(error){message.textContent=error.message;}});
+document.querySelector("#digitalMapForm").addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget,message=document.querySelector("#digitalMapMessage"),button=document.querySelector("#saveDigitalMapButton"),data=new FormData(form),hasPdf=!!form.elements.original_pdf?.files?.length,hasImage=!!form.elements.map_image?.files?.length;message.classList.remove("error");message.textContent="Uploading and saving map…";button.disabled=true;try{const result=await api("save_digital_map",data,true);await loadDigitalMaps(result.map_id);resetDigitalMapEditor();message.textContent=hasPdf&&hasImage?"Map image and PDF uploaded and saved.":hasPdf?"Map PDF uploaded and saved.":hasImage?"Map image uploaded and saved.":"Digital map changes saved.";}catch(error){message.textContent=error.message;message.classList.add("error");}finally{button.disabled=false;}});
 document.querySelector("#adminDigitalMapList").addEventListener("click",async event=>{const id=Number(event.target.dataset.id),map=adminState.digitalMaps.find(item=>Number(item.map_id)===id);if(event.target.classList.contains("edit-digital-map")&&map)editDigitalMap(map);if(event.target.classList.contains("delete-digital-map")&&map){if(!confirm(`Delete “${map.name}” and its block list?`))return;try{await api("delete_digital_map",{map_id:id});await loadDigitalMaps();resetDigitalMapEditor();}catch(error){alert(error.message);}}});
 document.querySelector("#digitalMapBlockForm").addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements,message=document.querySelector("#digitalMapBlockMessage"),mapId=Number(f.map_id.value);message.textContent="Adding block…";try{await api("save_digital_map_block",{map_id:mapId,name:f.name.value.trim()});f.name.value="";await loadDigitalMaps(mapId);message.textContent="Block added manually.";}catch(error){message.textContent=error.message;}});
 document.querySelector("#digitalMapBlockList").addEventListener("click",async event=>{if(!event.target.classList.contains("delete-digital-map-block"))return;const mapId=Number(document.querySelector("#digitalMapBlockMap").value);if(!confirm("Delete this block name?"))return;try{await api("delete_digital_map_block",{block_id:Number(event.target.dataset.id)});await loadDigitalMaps(mapId);}catch(error){alert(error.message);}});
-
-document.querySelectorAll(".admin-tab").forEach((tab) => tab.addEventListener("click", () => {
-  document.querySelectorAll(".admin-tab").forEach((item) => { item.classList.toggle("active", item === tab); item.setAttribute("aria-selected", item === tab); });
-  document.querySelectorAll(".admin-workspace").forEach((workspace) => { workspace.hidden = workspace.id !== tab.dataset.workspace; });
-  document.querySelectorAll(".admin-menu-group").forEach(group=>group.classList.toggle("open",group.contains(tab)));
-  if (tab.dataset.defaultSubview) setAdminSubview(tab.dataset.workspace, tab.dataset.defaultSubview);
-  const label=tab.childNodes[0]?.textContent?.trim()||tab.textContent.trim();document.querySelector(".dashboard-topbar h1").textContent=label;
-}));
-
-document.querySelectorAll(".admin-submenu button").forEach(button=>button.addEventListener("click",()=>{const tab=[...document.querySelectorAll(".admin-tab")].find(item=>item.dataset.workspace===button.dataset.workspace);tab?.click();document.querySelectorAll(".admin-submenu button").forEach(item=>item.classList.toggle("active",item===button));setAdminSubview(button.dataset.workspace,button.dataset.subview);const reset={property:resetEditor,project:resetProjectEditor,map:resetDigitalMapEditor,agent:resetAgentEditor,address:resetOfficeAddressEditor,user:resetLoginUserEditor,subproject:resetSubProjectEditor}[button.dataset.reset];reset?.();setTimeout(()=>document.getElementById(button.dataset.target)?.scrollIntoView({behavior:"smooth",block:"start"}),80);}));
 
 [["listingCount","dashPropertyCount"],["projectCount","dashProjectCount"],["submissionCount","dashSubmissionCount"],["loginUserCount","dashUserCount"]].forEach(([sourceId,targetId])=>{const source=document.getElementById(sourceId),target=document.getElementById(targetId);if(!source||!target)return;const sync=()=>{target.textContent=(source.textContent.match(/\d+/)||["0"])[0];};new MutationObserver(sync).observe(source,{childList:true,characterData:true,subtree:true});sync();});

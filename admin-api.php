@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/api-core.php';
 require_once __DIR__ . '/ai-property-advisor.php';
 
-header('X-Heera-Admin-API-Version: 1');
+header('X-Heera-Admin-API-Version: 2');
 
 function adminApiEnsureBaseTables(PDO $pdo): void {
     $pdo->exec("CREATE TABLE IF NOT EXISTS admin_users (
@@ -109,6 +109,7 @@ function adminApiEnsureSchema(PDO $pdo): array {
         'offices' => static fn() => ensureOfficeAddressesTable($pdo),
         'popups' => static fn() => ensurePopupAdsTable($pdo),
         'digital_maps' => static fn() => ensureDigitalMapSchema($pdo),
+        'master_data' => static fn() => ensureMasterOptionsSchema($pdo),
         'ai_advisor' => static fn() => ensureAiAdvisorSchema($pdo),
     ];
     foreach ($steps as $name => $step) {
@@ -121,6 +122,7 @@ function adminApiEnsureSchema(PDO $pdo): array {
         }
     }
     $done = true;
+    $_SESSION['heera_schema_session']='master-data-v2';
     return $messages;
 }
 
@@ -134,9 +136,16 @@ function adminApiTableExists(PDO $pdo, string $table): bool {
 }
 
 function adminApiSchemaReport(PDO $pdo): array {
-    $tables = ['admin_users','client_users','roles','permissions','role_permissions','system_migrations','properties','property_media','projects','sub_projects','project_media','payment_plans','enquiries','property_submissions','digital_maps','digital_map_blocks','home_gallery','popup_ads','agents','office_addresses','ai_advisor_sessions'];
+    $tables = ['admin_users','client_users','roles','permissions','role_permissions','system_migrations','properties','property_media','projects','sub_projects','project_media','payment_plans','enquiries','property_submissions','digital_maps','digital_map_blocks','home_gallery','popup_ads','agents','office_addresses','master_options','ai_advisor_sessions'];
     $report = [];
     foreach ($tables as $table) $report[$table] = adminApiTableExists($pdo, $table);
+    return $report;
+}
+
+function adminApiPropertyColumnReport(PDO $pdo): array {
+    $required = ['property_id','project_id','sub_project_id','payment_plan_id','listing_type','property_type','status','title','slug','address_line1','city','state_region','block_name','postal_code','price','bedrooms','bathrooms','area_sqft','description','size_label','property_facing','price_pkr','price_per_marla','publish_start_date','publish_end_date','created_at','updated_at'];
+    $report = [];
+    foreach ($required as $column) $report[$column] = databaseColumnExists($pdo, 'properties', $column);
     return $report;
 }
 
@@ -147,13 +156,28 @@ function adminApiHealth(): array {
     $database = false;
     try { $database = (int)$pdo->query('SELECT 1')->fetchColumn() === 1; } catch (Throwable $exception) { $database = false; }
     $tables = adminApiSchemaReport($pdo);
+    $propertyColumns = adminApiPropertyColumnReport($pdo);
+    $stepsReady = !in_array('error', $schemaSteps, true);
+    $columnsReady = !in_array(false, $propertyColumns, true);
+    $routineNames=[
+        'heera_v4_properties','heera_v4_projects','heera_v4_subprojects','heera_v4_payment_plans',
+        'heera_v4_crm_leads','heera_v4_submissions','heera_v4_maps','heera_v4_map_blocks',
+        'heera_v4_gallery','heera_v4_updates','heera_v4_agents','heera_v4_offices',
+        'heera_v4_admin_users','heera_v4_client_users','heera_v4_roles','heera_v4_permissions','heera_v4_role_permissions',
+        'heera_v4_property_detail','heera_v4_property_media','heera_v4_project_detail','heera_v4_project_media','heera_v4_project_properties',
+        'heera_v4_master_options','heera_v4_dashboard_counts','heera_v4_module_health'
+    ];
+    $routines=[];foreach($routineNames as $routine)$routines[$routine]=heeraStoredProcedureExists($pdo,$routine);
     return [
-        'api_version' => 'v1',
+        'api_version' => 'v2',
         'database' => $database ? 'connected' : 'error',
-        'schema_ready' => !in_array(false, $tables, true),
+        'schema_ready' => !in_array(false, $tables, true) && $stepsReady && $columnsReady,
         'tables' => $tables,
+        'property_columns' => $propertyColumns,
         'schema_steps' => $schemaSteps,
         'foreign_keys' => relationalHealth($pdo),
+        'stored_procedures' => $routines,
+        'module_health' => heeraStoredRows($pdo,'heera_v4_module_health') ?? [],
         'server_time' => date(DATE_ATOM),
     ];
 }
@@ -163,13 +187,13 @@ function adminApiBootstrap(): array {
     adminApiEnsureSchema($pdo);
     $user = currentAdmin();
     if (!$user) {
-        return ['authenticated' => false, 'user' => null, 'csrf_token' => csrfToken(), 'api_version' => 'v1'];
+        return ['authenticated' => false, 'user' => null, 'csrf_token' => csrfToken(), 'api_version' => 'v2'];
     }
     return [
         'authenticated' => true,
         'user' => userPayload($user),
         'csrf_token' => csrfToken(),
-        'api_version' => 'v1',
+        'api_version' => 'v2',
         'dashboard' => adminHasPermission($user,'dashboard.view') ? adminDashboardData() : null,
         'capabilities' => adminCapabilitiesFromPermissions($user),
     ];
@@ -226,6 +250,9 @@ $aliases = [
     'admin_roles' => 'roles',
     'save_role' => 'roles/save',
     'delete_role' => 'roles/delete',
+    'admin_master_data' => 'master-data',
+    'save_master_option' => 'master-data/save',
+    'archive_master_option' => 'master-data/archive',
 ];
 if (isset($aliases[$route])) $route = $aliases[$route];
 
@@ -243,21 +270,21 @@ $csrfProtectedRoutes = [
     'advisor/recommend',
     'offices/save','offices/delete',
     'users/save','users/delete','roles/save','roles/delete',
+    'master-data/save','master-data/archive',
     'upload',
 ];
 
 try {
     if ($route === '' || $route === 'bootstrap') respond(adminApiBootstrap());
-    if ($route === 'csrf') respond(['csrf_token' => csrfToken(), 'api_version' => 'v1']);
+    if ($route === 'csrf') respond(['csrf_token' => csrfToken(), 'api_version' => 'v2']);
     if ($route === 'session') {
         $pdo = db(); adminApiEnsureSchema($pdo);
         $user = currentAdmin();
-        respond(['authenticated' => $user !== null, 'user' => $user ? userPayload($user) : null, 'csrf_token' => csrfToken(), 'api_version' => 'v1']);
+        respond(['authenticated' => $user !== null, 'user' => $user ? userPayload($user) : null, 'csrf_token' => csrfToken(), 'api_version' => 'v2']);
     }
 
     requireAdmin();
     $pdo = db();
-    adminApiEnsureSchema($pdo);
     $requiredPermission = permissionForAdminRoute($route);
     if ($requiredPermission !== null) requirePermission($requiredPermission);
     if (in_array($route, $csrfProtectedRoutes, true)) verifyCsrf();
@@ -323,6 +350,10 @@ try {
         case 'roles/save': saveRole(requestData());
         case 'roles/delete': deleteRole(requestData());
 
+        case 'master-data': respond(masterOptions(true));
+        case 'master-data/save': saveMasterOption(requestData());
+        case 'master-data/archive': archiveMasterOption(requestData());
+
         case 'upload': uploadMedia();
         case 'logout':
             $_SESSION = [];
@@ -333,7 +364,9 @@ try {
 } catch (Throwable $exception) {
     error_log('[Heera Admin API] ' . get_class($exception) . ': ' . $exception->getMessage());
     $message = $exception instanceof PDOException
-        ? 'The database request could not be completed. Check database credentials and schema health.'
+        ? (in_array($route, ['properties','properties/save','upload'], true)
+            ? propertyDatabaseErrorMessage($exception)
+            : 'The database request could not be completed. Check database credentials and schema health.')
         : ($exception->getMessage() ?: 'An unexpected Admin API error occurred.');
     errorResponse($message, 500);
 }

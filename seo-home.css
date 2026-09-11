@@ -1,1 +1,22 @@
-.seo-home-locations{background:#f7faf8}.seo-location-links{display:flex;flex-wrap:wrap;gap:12px}.seo-location-links a{background:#fff;border:1px solid rgba(20,40,33,.12);border-radius:999px;color:var(--text);padding:11px 18px;text-decoration:none}.seo-location-links a:hover{border-color:var(--text);transform:translateY(-1px)}
+.seo-home-intro{background:#102a24;color:#fff;display:grid;gap:clamp(32px,7vw,100px);grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}
+.seo-home-intro h2{font-size:clamp(34px,4.5vw,62px);line-height:1.03;margin:8px 0 0;max-width:780px}
+.seo-home-intro>div:last-child{align-self:end;font-size:17px;line-height:1.75;max-width:720px}
+.seo-home-intro>div:last-child p{margin:0 0 14px}
+.seo-home-intro .eyebrow{color:#e6b958}
+.seo-home-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+.seo-home-actions a{border:1px solid rgba(255,255,255,.45);border-radius:999px;color:#fff;padding:10px 16px;text-decoration:none}
+.seo-home-actions a:hover{background:#fff;color:#102a24}
+.seo-home-discovery{background:#fff}
+.seo-discovery-grid{display:grid;gap:16px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.seo-discovery-card{border:1px solid rgba(20,40,33,.12);border-radius:16px;min-width:0;padding:24px}
+.seo-discovery-card h3{font-size:22px;line-height:1.25;margin:8px 0}
+.seo-discovery-card h3 a{color:var(--text);text-decoration:none}
+.seo-discovery-card h3 a:hover{text-decoration:underline;text-underline-offset:4px}
+.seo-discovery-card p{color:var(--muted);margin:0 0 12px}
+.seo-discovery-card span{color:var(--muted);display:block;font-size:14px;line-height:1.55}
+.seo-home-locations{background:#f7faf8}
+.seo-location-links{display:flex;flex-wrap:wrap;gap:12px}
+.seo-location-links a{background:#fff;border:1px solid rgba(20,40,33,.12);border-radius:999px;color:var(--text);padding:11px 18px;text-decoration:none}
+.seo-location-links a:hover{border-color:var(--text);transform:translateY(-1px)}
+@media(max-width:900px){.seo-home-intro{grid-template-columns:1fr}.seo-discovery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:570px){.seo-discovery-grid{grid-template-columns:1fr}.seo-home-intro>div:last-child{font-size:16px}}
