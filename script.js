@@ -1,78 +1,4 @@
-let properties = [
-  {
-    id: 1,
-    status: "For sale",
-    type: "House",
-    address: "4236 Mornington Road",
-    city: "Pacific Heights, San Francisco",
-    price: 1850000,
-    beds: 4,
-    baths: 3,
-    area: "2,820 sqft",
-    image: "https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=900&q=85"
-  },
-  {
-    id: 2,
-    status: "For sale",
-    type: "Apartment",
-    address: "22 Wythe Avenue, Apt. 5B",
-    city: "Williamsburg, Brooklyn",
-    price: 975000,
-    beds: 2,
-    baths: 2,
-    area: "1,240 sqft",
-    image: "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=900&q=85"
-  },
-  {
-    id: 3,
-    status: "For sale",
-    type: "Villa",
-    address: "818 Meadow Lane",
-    city: "South Congress, Austin",
-    price: 1245000,
-    beds: 3,
-    baths: 2.5,
-    area: "2,460 sqft",
-    image: "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=900&q=85"
-  },
-  {
-    id: 4,
-    status: "For rent",
-    type: "Apartment",
-    address: "87 West 12th Street",
-    city: "West Village, New York",
-    price: 4800,
-    priceLabel: "$4,800/mo",
-    beds: 1,
-    baths: 1,
-    area: "760 sqft",
-    image: "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=900&q=85"
-  },
-  {
-    id: 5,
-    status: "For sale",
-    type: "House",
-    address: "1105 Oakwood Drive",
-    city: "Silver Lake, Los Angeles",
-    price: 1495000,
-    beds: 3,
-    baths: 2,
-    area: "1,960 sqft",
-    image: "https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=900&q=85"
-  },
-  {
-    id: 6,
-    status: "For sale",
-    type: "House",
-    address: "14 Pelican Point",
-    city: "Coconut Grove, Miami",
-    price: 2100000,
-    beds: 4,
-    baths: 4,
-    area: "3,115 sqft",
-    image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=900&q=85"
-  }
-];
+let properties = [];
 
 function listingTypeLabel(type) {
   if (type === "rent") return "For rent";
@@ -108,7 +34,7 @@ async function loadProperties() {
         beds: property.bedrooms,
         baths: property.bathrooms,
         area: property.area_sqft ? `${Number(property.area_sqft).toLocaleString()} sqft` : "—",
-        image: property.image_url || "https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=900&q=85",
+        image: property.image_url || "images/home-logo.jpg",
         images: Array.isArray(property.images) ? property.images : [property.image_url].filter(Boolean),
         photoCount: Number(property.image_count || 1),
         videoUrl: property.video_url,
@@ -128,13 +54,15 @@ async function loadProperties() {
       }));
     }
   } catch (error) {
-    // The page remains usable with sample listings until the PHP/MySQL API is configured.
+    // Keep the public inventory empty rather than showing fake listings while the API is unavailable.
   }
   populateAdvancedSearchOptions();
+  applySearchParamsFromUrl();
   renderProperties();
 }
 
-let savedIds = JSON.parse(localStorage.getItem("havenlySaved") || "[]");
+let savedIds = (() => { try { return JSON.parse(localStorage.getItem("havenlySaved") || "[]").map(Number).filter(Number.isFinite); } catch { return []; } })();
+let publicCsrfToken = "";
 let compareIds = (() => {
   try { return JSON.parse(localStorage.getItem("heeraCompare") || "[]").map(Number).filter(Number.isFinite).slice(0, 2); }
   catch { return []; }
@@ -182,16 +110,40 @@ function toggleCompare(id) {
 }
 const requestedListingMode = new URLSearchParams(window.location.search).get("listing");
 let listingMode = ["sale", "rent", "installment"].includes(requestedListingMode) ? requestedListingMode : "all";
+let requestedSearchApplied = false;
+function applySearchParamsFromUrl() {
+  if (requestedSearchApplied) return;
+  requestedSearchApplied = true;
+  const params = new URLSearchParams(window.location.search);
+  const listing = params.get("listing_type") || params.get("listing");
+  if (["sale","rent","installment"].includes(listing)) listingMode = listing;
+  const assign = (el, key, fallback = "") => { if (el && params.has(key)) el.value = params.get(key) || fallback; };
+  assign(elements.project,"project_id","all"); assign(elements.block,"block"); assign(elements.size,"size");
+  assign(elements.minPrice,"min_price"); assign(elements.maxPrice,"max_price"); assign(elements.type,"property_type","all");
+  assign(elements.facing,"facing"); assign(elements.availability,"availability","all"); assign(elements.paymentPlan,"payment_plan","all");
+  if ([...params.keys()].some(key => ["project_id","block","size","min_price","max_price","property_type","facing","availability","payment_plan"].includes(key))) {
+    if (advancedSearchToggle && advancedSearchFields) { advancedSearchToggle.setAttribute("aria-expanded","true"); advancedSearchFields.hidden=false; }
+  }
+}
 
+async function ensurePublicCsrf() {
+  if (publicCsrfToken) return publicCsrfToken;
+  const response = await fetch("api.php?action=csrf", { credentials: "same-origin", headers: { Accept: "application/json" } });
+  const result = await response.json().catch(() => ({}));
+  publicCsrfToken = result.csrf_token || "";
+  return publicCsrfToken;
+}
 async function apiRequest(action, data = null) {
-  const options = { method: data ? "POST" : "GET", headers: { Accept: "application/json" } };
-  if (data) {
+  const options = { method: data !== null ? "POST" : "GET", credentials: "same-origin", headers: { Accept: "application/json" } };
+  if (data !== null) {
     options.headers["Content-Type"] = "application/json";
+    options.headers["X-CSRF-Token"] = await ensurePublicCsrf();
     options.body = JSON.stringify(data);
   }
   const response = await fetch(`api.php?action=${encodeURIComponent(action)}`, options);
   const result = await response.json().catch(() => ({ error: "The server returned an invalid response." }));
-  if (!response.ok) throw new Error(result.error || "Something went wrong.");
+  if (!response.ok) { const error = new Error(result.error || "Something went wrong."); error.status = response.status; throw error; }
+  if (result.csrf_token) publicCsrfToken = result.csrf_token;
   return result;
 }
 
@@ -605,10 +557,27 @@ function persistSaved() {
   renderSavedList();
 }
 
-function toggleSaved(id) {
-  savedIds = savedIds.includes(id) ? savedIds.filter((savedId) => savedId !== id) : [...savedIds, id];
+async function toggleSaved(id) {
+  const willSave = !savedIds.includes(id);
+  savedIds = willSave ? [...savedIds, id] : savedIds.filter((savedId) => savedId !== id);
   persistSaved();
   applyFilters();
+  try {
+    const session = await apiRequest("account_session");
+    if (session.authenticated && session.role === "client") await apiRequest("toggle_saved_property", { property_id: id, saved: willSave });
+  } catch (error) {
+    if (error.status && error.status !== 401) console.warn("Saved property sync failed", error);
+  }
+}
+async function syncAccountSavedProperties() {
+  try {
+    const session = await apiRequest("account_session");
+    if (!session.authenticated || session.role !== "client") return;
+    const result = await apiRequest("sync_saved_properties", { property_ids: savedIds });
+    savedIds = Array.isArray(result.ids) ? result.ids.map(Number).filter(Number.isFinite) : savedIds;
+    persistSaved();
+    if (elements.grid) applyFilters();
+  } catch (error) { if (error.status && error.status !== 401) console.warn("Saved properties could not sync", error); }
 }
 
 function renderSavedList() {
@@ -713,6 +682,20 @@ document.querySelector("#resetAdvancedSearch")?.addEventListener("click", () => 
   listingMode = "all";
   propertyListExpanded = false;
   applyFilters();
+});
+document.querySelector("#saveCurrentSearch")?.addEventListener("click", async () => {
+  const criteria = {
+    listing_type: listingMode !== "all" ? listingMode : "",
+    project_id: elements.project?.value !== "all" ? elements.project?.value : "",
+    block: elements.block?.value.trim() || "", size: elements.size?.value.trim() || "",
+    min_price: elements.minPrice?.value || "", max_price: elements.maxPrice?.value || "",
+    property_type: elements.type?.value !== "all" ? elements.type?.value : "",
+    facing: elements.facing?.value.trim() || "", availability: elements.availability?.value !== "all" ? elements.availability?.value : "",
+    payment_plan: elements.paymentPlan?.value !== "all" ? elements.paymentPlan?.value : ""
+  };
+  const name = prompt("Name this saved search:", "My property search"); if (name === null) return;
+  try { await apiRequest("save_saved_search", { name: name.trim(), criteria }); alert("Search saved to your client dashboard."); }
+  catch (error) { if (error.status === 401) { const login=document.querySelector(".login-button"); login?.click(); accountMessage && (accountMessage.textContent="Sign in as a client to save searches."); } else alert(error.message); }
 });
 
 document.querySelector("#propertyPrevious")?.addEventListener("click", () => {
@@ -821,11 +804,11 @@ if (popupElements.form) {
 }
 
 const accountAccess=document.querySelector("#accountAccess"),accountMessage=document.querySelector("#accountMessage");
-function safeAuthReturn(){const destination=new URLSearchParams(location.search).get('return');return destination==='add-property.html'?destination:'';}
+function safeAuthReturn(){const destination=(new URLSearchParams(location.search).get('return')||'').trim();return /^(?:add-property|client-dashboard)\.html$/.test(destination)||/^property\.php\?id=\d+$/.test(destination)||/^property\/[a-z0-9-]+$/.test(destination)?destination:'';}
 function setAuthView(view){if(!accountAccess)return;accountAccess.dataset.view=view;accountAccess.querySelectorAll(".account-form").forEach(form=>form.classList.toggle("active",form.dataset.authForm===view));accountAccess.querySelectorAll(".account-tab").forEach(tab=>tab.classList.toggle("active",tab.dataset.authView===view));if(accountMessage){accountMessage.textContent="";accountMessage.classList.remove("success");}accountAccess.querySelector(`.account-form[data-auth-form="${view}"] input`)?.focus();}
 accountAccess?.addEventListener("click",event=>{const button=event.target.closest("[data-auth-view]");if(button)setAuthView(button.dataset.authView);});
 document.querySelector("#clientSignupForm")?.addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget,f=form.elements;if(f.password.value!==f.confirm_password.value){accountMessage.textContent="Passwords do not match.";return;}accountMessage.textContent="Creating account…";try{await apiRequest("client_signup",{full_name:f.full_name.value.trim(),email:f.email.value.trim(),phone:f.phone.value.trim(),password:f.password.value});form.reset();setAuthView("client-login");accountMessage.textContent="Account created. You can now sign in.";accountMessage.classList.add("success");}catch(error){accountMessage.textContent=error.message;}});
-document.querySelector("#clientLoginForm")?.addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget,f=form.elements;accountMessage.textContent="Signing in…";try{const result=await apiRequest("client_login",{login:f.login.value.trim(),password:f.password.value});localStorage.setItem("heeraClientSession",JSON.stringify(result.user));window.dispatchEvent(new CustomEvent("heera:auth-changed",{detail:{authenticated:true,role:"client",user:result.user}}));const destination=safeAuthReturn();if(destination){window.location.href=destination;return;}form.reset();closeLoginPopup();}catch(error){accountMessage.textContent=error.message;}});
+document.querySelector("#clientLoginForm")?.addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget,f=form.elements;accountMessage.textContent="Signing in…";try{const result=await apiRequest("client_login",{login:f.login.value.trim(),password:f.password.value});localStorage.setItem("heeraClientSession",JSON.stringify(result.user));window.dispatchEvent(new CustomEvent("heera:auth-changed",{detail:{authenticated:true,role:"client",user:result.user}}));await syncAccountSavedProperties();const destination=safeAuthReturn();if(destination){window.location.href=destination;return;}form.reset();closeLoginPopup();}catch(error){accountMessage.textContent=error.message;}});
 document.querySelector("#adminLoginForm")?.addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements;accountMessage.textContent="Signing in…";try{const result=await apiRequest("login",{login:f.login.value.trim(),password:f.password.value});const user=result.user||{};localStorage.setItem("havenlyAdminSession",JSON.stringify({loggedIn:true,email:user.email||f.login.value,name:user.name||user.email||f.login.value}));window.location.href=safeAuthReturn()||"admin.html";}catch(error){accountMessage.textContent=error.message;}});
 document.querySelector("#forgotPasswordForm")?.addEventListener("submit",async event=>{event.preventDefault();const f=event.currentTarget.elements;accountMessage.textContent="Sending request…";try{const result=await apiRequest("forgot_password",{identity:f.identity.value.trim()});accountMessage.textContent=result.message;accountMessage.classList.add("success");}catch(error){accountMessage.textContent=error.message;}});
 document.addEventListener("keydown", (event) => {
@@ -872,8 +855,9 @@ document.querySelector("#contactForm")?.addEventListener("submit", async (event)
 
 document.querySelector("#year").textContent = new Date().getFullYear();
 persistSaved();
+window.addEventListener("heera:auth-changed", event => { if (event.detail?.authenticated && event.detail?.role === "client") syncAccountSavedProperties(); });
 if (document.querySelector("#propertyGrid") || document.querySelector("#searchForm")) {
-  loadProperties();
+  loadProperties().then(syncAccountSavedProperties);
 }
 if (document.querySelector("#homeGallery")) {
   initializeGalleryLightbox();

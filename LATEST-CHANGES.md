@@ -1,3 +1,19 @@
+# 2026-09-11 — Platform v5 non-map production upgrade
+
+- Added a client dashboard for saved properties, saved searches, site visits and submitted properties.
+- Moved favourites from local-only storage to client-account synchronization while preserving anonymous browser favourites.
+- Added reusable saved property searches from the homepage filters.
+- Added property site-visit requests and Admin visit confirmation, rescheduling and agent assignment.
+- Added CRM activity timelines with calls, WhatsApp, email, meetings, notes, site visits and follow-up dates.
+- Added property price/status history and an Admin history view.
+- Added business reports for inventory, pipeline, lead sources, projects, submissions and visits.
+- Added security audit logging for important data changes.
+- Replaced the old contact-admin password recovery response with expiring single-use reset tokens and a reset page.
+- Made PKR the primary required Admin property price while retaining the legacy USD database field for compatibility.
+- Added new permission keys for site visits, reports and audit access.
+- Added Platform v5 static contracts to CI.
+- Digital Maps / Plot Finder files and map assets were intentionally not changed.
+
 # 2026-09-07 — Production SEO and public-route repair
 
 - Repaired property creation on legacy databases by removing the unconditional

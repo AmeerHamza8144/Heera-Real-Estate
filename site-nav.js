@@ -40,15 +40,7 @@
   initializeUtilityMenus();
   const utilityNavigations = [...navigation.querySelectorAll(".utility-nav")];
 
-  const fallbackProjects = [
-    "Harbor Point Residences",
-    "Aster Heights",
-    "Parkside Villas",
-    "Cedar Square",
-    "Bayview Residences",
-    "The Arc at Central",
-    "Orchard House"
-  ].map((title, index) => ({ project_id: index + 1, title }));
+  const fallbackProjects = [];
 
   function closeMobileMenu() {
     navigation?.classList.remove("open");
@@ -95,7 +87,9 @@
     accountProfile.querySelector(".profile-menu-name").textContent = name;
     accountProfile.querySelector(".profile-menu-role").textContent = session.role === "admin" ? "Administrator" : "Client account";
     const dashboardLink = accountProfile.querySelector(".profile-dashboard-link");
+    const clientDashboardLink = accountProfile.querySelector(".profile-client-dashboard-link");
     dashboardLink.hidden = session.role !== "admin";
+    if (clientDashboardLink) clientDashboardLink.hidden = session.role !== "client";
     if (loginControl) loginControl.hidden = true;
     accountProfile.hidden = false;
   }
@@ -121,7 +115,7 @@
     accountProfile = document.createElement("div");
     accountProfile.className = "header-profile";
     accountProfile.hidden = true;
-    accountProfile.innerHTML = `<button class="profile-toggle" type="button" aria-expanded="false" aria-haspopup="menu"><span class="profile-initial" aria-hidden="true">U</span><span class="profile-button-name">Profile</span><span class="profile-chevron" aria-hidden="true">⌄</span></button><div class="profile-menu" role="menu"><div class="profile-menu-identity"><strong class="profile-menu-name">My account</strong><small class="profile-menu-role">Client account</small></div><a class="profile-dashboard-link" href="admin.html" role="menuitem" hidden>Open dashboard</a><a href="add-property.html" role="menuitem">Add Property</a><button class="profile-logout" type="button" role="menuitem">Log out</button></div>`;
+    accountProfile.innerHTML = `<button class="profile-toggle" type="button" aria-expanded="false" aria-haspopup="menu"><span class="profile-initial" aria-hidden="true">U</span><span class="profile-button-name">Profile</span><span class="profile-chevron" aria-hidden="true">⌄</span></button><div class="profile-menu" role="menu"><div class="profile-menu-identity"><strong class="profile-menu-name">My account</strong><small class="profile-menu-role">Client account</small></div><a class="profile-dashboard-link" href="admin.html" role="menuitem" hidden>Open admin dashboard</a><a class="profile-client-dashboard-link" href="client-dashboard.html" role="menuitem" hidden>My dashboard</a><a href="add-property.html" role="menuitem">Add Property</a><button class="profile-logout" type="button" role="menuitem">Log out</button></div>`;
     loginControl.insertAdjacentElement("afterend", accountProfile);
     profileToggle = accountProfile.querySelector(".profile-toggle");
     profileMenu = accountProfile.querySelector(".profile-menu");
@@ -143,7 +137,7 @@
         button.disabled = false;
         button.textContent = "Log out";
         window.dispatchEvent(new CustomEvent("heera:auth-changed", { detail: { authenticated: false } }));
-        if ((window.location.pathname.split("/").pop() || "") === "add-property.html") window.location.href = "index.html";
+        if (["add-property.html","client-dashboard.html"].includes(window.location.pathname.split("/").pop() || "")) window.location.href = "index.html";
       }
     });
     refreshAccountState();
@@ -196,7 +190,8 @@
       wrapper.append(toggle, submenu);
       return wrapper;
     });
-    projectsMenu.replaceChildren(...items);
+    if (items.length) projectsMenu.replaceChildren(...items);
+    else { const empty=document.createElement("span"); empty.className="projects-loading"; empty.textContent="Projects will appear here when published."; projectsMenu.replaceChildren(empty); }
   }
 
   function escapeNavigationText(value) {

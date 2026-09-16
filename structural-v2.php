@@ -422,6 +422,8 @@ function adminCapabilitiesFromPermissions(array $admin): array {
         'gallery'=>$has('gallery.manage'),'popups'=>$has('popups.manage'),'agents'=>$has('agents.view'),'agents_manage'=>$has('agents.manage'),
         'offices'=>$has('offices.manage'),'users'=>$has('users.manage'),'roles'=>$has('roles.manage'),
         'master_data'=>$has('master_data.view'),'master_data_manage'=>$has('master_data.manage'),
+        'site_visits'=>$has('site_visits.view'),'site_visits_manage'=>$has('site_visits.manage'),
+        'reports'=>$has('reports.view'),'audit'=>$has('audit.view'),
         'uploads'=>$has('uploads.manage'),'ai_property_advisor'=>$has('ai_advisor.use'),'health'=>$has('system.health')
     ];
 }

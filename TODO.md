@@ -9,9 +9,9 @@
 - [x] Return payment plans with property listings in `listings()` and `admin_properties`
 
 ## 3. Admin HTML (admin.html)
-- [ ] Remove "Price (USD)" field from form
-- [ ] Change "Total price (PKR)" to primary pricing field
-- [ ] Add conditional visibility for beds/baths based on property type (hide when Land)
+- [x] Remove visible "Price (USD)" field from form (legacy field retained hidden for compatibility)
+- [x] Change "Total price (PKR)" to primary required pricing field
+- [x] Add conditional visibility for beds/baths based on property type (hide when Land)
 - [ ] Add Payment Plan section with dynamic row management (add/remove rows)
 - [ ] Style payment plan rows with good CSS
 
@@ -23,7 +23,7 @@
 - [ ] Update renderPropertyList to show PKR
 
 ## 5. Frontend (index.html & script.js)
-- [ ] Display PKR price on property cards
+- [x] Display PKR price on property cards
 - [ ] Display payment plan details on property cards / detail view
 
 ## 6. Important Updates (landing-page ticker)
@@ -32,3 +32,15 @@
 - [x] Frontend: published text updates move across the top of the landing page
 - [x] Frontend: old promotional popup screen removed
 - [x] Admin: Important Updates can add, edit, order, publish, and delete ticker messages
+
+## 7. Platform v5 — September 2026
+- [x] Client dashboard and account favourites
+- [x] Saved searches
+- [x] Site visit booking and Admin management
+- [x] CRM activity timeline
+- [x] Price/status history
+- [x] Audit log
+- [x] Reports & analytics
+- [x] Secure password-reset tokens
+- [x] Platform v5 migration and CI contracts
+- [x] Digital Maps / Plot Finder intentionally unchanged

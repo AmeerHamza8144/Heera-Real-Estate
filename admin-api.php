@@ -111,6 +111,7 @@ function adminApiEnsureSchema(PDO $pdo): array {
         'digital_maps' => static fn() => ensureDigitalMapSchema($pdo),
         'master_data' => static fn() => ensureMasterOptionsSchema($pdo),
         'ai_advisor' => static fn() => ensureAiAdvisorSchema($pdo),
+        'platform_v5' => static fn() => ensurePlatformV5Schema($pdo),
     ];
     foreach ($steps as $name => $step) {
         try {
@@ -136,7 +137,7 @@ function adminApiTableExists(PDO $pdo, string $table): bool {
 }
 
 function adminApiSchemaReport(PDO $pdo): array {
-    $tables = ['admin_users','client_users','roles','permissions','role_permissions','system_migrations','properties','property_media','projects','sub_projects','project_media','payment_plans','enquiries','property_submissions','digital_maps','digital_map_blocks','home_gallery','popup_ads','agents','office_addresses','master_options','ai_advisor_sessions'];
+    $tables = ['admin_users','client_users','roles','permissions','role_permissions','system_migrations','properties','property_media','projects','sub_projects','project_media','payment_plans','enquiries','property_submissions','digital_maps','digital_map_blocks','home_gallery','popup_ads','agents','office_addresses','master_options','ai_advisor_sessions','saved_properties','saved_searches','site_visits','crm_activities','property_price_history','audit_logs','password_reset_tokens'];
     $report = [];
     foreach ($tables as $table) $report[$table] = adminApiTableExists($pdo, $table);
     return $report;

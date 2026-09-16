@@ -9,7 +9,10 @@
     appLeadsWorkspace: 'leads',
     digitalMapsWorkspace: 'maps',
     appMoreWorkspace: 'more',
-    aiAdvisorWorkspace: 'more'
+    aiAdvisorWorkspace: 'more',
+    siteVisitsWorkspace: 'leads',
+    reportsWorkspace: 'more',
+    auditWorkspace: 'more'
   };
   const titles = {
     appHomeWorkspace: ['Admin dashboard', 'Home'],
@@ -27,7 +30,10 @@
     addressesWorkspace: ['Business settings', 'Office Addresses'],
     loginUsersWorkspace: ['Access management', 'Login Users'],
     rolesWorkspace: ['Access management', 'Roles & Permissions'],
-    submissionsWorkspace: ['Customer properties', 'Client Submissions']
+    submissionsWorkspace: ['Customer properties', 'Client Submissions'],
+    siteVisitsWorkspace: ['Customer engagement', 'Site Visits'],
+    reportsWorkspace: ['Business intelligence', 'Reports & Analytics'],
+    auditWorkspace: ['Security & accountability', 'Audit Log']
   };
   let leads = [];
   let crmAgents = [];
@@ -113,7 +119,10 @@
       loginUsersWorkspace: window.loadLoginUsers,
       rolesWorkspace: window.loadRoles,
       submissionsWorkspace: window.loadSubmissions,
-      aiAdvisorWorkspace: window.HeeraAIAdvisor?.refresh
+      aiAdvisorWorkspace: window.HeeraAIAdvisor?.refresh,
+      siteVisitsWorkspace: window.HeeraPlatformV5Admin?.loadSiteVisits,
+      reportsWorkspace: window.HeeraPlatformV5Admin?.loadReports,
+      auditWorkspace: window.HeeraPlatformV5Admin?.loadAudit
     };
     const loader = loaders[workspaceId];
     if (typeof loader !== 'function') return;
@@ -265,6 +274,7 @@
         <div class="list-row__body"><strong>${safe(lead.name || 'Unknown lead')}</strong><p>${safe(leadSource(lead))}${requirement ? ` · ${safe(requirement)}` : ''}</p><div class="crm-lead-badges"><span class="badge ${badgeClass(stage)}">${safe(stage)}</span><span class="badge ${badgeClass(priority)} crm-priority">${safe(priority)}</span><span class="crm-score">${score}/100</span></div></div>
         <div class="list-row__meta crm-lead-controls">
           ${lead.phone ? `<a class="tap-call" href="tel:${safe(String(lead.phone).replace(/[^+0-9]/g,''))}" aria-label="Call ${safe(lead.name)}"><i class="ti ti-phone" aria-hidden="true"></i></a>` : ''}
+          <button class="crm-activity-button" type="button" data-crm-activity-id="${Number(lead.enquiry_id)}" data-crm-activity-name="${safe(lead.name || 'Lead')}"><i class="ti ti-history" aria-hidden="true"></i> Timeline</button>
           <select class="crm-stage-control" data-id="${Number(lead.enquiry_id)}" aria-label="Pipeline stage">
             ${['new','qualified','nurturing','viewing','negotiation','won','lost'].map(value => `<option value="${value}"${stage===value?' selected':''}>${value[0].toUpperCase()+value.slice(1)}</option>`).join('')}
           </select>
@@ -520,7 +530,8 @@
       appLeadsWorkspace: 'leads', digitalMapsWorkspace: 'digital_maps', galleryWorkspace: 'gallery',
       popupsWorkspace: 'popups', agentsWorkspace: 'agents', addressesWorkspace: 'offices',
       loginUsersWorkspace: 'users', rolesWorkspace: 'roles', submissionsWorkspace: 'submissions',
-      aiAdvisorWorkspace: 'ai_property_advisor'
+      aiAdvisorWorkspace: 'ai_property_advisor',
+      siteVisitsWorkspace: 'site_visits', reportsWorkspace: 'reports', auditWorkspace: 'audit'
     };
     Object.entries(workspaceCaps).forEach(([workspaceId, cap]) => {
       const allowed = caps[cap] !== false;

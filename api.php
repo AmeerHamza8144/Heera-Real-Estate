@@ -9,6 +9,8 @@ $csrfProtectedActions = [
     'save_project','delete_project','save_sub_project','delete_sub_project','save_home_gallery','delete_home_gallery','save_popup','delete_popup',
     'save_agent','delete_agent','save_office_address','delete_office_address','save_login_user','delete_login_user','save_role','delete_role',
     'save_master_option','archive_master_option',
+    'toggle_saved_property','sync_saved_properties','save_saved_search','delete_saved_search','book_site_visit','cancel_site_visit',
+    'save_site_visit','save_crm_activity','forgot_password','request_password_reset','reset_password',
     'save_digital_map','delete_digital_map','save_digital_map_block','delete_digital_map_block','save_enquiry_status','upload'
 ];
 if (in_array($action, $csrfProtectedActions, true)) verifyCsrf();
@@ -49,7 +51,17 @@ try {
         case 'client_signup': clientSignup(requestData());
         case 'client_login': clientLogin(requestData());
         case 'account_session': respond(accountSession());
-        case 'forgot_password': respond(['message' => 'If the account exists, please contact Heera Estate administration to reset the password.']);
+        case 'client_dashboard': respond(platformClientDashboard());
+        case 'client_saved_properties': respond(platformClientSavedProperties());
+        case 'toggle_saved_property': platformToggleSavedProperty(requestData());
+        case 'sync_saved_properties': platformSyncSavedProperties(requestData());
+        case 'save_saved_search': platformSaveSavedSearch(requestData());
+        case 'delete_saved_search': platformDeleteSavedSearch(requestData());
+        case 'book_site_visit': platformBookSiteVisit(requestData());
+        case 'cancel_site_visit': platformCancelSiteVisit(requestData());
+        case 'forgot_password': platformRequestPasswordReset(requestData());
+        case 'request_password_reset': platformRequestPasswordReset(requestData());
+        case 'reset_password': platformResetPassword(requestData());
         case 'submit_property': submitProperty();
         case 'session':
             $user = currentAdmin();
@@ -87,6 +99,13 @@ try {
         case 'admin_dashboard': respond(adminDashboardData());
         case 'admin_enquiries': respond(adminEnquiries());
         case 'save_enquiry_status': saveEnquiryStatus(requestData());
+        case 'crm_activities': respond(platformCrmActivities((int)($_GET['enquiry_id'] ?? 0)));
+        case 'save_crm_activity': platformSaveCrmActivity(requestData());
+        case 'admin_site_visits': respond(platformAdminSiteVisits());
+        case 'save_site_visit': platformSaveSiteVisit(requestData());
+        case 'admin_reports': respond(platformReports());
+        case 'admin_audit_logs': respond(platformAuditLogs());
+        case 'property_price_history': respond(platformPropertyPriceHistory((int)($_GET['property_id'] ?? 0)));
         case 'admin_digital_maps': requireAdmin(); respond(digitalMaps(false));
         case 'property':
             $propertyId = isset($_GET['property_id']) ? (int)$_GET['property_id'] : 0;

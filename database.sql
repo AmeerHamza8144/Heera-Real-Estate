@@ -1,4 +1,4 @@
--- Havenly Real Estate database schema (MySQL 8+)
+-- Heera Real Estate database schema (MySQL 8+)
 -- Import this file in phpMyAdmin before opening admin.html through XAMPP.
 CREATE DATABASE IF NOT EXISTS havenly_real_estate
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -77,6 +77,7 @@ CREATE TABLE property_media (
 
 CREATE TABLE property_submissions (
   submission_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  client_id INT UNSIGNED DEFAULT NULL,
   seller_name VARCHAR(160) NOT NULL,
   seller_phone VARCHAR(30) NOT NULL,
   seller_email VARCHAR(255),
@@ -105,6 +106,7 @@ CREATE TABLE property_submissions (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_submission_status (status, created_at),
+  INDEX idx_submission_client (client_id, created_at),
   CONSTRAINT fk_submission_property FOREIGN KEY (approved_property_id) REFERENCES properties(property_id) ON DELETE SET NULL
 );
 
@@ -191,11 +193,15 @@ CREATE TABLE ai_advisor_sessions (
 
 CREATE TABLE saved_properties (
   saved_property_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  visitor_token CHAR(36) NOT NULL,
+  visitor_token CHAR(36) DEFAULT NULL,
+  client_id INT UNSIGNED DEFAULT NULL,
   property_id INT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_saved_property FOREIGN KEY (property_id) REFERENCES properties(property_id) ON DELETE CASCADE,
-  UNIQUE KEY uq_saved_property (visitor_token, property_id)
+  UNIQUE KEY uq_saved_property (visitor_token, property_id),
+  UNIQUE KEY uq_saved_property_client (client_id, property_id),
+  INDEX idx_saved_client (client_id, created_at),
+  INDEX idx_saved_property (property_id)
 );
 
 CREATE TABLE projects (
@@ -337,6 +343,91 @@ CREATE TABLE master_options (
   INDEX idx_master_option_list (option_type,is_active,sort_order,name)
 );
 
+-- Platform v5: client engagement, CRM timeline, audit and reporting support.
+CREATE TABLE saved_searches (
+  saved_search_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  client_id INT UNSIGNED NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  criteria_json LONGTEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_saved_search_client (client_id, updated_at)
+);
+
+CREATE TABLE site_visits (
+  site_visit_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  client_id INT UNSIGNED NOT NULL,
+  property_id INT UNSIGNED NOT NULL,
+  enquiry_id INT UNSIGNED DEFAULT NULL,
+  assigned_agent_id INT UNSIGNED DEFAULT NULL,
+  visit_date DATE NOT NULL,
+  visit_time TIME NOT NULL,
+  status ENUM('requested','confirmed','completed','cancelled','no_show') NOT NULL DEFAULT 'requested',
+  client_notes VARCHAR(1500),
+  admin_notes VARCHAR(2000),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_site_visit_client (client_id, visit_date, status),
+  INDEX idx_site_visit_property (property_id, visit_date),
+  INDEX idx_site_visit_agent (assigned_agent_id, visit_date),
+  INDEX idx_site_visit_status (status, visit_date)
+);
+
+CREATE TABLE crm_activities (
+  activity_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  enquiry_id INT UNSIGNED NOT NULL,
+  admin_id INT UNSIGNED DEFAULT NULL,
+  activity_type VARCHAR(30) NOT NULL DEFAULT 'note',
+  subject VARCHAR(180),
+  notes TEXT,
+  occurred_at DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_crm_activity_lead (enquiry_id, occurred_at),
+  INDEX idx_crm_activity_admin (admin_id, occurred_at)
+);
+
+CREATE TABLE property_price_history (
+  price_history_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  property_id INT UNSIGNED NOT NULL,
+  old_price_pkr DECIMAL(15,2),
+  new_price_pkr DECIMAL(15,2),
+  old_status VARCHAR(30),
+  new_status VARCHAR(30),
+  changed_by_admin_id INT UNSIGNED,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_price_history_property (property_id, created_at),
+  INDEX idx_price_history_admin (changed_by_admin_id, created_at)
+);
+
+CREATE TABLE audit_logs (
+  audit_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  actor_type ENUM('admin','client','system') NOT NULL DEFAULT 'system',
+  actor_id INT UNSIGNED,
+  action_key VARCHAR(100) NOT NULL,
+  entity_type VARCHAR(80) NOT NULL,
+  entity_id VARCHAR(100),
+  summary VARCHAR(500) NOT NULL,
+  metadata_json LONGTEXT,
+  ip_address VARCHAR(45),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_audit_created (created_at),
+  INDEX idx_audit_entity (entity_type, entity_id, created_at),
+  INDEX idx_audit_actor (actor_type, actor_id, created_at)
+);
+
+CREATE TABLE password_reset_tokens (
+  reset_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  account_type ENUM('admin','client') NOT NULL,
+  account_id INT UNSIGNED NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME,
+  requested_ip VARCHAR(45),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_password_reset_account (account_type, account_id, created_at),
+  INDEX idx_password_reset_expiry (expires_at, used_at)
+);
+
 CREATE TABLE roles (
   role_id SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   role_key VARCHAR(60) NOT NULL UNIQUE,
@@ -382,23 +473,25 @@ INSERT INTO permissions (permission_key,label,module_name) VALUES
 ('offices.manage','Manage offices','Settings'),('users.manage','Manage login users','Security'),
 ('roles.manage','Manage roles and permissions','Security'),('uploads.manage','Upload media','Media'),
 ('master_data.view','View reusable master data','Configuration'),('master_data.manage','Manage reusable master data','Configuration'),
-('ai_advisor.use','Use AI property advisor','AI'),('system.health','View API/database health','System');
+('ai_advisor.use','Use AI property advisor','AI'),('system.health','View API/database health','System'),
+('site_visits.view','View site visits','CRM'),('site_visits.manage','Manage site visits','CRM'),
+('reports.view','View reports & analytics','Reports'),('audit.view','View audit log','Security');
 
 INSERT INTO role_permissions (role_id,permission_key)
 SELECT r.role_id,p.permission_key FROM roles r CROSS JOIN permissions p WHERE r.role_key='super_admin';
 INSERT INTO role_permissions (role_id,permission_key)
-SELECT r.role_id,p.permission_key FROM roles r CROSS JOIN permissions p WHERE r.role_key='manager' AND p.permission_key<>'roles.manage';
+SELECT r.role_id,p.permission_key FROM roles r CROSS JOIN permissions p WHERE r.role_key='manager' AND p.permission_key NOT IN ('roles.manage','audit.view');
 INSERT INTO role_permissions (role_id,permission_key)
-SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','crm.manage','agents.view','master_data.view','ai_advisor.use') WHERE r.role_key='agent';
+SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','crm.manage','agents.view','master_data.view','ai_advisor.use','site_visits.view','site_visits.manage') WHERE r.role_key='agent';
 INSERT INTO role_permissions (role_id,permission_key)
-SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','master_data.view','system.health') WHERE r.role_key='accountant';
+SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','projects.view','subprojects.view','payment_plans.view','crm.view','master_data.view','system.health','reports.view') WHERE r.role_key='accountant';
 INSERT INTO role_permissions (role_id,permission_key)
 SELECT r.role_id,p.permission_key FROM roles r JOIN permissions p ON p.permission_key IN ('dashboard.view','properties.view','properties.manage','projects.view','projects.manage','subprojects.view','subprojects.manage','payment_plans.view','payment_plans.manage','maps.view','gallery.manage','popups.manage','agents.view','uploads.manage','master_data.view','master_data.manage') WHERE r.role_key='editor';
 
 -- Initial agent account. Change this password immediately after setup.
 -- Email: admin@havenly.local  |  Password: Havenly2026!
 INSERT INTO admin_users (first_name, last_name, email, username, password_hash) VALUES
-('Havenly', 'Admin', 'admin@havenly.local', 'admin', '$2y$10$dIonOhhHnD5awtXtyMvIHuY1/xDY3eBV1EYqSClhFOFTB0dsdEwga');
+('Heera', 'Admin', 'admin@havenly.local', 'admin', '$2y$10$dIonOhhHnD5awtXtyMvIHuY1/xDY3eBV1EYqSClhFOFTB0dsdEwga');
 UPDATE admin_users SET role_id=(SELECT role_id FROM roles WHERE role_key='super_admin' LIMIT 1) WHERE role_id IS NULL;
 
 -- Core relational constraints
@@ -411,48 +504,17 @@ ALTER TABLE properties ADD CONSTRAINT fk_property_payment_plan FOREIGN KEY (paym
 ALTER TABLE role_permissions ADD CONSTRAINT fk_role_permissions_role FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE role_permissions ADD CONSTRAINT fk_role_permissions_permission FOREIGN KEY (permission_key) REFERENCES permissions(permission_key) ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE admin_users ADD CONSTRAINT fk_admin_role FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE saved_properties ADD CONSTRAINT fk_saved_client FOREIGN KEY (client_id) REFERENCES client_users(client_id) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE saved_searches ADD CONSTRAINT fk_saved_search_client FOREIGN KEY (client_id) REFERENCES client_users(client_id) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE site_visits ADD CONSTRAINT fk_site_visit_client FOREIGN KEY (client_id) REFERENCES client_users(client_id) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE site_visits ADD CONSTRAINT fk_site_visit_property FOREIGN KEY (property_id) REFERENCES properties(property_id) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE site_visits ADD CONSTRAINT fk_site_visit_enquiry FOREIGN KEY (enquiry_id) REFERENCES enquiries(enquiry_id) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE site_visits ADD CONSTRAINT fk_site_visit_agent FOREIGN KEY (assigned_agent_id) REFERENCES agents(agent_id) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE crm_activities ADD CONSTRAINT fk_crm_activity_enquiry FOREIGN KEY (enquiry_id) REFERENCES enquiries(enquiry_id) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE property_submissions ADD CONSTRAINT fk_submission_client FOREIGN KEY (client_id) REFERENCES client_users(client_id) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE property_price_history ADD CONSTRAINT fk_price_history_property FOREIGN KEY (property_id) REFERENCES properties(property_id) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE property_price_history ADD CONSTRAINT fk_price_history_admin FOREIGN KEY (changed_by_admin_id) REFERENCES admin_users(admin_id) ON DELETE SET NULL ON UPDATE CASCADE;
 
-INSERT INTO properties (listing_type, property_type, status, title, address_line1, city, state_region, postal_code, price, bedrooms, bathrooms, area_sqft, description) VALUES
-('sale', 'House', 'available', 'Contemporary Pacific Heights Home', '4236 Mornington Road', 'San Francisco', 'CA', '94115', 1850000, 4, 3, 2820, 'Light-filled contemporary home with garden views and generous entertaining spaces.'),
-('sale', 'Apartment', 'available', 'Williamsburg Skyline Apartment', '22 Wythe Avenue, Apt. 5B', 'Brooklyn', 'NY', '11249', 975000, 2, 2, 1240, 'A polished two-bedroom apartment in the heart of Williamsburg.'),
-('sale', 'Villa', 'available', 'South Congress Design Villa', '818 Meadow Lane', 'Austin', 'TX', '78704', 1245000, 3, 2.5, 2460, 'Warm materials, clever details, and easy access to Austin’s most-loved neighborhood.'),
-('rent', 'Apartment', 'available', 'West Village Retreat', '87 West 12th Street', 'New York', 'NY', '10011', 4800, 1, 1, 760, 'An elegant furnished rental in a peaceful West Village setting.');
 
-INSERT INTO property_media (property_id, media_type, file_path, is_cover, sort_order) VALUES
-(1, 'image', 'https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=900&q=85', TRUE, 0),
-(2, 'image', 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=900&q=85', TRUE, 0),
-(3, 'image', 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=900&q=85', TRUE, 0),
-(4, 'image', 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=900&q=85', TRUE, 0);
-
-INSERT INTO projects (title, category, location, status, hero_image_url, headline, description) VALUES
-('Harbor Point Residences', 'Waterfront residences', 'Harbor District', 'published', 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1800&q=85', 'Designed for the water’s edge', 'A collection of light-filled homes that balance quiet interiors with an open waterfront setting.'),
-('Aster Heights', 'City apartments', 'Central District', 'published', 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1800&q=85', 'A new perspective on city living', 'Thoughtful apartments with generous daylight, crafted materials, and a connected city address.'),
-('Parkside Villas', 'Private villas', 'Green Park', 'published', 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1800&q=85', 'Made for slower days', 'A considered collection of private villas surrounded by landscape and everyday ease.'),
-('Cedar Square', 'Townhomes', 'Cedar Quarter', 'published', 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1800&q=85', 'A neighborhood within a neighborhood', 'Characterful townhomes shaped around walkable streets, gardens, and shared spaces.'),
-('Bayview Residences', 'Coastal apartments', 'Bayview', 'published', 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1800&q=85', 'Coastal living, considered', 'Modern residences that bring the horizon, the breeze, and the sea closer to home.'),
-('The Arc at Central', 'Urban residences', 'Central District', 'published', 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1800&q=85', 'A landmark for everyday life', 'A lively mixed-use address where home, work, and the city come together.'),
-('Orchard House', 'Garden homes', 'Orchard Lane', 'published', 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1800&q=85', 'A home among the trees', 'A calm residential retreat with a garden-first approach to modern living.');
-
-INSERT INTO project_media (project_id, media_type, file_path, caption, sort_order) VALUES
-(1, 'gallery', 'https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=1000&q=85', 'Harbor Point living room', 0),
-(1, 'gallery', 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1000&q=85', 'Waterfront materials', 1),
-(1, 'plan', 'https://placehold.co/1000x700/f8f6ef/1e2b27?text=Harbor+Point+Floor+Plan', 'Two bedroom residence', 0),
-(2, 'gallery', 'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1000&q=85', 'Aster Heights interiors', 0),
-(2, 'plan', 'https://placehold.co/1000x700/f8f6ef/1e2b27?text=Aster+Heights+Floor+Plan', 'City apartment plan', 0),
-(3, 'gallery', 'https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=1000&q=85', 'Parkside Villa living', 0),
-(3, 'plan', 'https://placehold.co/1000x700/f8f6ef/1e2b27?text=Parkside+Villa+Plan', 'Villa plan', 0),
-(4, 'gallery', 'https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=1000&q=85', 'Cedar Square facade', 0),
-(4, 'plan', 'https://placehold.co/1000x700/f8f6ef/1e2b27?text=Cedar+Square+Plan', 'Townhome plan', 0),
-(5, 'gallery', 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1000&q=85', 'Bayview residence', 0),
-(5, 'plan', 'https://placehold.co/1000x700/f8f6ef/1e2b27?text=Bayview+Residence+Plan', 'Coastal plan', 0),
-(6, 'gallery', 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1000&q=85', 'The Arc interiors', 0),
-(6, 'plan', 'https://placehold.co/1000x700/f8f6ef/1e2b27?text=The+Arc+Plan', 'Urban residence plan', 0),
-(7, 'gallery', 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1000&q=85', 'Orchard House exterior', 0),
-(7, 'plan', 'https://placehold.co/1000x700/f8f6ef/1e2b27?text=Orchard+House+Plan', 'Garden home plan', 0);
-
-INSERT INTO home_gallery (image_url, caption, sort_order) VALUES
-('https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=1000&q=85', 'Natural materials', 0),
-('https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1000&q=85', 'Warm and considered interiors', 1),
-('https://images.unsplash.com/photo-1600585152915-d208bec867a1?auto=format&fit=crop&w=1000&q=85', 'Architecture with presence', 2),
-('https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1000&q=85', 'Indoor-outdoor living', 3),
-('https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1000&q=85', 'A calm place to return to', 4);
+-- Public properties, projects and gallery start empty on a clean production install.
+-- Add verified Heera Estate inventory through Admin after deployment.

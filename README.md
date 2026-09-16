@@ -1,4 +1,8 @@
-# Havenly Real Estate Website
+# Heera Real Estate Website
+
+## September 11, 2026 — Platform v5 non-map production upgrade
+
+The current build adds a client dashboard, server-synced favourites and saved searches, site-visit booking/management, CRM activity timelines, property price/status history, audit logging, management reports, and secure password-reset tokens. PKR is now the primary property price in Admin. Digital Maps and Plot Finder were intentionally left unchanged for this release. See `PLATFORM-V5-UPGRADE.md` and import `platform-v5-migration.sql` on existing databases.
 
 ## September 2026 interface and database repair
 

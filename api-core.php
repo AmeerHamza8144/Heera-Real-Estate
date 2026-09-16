@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/seo.php';
 
 /*
- * Havenly's small same-origin JSON API. Configure the database using environment
+ * Heera Estate's same-origin JSON API. Configure the database using environment
  * variables HAVENLY_DB_HOST, HAVENLY_DB_NAME, HAVENLY_DB_USER, and HAVENLY_DB_PASSWORD.
  */
 $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
@@ -233,7 +233,7 @@ function saveLoginUser(array $data): void {
                 $values=[$first,$last,$email,$username?:null,$phone?:null,$roleId,$active]; if($password!=='')$values[]=password_hash($password,PASSWORD_DEFAULT); $values[]=$id;
                 $pdo->prepare($sql)->execute($values);
             } else {
-                $pdo->prepare('INSERT INTO admin_users (first_name,last_name,email,username,phone,role_id,is_active,password_hash) VALUES (?,?,?,?,?,?,?,?)')->execute([$first,$last,$email,$username?:null,$phone?:null,$roleId,$active,password_hash($password,PASSWORD_DEFAULT)]);
+                $pdo->prepare('INSERT INTO admin_users (first_name,last_name,email,username,phone,role_id,is_active,password_hash) VALUES (?,?,?,?,?,?,?,?)')->execute([$first,$last,$email,$username?:null,$phone?:null,$roleId,$active,password_hash($password,PASSWORD_DEFAULT)]); $id=(int)$pdo->lastInsertId();
             }
         } else {
             if ($id > 0) {
@@ -241,9 +241,11 @@ function saveLoginUser(array $data): void {
                 $values=[$name,$email?:null,$phone?:null,$active]; if($password!=='')$values[]=password_hash($password,PASSWORD_DEFAULT); $values[]=$id;
                 $pdo->prepare($sql)->execute($values);
             } else {
-                $pdo->prepare('INSERT INTO client_users (full_name,email,phone,is_active,password_hash) VALUES (?,?,?,?,?)')->execute([$name,$email?:null,$phone?:null,$active,password_hash($password,PASSWORD_DEFAULT)]);
+                $pdo->prepare('INSERT INTO client_users (full_name,email,phone,is_active,password_hash) VALUES (?,?,?,?,?)')->execute([$name,$email?:null,$phone?:null,$active,password_hash($password,PASSWORD_DEFAULT)]); $id=(int)$pdo->lastInsertId();
             }
         }
+        ensurePlatformV5Schema($pdo);
+        platformAudit($pdo,isset($data['user_id'])&&((int)$data['user_id'])>0?'user.update':'user.create',$type,$id?:null,(isset($data['user_id'])&&((int)$data['user_id'])>0?'Updated ':'Created ').$type.' account '.$name,['email'=>$email,'active'=>$active]);
         respond(['saved'=>true]);
     } catch (PDOException $e) {
         if ((int)($e->errorInfo[1] ?? 0) === 1062) errorResponse('That email, phone number, username, or role assignment is already in use.',409);
@@ -259,7 +261,7 @@ function deleteLoginUser(array $data): void {
     if($type==='admin' && $id===(int)$admin['admin_id']) errorResponse('You cannot delete your own signed-in admin account.');
     if($type==='admin' && (int)$pdo->query('SELECT COUNT(*) FROM admin_users')->fetchColumn()<=1) errorResponse('At least one admin account must remain.');
     $stmt=$pdo->prepare($type==='admin'?'DELETE FROM admin_users WHERE admin_id=?':'DELETE FROM client_users WHERE client_id=?'); $stmt->execute([$id]);
-    if(!$stmt->rowCount()) errorResponse('This user no longer exists.',404); respond(['deleted'=>true]);
+    if(!$stmt->rowCount()) errorResponse('This user no longer exists.',404); ensurePlatformV5Schema($pdo); platformAudit($pdo,'user.delete',$type,$id,'Deleted '.$type.' account #'.$id); respond(['deleted'=>true]);
 }
 
 
@@ -580,14 +582,21 @@ function saveProperty(array $data): void {
     requirePermission('properties.manage');
     $pdo = db();
     ensurePropertyPublishingSchema($pdo);
+    ensurePlatformV5Schema($pdo);
     $propertyId = (int)($data['property_id'] ?? 0);
+    $propertyBefore = null;
+    if ($propertyId > 0) {
+        $beforeStatement = $pdo->prepare('SELECT property_id,title,price_pkr,status FROM properties WHERE property_id=?');
+        $beforeStatement->execute([$propertyId]);
+        $propertyBefore = $beforeStatement->fetch() ?: null;
+    }
     $title = stringValue($data, 'title', 180);
     $address = stringValue($data, 'address_line1', 255);
     $city = stringValue($data, 'city', 100);
     $price = nullableNumber($data, 'price');
     $pricePkr = nullableNumber($data, 'price_pkr');
     if ($title === '' || $address === '' || $city === '') errorResponse('Title, address, and city are required.');
-    if ($price === null && $pricePkr === null) errorResponse('Price (USD) or Total price (PKR) is required.');
+    if ($pricePkr === null) errorResponse('Total price (PKR) is required.');
     $listingType = allowedValue(stringValue($data, 'listing_type'), ['sale', 'rent', 'installment'], 'listing type');
     $propertyType = allowedValue(stringValue($data, 'property_type'), ['House', 'Apartment', 'Villa', 'Condo', 'Land'], 'property type');
     $status = allowedValue(stringValue($data, 'status'), ['available', 'pending', 'sold', 'rented'], 'status');
@@ -665,6 +674,7 @@ function saveProperty(array $data): void {
             $propertyId = (int)$pdo->lastInsertId();
         }
         saveMedia($pdo, $propertyId, is_array($data['media'] ?? null) ? $data['media'] : []);
+        platformRecordPropertyChange($pdo, $propertyId, $propertyBefore, ['title'=>$title,'price_pkr'=>$pricePkr,'status'=>$status]);
         $pdo->commit();
         syncMasterOptionName($pdo,'block',optionalStringValue($data,'block_name',120));
         syncMasterOptionName($pdo,'marla',optionalStringValue($data,'size_label',60));
@@ -680,9 +690,12 @@ function deleteProperty(array $data): void {
     requirePermission('properties.manage');
     $id = (int)($data['property_id'] ?? 0);
     if ($id < 1) errorResponse('A valid property is required.');
-    $statement = db()->prepare('DELETE FROM properties WHERE property_id = ?');
+    $pdo=db(); ensurePlatformV5Schema($pdo);
+    $select=$pdo->prepare('SELECT title,price_pkr,status FROM properties WHERE property_id=?');$select->execute([$id]);$before=$select->fetch();
+    $statement = $pdo->prepare('DELETE FROM properties WHERE property_id = ?');
     $statement->execute([$id]);
     if ($statement->rowCount() === 0) errorResponse('This property no longer exists.', 404);
+    platformAudit($pdo,'property.delete','property',$id,'Deleted property '.($before['title']??('#'.$id)),['price_pkr'=>$before['price_pkr']??null,'status'=>$before['status']??null]);
     respond(['deleted' => true]);
 }
 
@@ -1033,7 +1046,9 @@ function saveProject(array $data): void {
     $pdo = db();
     ensureProjectPlanSchema($pdo);
     ensureSubProjectsSchema($pdo);
+    ensurePlatformV5Schema($pdo);
     $projectId = (int)($data['project_id'] ?? 0);
+    $projectWasExisting = $projectId > 0;
     $title = stringValue($data, 'title', 180);
     $planName = stringValue($data, 'plan_name', 180);
     $category = stringValue($data, 'category', 100);
@@ -1133,6 +1148,7 @@ function saveProject(array $data): void {
         if($planName!=='')syncMasterOptionName($pdo,'subproject',$planName);
         foreach($paymentPlans as $savedPlan){syncMasterOptionName($pdo,'subproject',(string)($savedPlan['sub_project_name']??''));syncMasterOptionName($pdo,'marla',(string)($savedPlan['size_label']??''));}
         try { ensureRelationalIntegrity($pdo); } catch (Throwable $relationError) { error_log('[Heera relation repair] '.$relationError->getMessage()); }
+        platformAudit($pdo,$projectWasExisting?'project.update':'project.create','project',$projectId,($projectWasExisting?'Updated ':'Created ').$title,['status'=>$status,'location'=>$location]);
         respond(['project_id' => $projectId]);
     } catch (PDOException $exception) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -1150,9 +1166,11 @@ function deleteProject(array $data): void {
     requirePermission('projects.manage');
     $id = (int)($data['project_id'] ?? 0);
     if ($id < 1) errorResponse('A valid project is required.');
-    $statement = db()->prepare('DELETE FROM projects WHERE project_id = ?');
+    $pdo=db();ensurePlatformV5Schema($pdo);$select=$pdo->prepare('SELECT title FROM projects WHERE project_id=?');$select->execute([$id]);$title=(string)($select->fetchColumn()?:('Project #'.$id));
+    $statement = $pdo->prepare('DELETE FROM projects WHERE project_id = ?');
     $statement->execute([$id]);
     if ($statement->rowCount() === 0) errorResponse('This project no longer exists.', 404);
+    platformAudit($pdo,'project.delete','project',$id,'Deleted project '.$title);
     respond(['deleted' => true]);
 }
 
@@ -1393,7 +1411,7 @@ function crmLeadStats(): array {
 
 function updateCrmLead(array $data): void {
     requireAdmin();
-    $pdo = db(); ensureEnquiriesTable($pdo);
+    $pdo = db(); ensureEnquiriesTable($pdo); ensurePlatformV5Schema($pdo);
     $id = (int)($data['enquiry_id'] ?? $data['lead_id'] ?? 0);
     if ($id < 1) errorResponse('Choose a valid CRM lead.');
     $sets=[]; $values=[];
@@ -1415,6 +1433,9 @@ function updateCrmLead(array $data): void {
     $statement=$pdo->prepare('UPDATE enquiries SET '.implode(',',$sets).' WHERE enquiry_id=?');
     $statement->execute($values);
     if (!$statement->rowCount()) { $check=$pdo->prepare('SELECT enquiry_id FROM enquiries WHERE enquiry_id=?'); $check->execute([$id]); if(!$check->fetch()) errorResponse('This CRM lead no longer exists.',404); }
+    $summaryParts=[];foreach(['lead_stage','priority','assigned_agent_id','next_follow_up'] as $key){if(array_key_exists($key,$data))$summaryParts[$key]=$data[$key];}
+    if($summaryParts){platformInsertCrmActivity($pdo,$id,'status_change','CRM lead updated',json_encode($summaryParts,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),date('Y-m-d H:i:s'));}
+    platformAudit($pdo,'crm.update','enquiry',$id,'Updated CRM lead #'.$id,$summaryParts);
     respond(['saved'=>true,'lead_id'=>$id]);
 }
 
@@ -1606,10 +1627,11 @@ function submissionPayload(array $row): array {
 }
 
 function submitProperty(): void {
-    requirePropertySubmitter();
+    $submitter = requirePropertySubmitter();
     $pdo = db();
     ensurePropertySubmissionsTable($pdo);
     ensurePropertyPublishingSchema($pdo);
+    ensurePlatformV5Schema($pdo);
     if (trim((string)($_POST['website'] ?? '')) !== '') respond(['submitted' => true]);
     $now = time();
     if (!empty($_SESSION['last_property_submission']) && $now - (int)$_SESSION['last_property_submission'] < 60) errorResponse('Your property was already submitted. Please wait a moment.', 429);
@@ -1656,10 +1678,13 @@ function submitProperty(): void {
         $filename=bin2hex(random_bytes(16)).'.'.$allowedVideos[$mime];if(!move_uploaded_file($_FILES['video']['tmp_name'],$directory.DIRECTORY_SEPARATOR.$filename))errorResponse('The video could not be saved.',500);$videoPath='uploads/'.$filename;
     }
 
-    $statement = $pdo->prepare("INSERT INTO property_submissions (seller_name,seller_phone,seller_email,seller_cnic,listing_type,property_type,title,address_line1,city,state_region,block_name,size_label,property_facing,price_pkr,bedrooms,bathrooms,area_sqft,description,media_json,video_path,publish_start_date,publish_end_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-    $statement->execute([$name,$phone,$email ?: null,optionalStringValue($_POST,'seller_cnic',30) ?: null,$listingType,$propertyType,$title,$address,$city,optionalStringValue($_POST,'state_region',100) ?: null,optionalStringValue($_POST,'block_name',120) ?: null,optionalStringValue($_POST,'size_label',60) ?: null,optionalStringValue($_POST,'property_facing',60) ?: null,nullableNumber($_POST,'price_pkr'),nullableNumber($_POST,'bedrooms'),nullableNumber($_POST,'bathrooms'),nullableNumber($_POST,'area_sqft'),optionalStringValue($_POST,'description',5000) ?: null,json_encode($uploaded),$videoPath,$publishStart,$publishEnd]);
+    $clientId = ($submitter['role']??null)==='client' ? (int)($submitter['user']['id']??0) : null;
+    $statement = $pdo->prepare("INSERT INTO property_submissions (client_id,seller_name,seller_phone,seller_email,seller_cnic,listing_type,property_type,title,address_line1,city,state_region,block_name,size_label,property_facing,price_pkr,bedrooms,bathrooms,area_sqft,description,media_json,video_path,publish_start_date,publish_end_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+    $statement->execute([$clientId?:null,$name,$phone,$email ?: null,optionalStringValue($_POST,'seller_cnic',30) ?: null,$listingType,$propertyType,$title,$address,$city,optionalStringValue($_POST,'state_region',100) ?: null,optionalStringValue($_POST,'block_name',120) ?: null,optionalStringValue($_POST,'size_label',60) ?: null,optionalStringValue($_POST,'property_facing',60) ?: null,nullableNumber($_POST,'price_pkr'),nullableNumber($_POST,'bedrooms'),nullableNumber($_POST,'bathrooms'),nullableNumber($_POST,'area_sqft'),optionalStringValue($_POST,'description',5000) ?: null,json_encode($uploaded),$videoPath,$publishStart,$publishEnd]);
+    $submissionId=(int)$pdo->lastInsertId();
+    platformAudit($pdo,'submission.create','property_submission',$submissionId,'Submitted property '.$title);
     $_SESSION['last_property_submission'] = $now;
-    respond(['submitted'=>true,'reference'=>'HEERA-' . str_pad((string)$pdo->lastInsertId(), 5, '0', STR_PAD_LEFT)]);
+    respond(['submitted'=>true,'reference'=>'HEERA-' . str_pad((string)$submissionId, 5, '0', STR_PAD_LEFT)]);
 }
 
 function adminSubmissions(): array {
@@ -2115,3 +2140,4 @@ function adminDashboardData(): array {
 
 
 require_once __DIR__ . "/structural-v2.php";
+require_once __DIR__ . "/platform-v5.php";

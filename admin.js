@@ -397,7 +397,7 @@ function renderPropertyList() {
     return `<article class="admin-property" data-property-id="${Number(property.property_id)}" data-project="${escapeHtml(property.project_title || "")}" data-block="${escapeHtml(property.block_name || "")}" data-size="${escapeHtml(property.size_label || "")}" data-type="${escapeHtml(property.property_type || "")}" data-facing="${escapeHtml(property.property_facing || "")}" data-price="${filterPrice}" data-search="${escapeHtml(searchText)}" tabindex="0" role="button" aria-label="Edit ${escapeHtml(property.title)}">
       <img src="${escapeHtml(image)}" alt="" loading="lazy" />
       <div><h3>${escapeHtml(property.title)}</h3><p>${escapeHtml(property.city)}${property.block_name ? ` · ${escapeHtml(property.block_name)}` : ""}${property.project_title ? ` · ${escapeHtml(property.project_title)}` : ""}</p><strong>${escapeHtml(priceDisplay)}</strong> <span class="badge ${statusClass(property.status)}">${escapeHtml(property.status || "")}</span></div>
-      <div class="admin-row-actions"><button type="button" class="edit-listing" data-id="${property.property_id}">Edit</button><button type="button" class="delete-listing" data-id="${property.property_id}">Delete</button></div>
+      <div class="admin-row-actions"><button type="button" class="property-history-button" data-property-history-id="${property.property_id}" data-property-history-title="${escapeHtml(property.title)}">History</button><button type="button" class="edit-listing" data-id="${property.property_id}">Edit</button><button type="button" class="delete-listing" data-id="${property.property_id}">Delete</button></div>
     </article>`;
   }).join("");
 }

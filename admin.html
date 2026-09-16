@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="admin-app.css" />
   <link rel="stylesheet" href="ai-property-advisor.css" />
   <link rel="stylesheet" href="admin-dashboard-v2.css?v=20260908-2" />
+  <link rel="stylesheet" href="platform-v5-admin.css?v=20260911" />
 </head>
 <body class="admin-body">
   <header class="admin-header">
@@ -52,6 +53,9 @@
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="aiAdvisorWorkspace" role="tab" aria-selected="false">AI Property Advisor</button></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="addressesWorkspace" data-default-subview="list" role="tab" aria-selected="false">Office Addresses <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="addressesWorkspace" data-target="adminOfficeAddressList" data-subview="list">View Addresses</button><button type="button" data-workspace="addressesWorkspace" data-target="officeAddressForm" data-reset="address" data-subview="form">Add Address</button></div></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="loginUsersWorkspace" data-default-subview="list" role="tab" aria-selected="false">Login Users <span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="loginUsersWorkspace" data-target="adminLoginUserList" data-subview="list">View Users</button><button type="button" data-workspace="loginUsersWorkspace" data-target="loginUserForm" data-reset="user" data-subview="form">Add User</button></div></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="siteVisitsWorkspace" role="tab" aria-selected="false">Site Visits</button></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="reportsWorkspace" role="tab" aria-selected="false">Reports & Analytics</button></div>
+        <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="auditWorkspace" role="tab" aria-selected="false">Audit Log</button></div>
         <div class="admin-menu-group"><button class="admin-tab" type="button" data-workspace="rolesWorkspace" role="tab" aria-selected="false">Roles & Permissions</button></div>
         <div class="admin-menu-group"><button class="admin-tab client-review-tab" type="button" data-workspace="submissionsWorkspace" role="tab" aria-selected="false">Client Submissions <span id="pendingSubmissionBadge"></span><span class="menu-chevron">⌄</span></button><div class="admin-submenu"><button type="button" data-workspace="submissionsWorkspace" data-target="adminSubmissionList">View Submissions</button><button type="button" data-workspace="submissionsWorkspace" data-target="submissionForm">Review Selected</button></div></div>
       </div>
@@ -111,7 +115,8 @@
             <input type="hidden" name="property_id" />
             <div class="two-column">
               <label>Listing title<input name="title" required placeholder="e.g. Sunlit modern villa" /></label>
-              <label>Price (USD)<input name="price" type="number" placeholder="850000" /><span class="field-hint">Optional — leave empty if using PKR</span></label>
+              <label>Total price (PKR)<input name="price_pkr" min="0" type="number" placeholder="3300000" required /><span class="field-hint">Primary listing price used throughout the website.</span></label>
+              <input name="price" type="hidden" value="" />
             </div>
             <div class="three-column">
               <label>Listing type<select name="listing_type" id="propertyListingType"><option value="sale">For sale</option><option value="rent">For rent</option><option value="installment">On Installments</option></select></label>
@@ -141,10 +146,9 @@
               <label class="baths-field">Bathrooms<input name="bathrooms" min="0" step="0.5" type="number" placeholder="2" /></label>
               <label>Area (sqft)<input name="area_sqft" min="0" type="number" placeholder="1900" /></label>
             </div>
-            <div class="three-column">
+            <div class="two-column">
               <label>Property size<select name="size_label" id="propertyMarlaSelect"><option value="">Choose Marla / size (optional)</option></select><span class="field-hint">Size categories are managed in Master Data.</span></label>
               <label>Facing / Type<input name="property_facing" maxlength="60" placeholder="Write anything, e.g. Corner, Main Boulevard" /></label>
-              <label>Total price (PKR)<input name="price_pkr" min="0" type="number" placeholder="3300000" /></label>
             </div>
             <div class="two-column">
               <label>Per Marla price (PKR)<input name="price_per_marla" min="0" type="number" placeholder="1250000" /></label>
@@ -202,6 +206,22 @@
           <a class="app-lead-filter" href="#submissionsWorkspace" data-app-target="submissionsWorkspace" data-app-tab="leads">Client submissions</a>
         </div>
         <div class="app-list" id="appLeadList"><p class="app-empty">Loading leads…</p></div>
+      </section>
+
+      <section id="siteVisitsWorkspace" class="admin-workspace app-screen" hidden>
+        <div class="app-screen-heading"><div><h2>Site Visits</h2><p>Confirm customer viewing requests and keep the CRM follow-up schedule synchronized.</p></div><span id="v5SiteVisitCount" class="more-status">0 visits</span></div>
+        <div id="v5SiteVisitList" class="v5-panel"><p class="v5-empty">Open this module to load visits.</p></div>
+      </section>
+
+      <section id="reportsWorkspace" class="admin-workspace app-screen" hidden>
+        <div class="app-screen-heading"><div><h2>Reports &amp; Analytics</h2><p>Live inventory, CRM, lead-source, site-visit and project performance summaries.</p></div><button class="button button-outline" type="button" onclick="window.HeeraPlatformV5Admin?.loadReports()">Refresh</button></div>
+        <div id="v5ReportsMetrics" class="v5-metric-grid"></div>
+        <div id="v5ReportsBody"><p class="v5-empty">Open this module to load reports.</p></div>
+      </section>
+
+      <section id="auditWorkspace" class="admin-workspace app-screen" hidden>
+        <div class="app-screen-heading"><div><h2>Audit Log</h2><p>Trace important property, project, CRM, account and client actions.</p></div><span id="v5AuditCount" class="more-status">Recent activity</span></div>
+        <div id="v5AuditList" class="v5-panel"><p class="v5-empty">Open this module to load audit events.</p></div>
       </section>
 
       <div id="projectsWorkspace" class="admin-workspace" data-subview="list" hidden>
@@ -500,9 +520,12 @@
           <a class="more-row" href="#galleryWorkspace" data-app-target="galleryWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-photo"></i></span><span><strong>Home Gallery</strong><small>Homepage images</small></span><i class="ti ti-chevron-right"></i></a>
           <a class="more-row" href="#popupsWorkspace" data-app-target="popupsWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-speakerphone"></i></span><span><strong>Important Updates</strong><small>Moving announcements above the landing-page header</small></span><i class="ti ti-chevron-right"></i></a>
           <a class="more-row" href="#submissionsWorkspace" data-app-target="submissionsWorkspace" data-app-tab="leads"><span class="more-row__icon"><i class="ti ti-clipboard-check"></i></span><span><strong>Client Submissions</strong><small>Review customer property requests</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#siteVisitsWorkspace" data-app-target="siteVisitsWorkspace" data-app-tab="leads"><span class="more-row__icon"><i class="ti ti-calendar-event"></i></span><span><strong>Site Visits</strong><small>Customer viewing requests, confirmation and follow-up</small></span><i class="ti ti-chevron-right"></i></a>
           <a class="more-row is-planned" href="#appMoreWorkspace" data-app-action="planned" data-message="Chatbot configuration is planned; chatbot lead capture already works."><span class="more-row__icon"><i class="ti ti-message-chatbot"></i></span><span><strong>Chatbot Config</strong><small>Conversation and lead settings</small></span><span class="more-status">Planned</span></a>
         </div></div>
         <div class="more-group"><h3>Settings</h3><div class="more-list">
+          <a class="more-row" href="#reportsWorkspace" data-app-target="reportsWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-chart-bar"></i></span><span><strong>Reports &amp; Analytics</strong><small>Inventory value, pipeline and source performance</small></span><i class="ti ti-chevron-right"></i></a>
+          <a class="more-row" href="#auditWorkspace" data-app-target="auditWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-history"></i></span><span><strong>Audit Log</strong><small>Who changed what and when</small></span><i class="ti ti-chevron-right"></i></a>
           <a class="more-row" href="#addressesWorkspace" data-app-target="addressesWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-map-pin"></i></span><span><strong>Office Addresses</strong><small>Branches, phones and map links</small></span><i class="ti ti-chevron-right"></i></a>
           <a class="more-row" href="#loginUsersWorkspace" data-app-target="loginUsersWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-user-shield"></i></span><span><strong>Authentication / Login Users</strong><small>Admin and client accounts</small></span><i class="ti ti-chevron-right"></i></a>
           <a class="more-row" href="#rolesWorkspace" data-app-target="rolesWorkspace" data-app-tab="more"><span class="more-row__icon"><i class="ti ti-lock-access"></i></span><span><strong>Roles & Permissions</strong><small>Control module access for admins, managers, agents, accountants and editors</small></span><i class="ti ti-chevron-right"></i></a>
@@ -535,6 +558,9 @@
           <a class="command-item" href="#masterDataWorkspace" data-app-target="masterDataWorkspace" data-app-tab="more"><i class="ti ti-database-edit"></i>Master Data</a>
           <a class="command-item" href="#digitalMapsWorkspace" data-app-target="digitalMapsWorkspace" data-app-tab="maps"><i class="ti ti-map"></i>Digital maps</a>
           <a class="command-item" href="plot-finder.html"><i class="ti ti-map-search"></i>Plot Finder</a>
+          <a class="command-item" href="#siteVisitsWorkspace" data-app-target="siteVisitsWorkspace" data-app-tab="leads"><i class="ti ti-calendar-event"></i>Site visits</a>
+          <a class="command-item" href="#reportsWorkspace" data-app-target="reportsWorkspace" data-app-tab="more"><i class="ti ti-chart-bar"></i>Reports & analytics</a>
+          <a class="command-item" href="#auditWorkspace" data-app-target="auditWorkspace" data-app-tab="more"><i class="ti ti-history"></i>Audit log</a>
           <a class="command-item" href="#submissionsWorkspace" data-app-target="submissionsWorkspace" data-app-tab="leads"><i class="ti ti-clipboard-check"></i>Client submissions</a>
           <a class="command-item" href="#agentsWorkspace" data-app-target="agentsWorkspace" data-app-tab="more"><i class="ti ti-users"></i>Agents</a>
           <a class="command-item" href="#loginUsersWorkspace" data-app-target="loginUsersWorkspace" data-app-tab="more"><i class="ti ti-user-shield"></i>Login users</a>
@@ -548,7 +574,8 @@
   <script src="admin-api.js?v=20260908-2"></script>
   <script src="admin.js?v=20260908-2"></script>
   <script src="ai-property-advisor.js"></script>
-  <script src="admin-app.js?v=20260908-2"></script>
+  <script src="platform-v5-admin.js?v=20260911"></script>
+  <script src="admin-app.js?v=20260911"></script>
   <script src="theme.js" defer></script>
 </body>
 </html>

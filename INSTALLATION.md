@@ -10,8 +10,8 @@ For Advanced Property Search on an existing database, import `advanced-search-mi
 
 1. Extract the complete `heera-chatbot` folder into `C:\xampp\htdocs\`.
 2. Start Apache and MySQL in XAMPP.
-3. For a new installation, import `database.sql`, `project-schema-repair.sql`, `project-data-stored-procedures.sql`, and `module-data-stored-procedures.sql` in that order.
-4. For an existing installation, back up the database and import `project-schema-repair.sql`, `project-data-stored-procedures.sql`, and `module-data-stored-procedures.sql` in that order. The repair is additive and does not remove project/property records.
+3. For a new installation, import `database.sql`, `project-schema-repair.sql`, `project-data-stored-procedures.sql`, and `module-data-stored-procedures.sql` in that order. Platform v5 tables are already included in `database.sql`.
+4. For an existing installation, back up the database and import `project-schema-repair.sql`, `project-data-stored-procedures.sql`, `module-data-stored-procedures.sql`, and then `platform-v5-migration.sql`. The repair is additive and does not remove project/property records.
 5. Keep `uploads/` and `maps/uploads/` writable. For client videos and map uploads, set `upload_max_filesize=110M`, `post_max_size=190M`, and `max_execution_time=300` in PHP and restart Apache.
 6. Open the site, sign in through the compact Login popup, and test Admin on desktop and mobile.
 
@@ -46,3 +46,7 @@ After backing up your database, import `structural-upgrade-v2.sql` in phpMyAdmin
 If an upgraded installation cannot save or display properties, import `project-schema-repair.sql` into the same database configured in `.env`, refresh the Admin page, and run **More → API & Database** again. The health check now reports every missing property column. Property media uploads also require PHP's `fileinfo` extension and a writable `uploads/` directory.
 
 The shared connection lives in `database-connection.php`. It uses the `HAVENLY_DB_HOST`, `HAVENLY_DB_PORT`, `HAVENLY_DB_NAME`, `HAVENLY_DB_USER`, and `HAVENLY_DB_PASSWORD` server variables, with standard XAMPP defaults. Every major Admin/public list module calls its `heera_v4_*` read procedure when installed and safely falls back to its prepared query if the procedure is unavailable. See `DATABASE-REBUILD-V4.md` for exact phpMyAdmin import and verification steps.
+
+## Platform v5 client/CRM/security setup
+
+Existing installations should import `platform-v5-migration.sql` once. It adds saved searches, site visits, CRM activity history, property price history, audit logging and password-reset tokens without changing Digital Maps. Configure `HEERA_PASSWORD_RESET_FROM` to a valid domain mailbox and keep `HEERA_PASSWORD_RESET_DEBUG=0` on production. See `PLATFORM-V5-UPGRADE.md`.

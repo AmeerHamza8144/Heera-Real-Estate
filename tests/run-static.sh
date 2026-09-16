@@ -8,3 +8,4 @@ echo "== JavaScript syntax =="
 while IFS= read -r -d '' file; do node --check "$file"; done < <(find . -maxdepth 1 -type f -name '*.js' -print0)
 echo "JavaScript syntax: OK"
 php tests/static-contracts.php
+php tests/platform-v5-contracts.php
