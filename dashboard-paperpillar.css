@@ -1,0 +1,130 @@
+
+/* ================================================================
+   Heera Estate — Paperpillar-inspired Admin Dashboard Refresh
+   Keeps the existing application/DOM and focuses on information
+   hierarchy, whitespace, cards, sidebar navigation and responsive UX.
+   ================================================================ */
+:root{
+  --hp-bg:#f7f7f4;
+  --hp-surface:#ffffff;
+  --hp-surface-2:#f1f2ee;
+  --hp-ink:#171a18;
+  --hp-muted:#777d78;
+  --hp-line:#e6e8e3;
+  --hp-gold:#b88735;
+  --hp-gold-2:#d7ad63;
+  --hp-green:#173d35;
+  --hp-green-2:#25594c;
+  --hp-danger:#b64b45;
+  --hp-shadow:0 14px 40px rgba(24,35,30,.06);
+  --hp-radius:18px;
+}
+.admin-body{background:var(--hp-bg)!important;color:var(--hp-ink)!important;font-family:"DM Sans",Arial,sans-serif!important}
+.admin-body .admin-header{height:70px!important;background:rgba(255,255,255,.92)!important;border-bottom:1px solid var(--hp-line)!important;padding:0 28px!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);position:sticky;top:0;z-index:100}
+.admin-body .admin-header .brand{gap:10px;font-size:17px;color:var(--hp-ink)}
+.admin-body .admin-header .brand-logo{height:42px;width:128px;border-radius:0;background:#070707;overflow:hidden;border-radius:7px;padding:3px 6px}
+.admin-body .admin-header .brand-logo img{object-fit:contain;object-position:left center}
+.admin-body .back-home{border:1px solid var(--hp-line);border-radius:11px;padding:9px 13px;font-size:11px;color:var(--hp-muted);background:#fff}
+.admin-body .back-home:hover{color:var(--hp-green);border-color:#cfd6d1}
+.admin-body main{max-width:none!important}
+.admin-body .dashboard{display:grid!important;grid-template-columns:248px minmax(0,1fr)!important;grid-template-rows:auto auto 1fr!important;gap:0 28px!important;max-width:1680px!important;min-height:calc(100dvh - 70px)!important;margin:0 auto!important;padding:24px 30px 50px!important}
+.admin-body .dashboard-topbar{grid-column:2;grid-row:1;position:static!important;background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;margin:0 0 22px!important;padding:0!important;backdrop-filter:none!important}
+.admin-body .dashboard-topbar h1{font-size:30px!important;font-weight:700!important;letter-spacing:-.04em!important;color:var(--hp-ink)!important}
+.admin-body .app-title-group .eyebrow{font-size:10px!important;color:var(--hp-muted)!important;letter-spacing:.11em!important;margin-bottom:6px!important}
+.admin-body .dashboard-actions{background:#fff!important;border:1px solid var(--hp-line)!important;border-radius:14px!important;box-shadow:0 8px 24px rgba(24,35,30,.04)!important;padding:6px!important;gap:5px!important}
+.admin-body .dashboard-actions #adminName{font-size:11px;color:var(--hp-muted)}
+.admin-body .app-icon-button{border:0!important;background:#f5f6f3!important;color:var(--hp-green)!important;border-radius:10px!important}
+.admin-body .app-icon-button:hover{background:#ecefe9!important}
+.admin-body .dashboard-actions #logoutButton{background:var(--hp-green)!important;color:#fff!important;border-radius:10px!important}
+
+/* Desktop module sidebar */
+@media(min-width:1025px){
+  .admin-body .admin-tabs{display:flex!important;grid-column:1;grid-row:1/4;align-self:start;min-height:calc(100dvh - 118px);position:sticky;top:94px!important;margin:0!important;padding:18px 12px!important;border-radius:22px!important;background:#fff!important;border:1px solid var(--hp-line)!important;box-shadow:var(--hp-shadow)!important;overflow:auto;scrollbar-width:thin}
+  .admin-body .admin-tabs:before{content:"HEERA ESTATE";display:block;color:var(--hp-green);font-size:11px;font-weight:800;letter-spacing:.16em;padding:4px 12px 15px;border-bottom:1px solid var(--hp-line);margin-bottom:8px}
+  .admin-body .admin-menu-group{display:block!important}
+  .admin-body .admin-tab{min-height:42px!important;border:0!important;border-radius:11px!important;background:transparent!important;color:#68716c!important;padding:0 12px!important;font-size:11px!important;font-weight:700!important;justify-content:flex-start!important;text-align:left!important;transition:.18s ease}
+  .admin-body .admin-tab:hover{background:#f3f5f1!important;color:var(--hp-green)!important}
+  .admin-body .admin-tab.active{background:#edf3ef!important;color:var(--hp-green)!important;box-shadow:none!important}
+  .admin-body .admin-submenu{background:#fafbf9!important;border-left:2px solid #e4e9e5!important;margin:2px 8px 5px 17px!important;border-radius:0 10px 10px 0!important;padding:3px!important}
+  .admin-body .admin-submenu button{border:0!important;background:transparent!important;color:#858b87!important;border-radius:8px!important;font-size:10px!important;text-align:left!important;padding:7px 9px!important;width:100%!important}
+  .admin-body .admin-submenu button:hover{background:#eef2ed!important;color:var(--hp-green)!important}
+  .admin-body .dashboard-overview{display:grid!important;grid-column:2;grid-row:2;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 20px!important}
+  .admin-body .dashboard-overview article{background:var(--hp-surface)!important;border:1px solid var(--hp-line)!important;border-radius:16px!important;box-shadow:none!important;padding:16px 17px!important}
+  .admin-body .dashboard-overview span{color:var(--hp-muted)!important;font-size:10px!important;font-weight:700!important}
+  .admin-body .dashboard-overview strong{color:var(--hp-ink)!important;font-size:28px!important;letter-spacing:-.04em;margin:7px 0 5px!important}
+  .admin-body .dashboard-overview small{color:#9a9f9b!important;font-size:9px!important}
+  .admin-body .admin-workspace{grid-column:2!important;grid-row:3!important}
+  .admin-body .admin-app-nav{display:none!important}
+}
+
+/* Main dashboard cards */
+.admin-body .app-screen-heading{margin:0 0 13px!important}
+.admin-body .app-screen-heading h2{font-size:19px!important;letter-spacing:-.025em;color:var(--hp-ink)!important}
+.admin-body .app-screen-heading p{color:var(--hp-muted)!important;font-size:11px!important}
+.admin-body .app-stat-strip{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px!important;margin:0 0 18px!important;padding:0!important;overflow:visible!important}
+.admin-body .stat-card{min-width:0!important;flex:auto!important;background:#fff!important;border:1px solid var(--hp-line)!important;border-radius:17px!important;box-shadow:none!important;padding:17px!important;position:relative;overflow:hidden}
+.admin-body .stat-card:after{background:linear-gradient(135deg,rgba(184,135,53,.12),transparent)!important;width:120px!important;height:120px!important}
+.admin-body .stat-card__icon{width:36px!important;height:36px!important;border-radius:10px!important;background:#f1f3ef!important;color:var(--hp-green)!important;margin-bottom:16px!important}
+.admin-body .stat-card strong{font-size:29px!important;color:var(--hp-ink)!important}
+.admin-body .stat-card span{color:var(--hp-muted)!important}
+.admin-body .stat-card small{color:#999f9a!important}
+.admin-body .stat-card--lead .stat-card__icon{background:#f9efec!important;color:var(--hp-danger)!important}
+.admin-body .stat-card--submission .stat-card__icon{background:#fbf4e7!important;color:var(--hp-gold)!important}
+.admin-body .stat-card--project .stat-card__icon{background:#eaf2ed!important;color:var(--hp-green)!important}
+.admin-body .dashboard-health-card{background:var(--hp-green)!important;border:0!important;border-radius:20px!important;box-shadow:0 18px 42px rgba(23,61,53,.14)!important;padding:22px!important;margin:0 0 20px!important}
+.admin-body .dashboard-health-heading h2{color:#fff!important;font-size:19px!important}
+.admin-body .dashboard-health-heading p{color:rgba(255,255,255,.62)!important}
+.admin-body .dashboard-health-heading .eyebrow{color:#d8b66e!important}
+.admin-body .dashboard-health-heading .button{border:0!important;background:#fff!important;color:var(--hp-green)!important;border-radius:10px!important}
+.admin-body .dashboard-health-grid{gap:9px!important;margin-top:18px!important}
+.admin-body .dashboard-health-grid article{background:rgba(255,255,255,.07)!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:13px!important;padding:12px!important}
+.admin-body .quick-actions-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:10px!important}
+.admin-body .quick-tile{min-height:88px!important;background:#fff!important;border:1px solid var(--hp-line)!important;border-radius:15px!important;box-shadow:none!important;color:var(--hp-ink)!important}
+.admin-body .quick-tile i{background:#f2f3ef!important;color:var(--hp-green)!important;border-radius:10px!important}
+.admin-body .quick-tile:hover{border-color:#d5d9d4!important;box-shadow:0 10px 26px rgba(24,35,30,.07)!important;transform:translateY(-2px)!important}
+
+/* All module panels */
+.admin-body .listing-manager,.admin-body .editor-panel,.admin-body .gallery-manager-panel,.admin-body .v5-panel,.admin-body .app-panel{background:#fff!important;border:1px solid var(--hp-line)!important;border-radius:18px!important;box-shadow:none!important}
+.admin-body .manager-heading,.admin-body .editor-heading{border-bottom:1px solid var(--hp-line)!important;padding-bottom:14px!important}
+.admin-body .manager-heading h2,.admin-body .editor-heading h2{font-size:18px!important;color:var(--hp-ink)!important}
+.admin-body .admin-property{background:#fff!important;border-bottom:1px solid #eff0ed!important;border-radius:0!important;padding:11px 2px!important}
+.admin-body .admin-property>img{border-radius:10px!important}
+.admin-body .property-form input,.admin-body .property-form select,.admin-body .property-form textarea{background:#fafbf9!important;border:1px solid #e0e4df!important;border-radius:10px!important;color:var(--hp-ink)!important}
+.admin-body .property-form input:focus,.admin-body .property-form select:focus,.admin-body .property-form textarea:focus{border-color:#c7a35f!important;box-shadow:0 0 0 3px rgba(184,135,53,.11)!important}
+.admin-body .button-primary{background:var(--hp-green)!important;border-color:var(--hp-green)!important;border-radius:10px!important}
+.admin-body .button-outline{border-radius:10px!important}
+.admin-body .v5-metric{border:1px solid var(--hp-line)!important;box-shadow:none!important;border-radius:15px!important}
+.admin-body .v5-panel{padding:17px!important}
+.admin-body .v5-table th{color:#8b918d!important}
+.admin-body .v5-table td{border-bottom-color:#eff1ee!important}
+.admin-body .v5-badge{background:#f1f3ef!important;color:#52625b!important}
+
+/* Logo inside admin lists / fallback images */
+.admin-body img[src*="heera-logo.png"]{object-fit:contain!important;background:transparent!important}
+
+@media(max-width:1024px){
+  .admin-body .dashboard{display:block!important;padding:16px 14px 90px!important;min-height:calc(100dvh - 58px)!important}
+  .admin-body .admin-tabs{display:none!important}
+  .admin-body .admin-app-nav{display:flex!important}
+  .admin-body .dashboard-topbar{margin:0 -14px 15px!important;padding:8px 14px 12px!important;position:sticky!important;top:58px!important;background:rgba(247,247,244,.94)!important;border-bottom:1px solid var(--hp-line)!important;z-index:40}
+  .admin-body .dashboard-overview{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px!important;margin-bottom:15px!important}
+  .admin-body .app-stat-strip{display:flex!important;overflow-x:auto!important;padding-bottom:4px!important}
+  .admin-body .stat-card{flex:0 0 min(73vw,230px)!important}
+  .admin-body .quick-actions-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+}
+@media(max-width:650px){
+  .admin-body .admin-header{height:58px!important;padding:0 13px!important}
+  .admin-body .admin-header .brand-logo{height:34px;width:105px}
+  .admin-body .back-home{font-size:0;padding:8px 10px}.admin-body .back-home:before{content:"↗";font-size:15px}
+  .admin-body .dashboard-topbar h1{font-size:24px!important}
+  .admin-body .dashboard-overview{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .admin-body .dashboard-health-heading{align-items:stretch!important}
+  .admin-body .dashboard-health-grid{grid-template-columns:1fr!important}
+  .admin-body .quick-actions-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .admin-body .quick-tile{min-height:76px!important;font-size:9px!important}
+  .admin-body .dashboard{padding-left:10px!important;padding-right:10px!important}
+}
+@media(max-width:420px){
+  .admin-body .quick-actions-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .admin-body .dashboard-overview strong{font-size:23px!important}
+}
